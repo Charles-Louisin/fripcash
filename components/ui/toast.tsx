@@ -83,8 +83,8 @@ function ToastItem({
     <div
       className={`flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all duration-300 ${bgColors[t.type]} ${
         visible && !exiting
-          ? "opacity-100 translate-y-0"
-          : "opacity-0 translate-y-2"
+          ? "opacity-100 translate-x-0"
+          : "opacity-0 translate-x-4"
       }`}
     >
       <span className="shrink-0">{icons[t.type]}</span>
@@ -122,8 +122,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast: addToast, showToast: addToast }}>
       {children}
-      {/* Toast container — fixed bottom-center */}
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 w-[90%] max-w-sm pointer-events-none">
+      {/* Toast container — fixed top-right */}
+      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 w-[90%] max-w-sm pointer-events-none">
         {toasts.map((t) => (
           <div key={t.id} className="pointer-events-auto">
             <ToastItem toast={t} onRemove={removeToast} />
