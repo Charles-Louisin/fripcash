@@ -415,15 +415,17 @@ export function Header() {
               variant="outline"
               size="sm"
               className="text-sm font-medium"
+              asChild
             >
-              S&apos;inscrire | Se connecter
+              <Link href="/connexion">S&apos;inscrire | Se connecter</Link>
             </Button>
 
             <Button
               size="sm"
               className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-sm"
+              asChild
             >
-              Vends tes articles
+              <Link href="/inscription">Vends tes articles</Link>
             </Button>
 
             <Button

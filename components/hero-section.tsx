@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,12 +39,12 @@ export function HeroSection() {
 
           <div className="flex flex-col sm:flex-row items-start gap-4 mt-10">
             {/* Primary CTA */}
-            <button className="group flex items-center gap-3 bg-primary hover:bg-primary/90 text-white font-semibold text-base pl-7 pr-2 h-13 rounded-full transition-colors">
+            <Link href="/inscription" className="group flex items-center gap-3 bg-primary hover:bg-primary/90 text-white font-semibold text-base pl-7 pr-2 h-13 rounded-full transition-colors">
               Commencer à vendre
               <span className="flex items-center justify-center h-9 w-9 rounded-full bg-white text-primary transition-transform group-hover:translate-x-0.5">
                 <FiArrowRight className="h-4 w-4" />
               </span>
-            </button>
+            </Link>
 
             {/* How it works - opens dialog */}
             <Dialog>
@@ -119,9 +120,11 @@ export function HeroSection() {
                   </div>
                 </div>
 
-                <Button className="w-full rounded-full h-11 font-semibold gap-2">
-                  Commencer à vendre
-                  <FiArrowRight className="h-4 w-4" />
+                <Button className="w-full rounded-full h-11 font-semibold gap-2" asChild>
+                  <Link href="/inscription">
+                    Commencer à vendre
+                    <FiArrowRight className="h-4 w-4" />
+                  </Link>
                 </Button>
               </DialogContent>
             </Dialog>

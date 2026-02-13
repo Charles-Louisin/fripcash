@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FiArrowRight } from "react-icons/fi";
 
 export function CtaSection() {
@@ -22,16 +23,16 @@ export function CtaSection() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 mt-8">
-            <button className="group flex items-center gap-3 bg-white hover:bg-white/95 text-primary font-semibold text-base pl-7 pr-2 h-13 rounded-full transition-colors">
+            <Link href="/inscription" className="group flex items-center gap-3 bg-white hover:bg-white/95 text-primary font-semibold text-base pl-7 pr-2 h-13 rounded-full transition-colors">
               Commencer à vendre
               <span className="flex items-center justify-center h-9 w-9 rounded-full bg-primary text-white transition-transform group-hover:translate-x-0.5">
                 <FiArrowRight className="h-4 w-4" />
               </span>
-            </button>
+            </Link>
 
-            <button className="text-white/90 hover:text-white text-sm font-medium underline underline-offset-4 transition-colors">
+            <Link href="/eco-responsabilite" className="text-white/90 hover:text-white text-sm font-medium underline underline-offset-4 transition-colors">
               En savoir plus
-            </button>
+            </Link>
           </div>
         </div>
       </div>

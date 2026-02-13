@@ -80,15 +80,16 @@ export function AppSheet() {
 
             {/* Actions */}
             <div className="px-6 space-y-3">
-              <Button className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base rounded-full">
-                Vends tes articles
+              <Button className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base rounded-full" asChild>
+                <Link href="/inscription">Vends tes articles</Link>
               </Button>
 
               <Button
                 variant="outline"
                 className="w-full h-12 font-semibold text-base text-primary border-primary hover:bg-primary/5 rounded-full"
+                asChild
               >
-                S&apos;inscrire | Se connecter
+                <Link href="/connexion">S&apos;inscrire | Se connecter</Link>
               </Button>
             </div>
 
