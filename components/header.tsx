@@ -384,7 +384,7 @@ export function Header() {
               alt="FripCash"
               width={500}
               height={500}
-              className="h-14 w-auto"
+              className="h-28 w-auto"
               priority
             />
           </Link>
@@ -528,9 +528,9 @@ export function Header() {
             <Image
               src="/images/logo.png"
               alt="FripCash"
-              width={120}
-              height={120}
-              className=""
+              width={500}
+              height={500}
+              className="h-24 w-auto"
               priority
             />
           </Link>
