@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "@/components/ui/toast";
+import { useCartStore } from "@/stores/cart-store";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { AppSheet } from "@/components/app-sheet";
@@ -159,6 +160,22 @@ export default function ArticleDetailPage() {
   const id = params.id as string;
   const product = mockProducts[id] ?? { ...fallbackProduct, id: Number(id) || 0 };
   const { toast } = useToast();
+  const { addItem, openCart } = useCartStore();
+
+  const handleAddToCart = () => {
+    addItem({
+      id: product.id,
+      image: product.image,
+      brand: product.brand,
+      condition: product.condition,
+      size: product.size,
+      price: product.price,
+      priceWithShipping: product.priceWithShipping,
+      href: product.href,
+    });
+    toast("Article ajouté au panier !", "success");
+    openCart();
+  };
 
   const [selectedImage, setSelectedImage] = useState(0);
   const [liked, setLiked] = useState(false);
@@ -426,10 +443,10 @@ export default function ArticleDetailPage() {
                   Faire une offre
                 </button>
                 <button
-                  onClick={() => toast("Redirection vers le paiement...", "info")}
+                  onClick={handleAddToCart}
                   className="flex-1 h-12 rounded-full bg-primary text-primary-foreground font-semibold text-base hover:bg-primary/90 transition-colors"
                 >
-                  Acheter
+                  Ajouter au panier
                 </button>
               </div>
 
@@ -581,10 +598,10 @@ export default function ArticleDetailPage() {
           Faire une offre
         </button>
         <button
-          onClick={() => toast("Redirection vers le paiement...", "info")}
+          onClick={handleAddToCart}
           className="flex-1 h-12 rounded-full bg-primary text-primary-foreground font-semibold text-base hover:bg-primary/90 transition-colors"
         >
-          Acheter
+          Ajouter au panier
         </button>
       </div>
 

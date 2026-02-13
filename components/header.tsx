@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useUIStore } from "@/stores/ui-store";
+import { useCartStore } from "@/stores/cart-store";
+import { CartSheet } from "@/components/cart-sheet";
 import {
   FiSearch,
   FiMenu,
@@ -14,6 +16,7 @@ import {
   FiGlobe,
   FiBell,
   FiHeart,
+  FiShoppingBag,
 } from "react-icons/fi";
 import {
   GiDress,
@@ -341,6 +344,10 @@ const navCategories = categories.map((c) => ({ label: c.label, href: c.href }));
 
 export function Header() {
   const openSheet = useUIStore((state) => state.openSheet);
+  const { openCart, itemCount } = useCartStore();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const cartCount = mounted ? itemCount() : 0;
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [activeSubGroup, setActiveSubGroup] = useState<string | null>(null);
   const closeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -426,6 +433,21 @@ export function Header() {
               asChild
             >
               <Link href="/inscription">Vends tes articles</Link>
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="relative"
+              onClick={openCart}
+            >
+              <FiShoppingBag className="h-5 w-5" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex items-center justify-center h-4.5 w-4.5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                  {cartCount > 99 ? "99+" : cartCount}
+                </span>
+              )}
+              <span className="sr-only">Panier</span>
             </Button>
 
             <Button
@@ -549,6 +571,21 @@ export function Header() {
             <Button
               variant="ghost"
               size="icon"
+              className="relative"
+              onClick={openCart}
+            >
+              <FiShoppingBag className="h-5 w-5" />
+              {cartCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4.5 w-4.5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                  {cartCount > 99 ? "99+" : cartCount}
+                </span>
+              )}
+              <span className="sr-only">Panier</span>
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => openSheet("menu")}
             >
               <FiMenu className="h-6 w-6" />
@@ -598,6 +635,9 @@ export function Header() {
           </nav>
         </div>
       </div>
+
+      {/* Cart drawer */}
+      <CartSheet />
     </header>
   );
 }
