@@ -120,12 +120,20 @@ export function HeroSection() {
                   </div>
                 </div>
 
-                <Button className="w-full rounded-full h-11 font-semibold gap-2" asChild>
-                  <Link href="/inscription">
-                    Commencer à vendre
-                    <FiArrowRight className="h-4 w-4" />
+                <div className="flex flex-col gap-3">
+                  <Button className="w-full rounded-full h-11 font-semibold gap-2" asChild>
+                    <Link href="/inscription">
+                      Commencer à vendre
+                      <FiArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Link
+                    href="/comment-ca-marche"
+                    className="text-sm text-center font-medium text-primary hover:underline"
+                  >
+                    Voir le guide complet
                   </Link>
-                </Button>
+                </div>
               </DialogContent>
             </Dialog>
           </div>

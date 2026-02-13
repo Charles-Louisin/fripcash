@@ -121,9 +121,9 @@ export function Footer() {
 
             {/* Comment ça marche */}
             <div>
-              <h3 className="text-lg font-bold mb-3 text-foreground">
+              <Link href="/comment-ca-marche" className="text-lg font-bold mb-3 text-foreground hover:text-primary transition-colors block">
                 Comment ça marche
-              </h3>
+              </Link>
               <ul className="space-y-2">
                 <li>
                   <Link
