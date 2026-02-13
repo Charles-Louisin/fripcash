@@ -69,8 +69,12 @@ export default function CommentCaMarchePage() {
                     src="/images/how-it-works/how-to-sell-step1.png"
                     alt="Prendre une photo d'un vêtement"
                     fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    quality={90}
+                    unoptimized
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
+                  <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors duration-300" />
                   <div className="absolute top-3 left-3 flex items-center justify-center h-8 w-8 rounded-full bg-primary text-white text-sm font-bold">
                     1
                   </div>
@@ -97,8 +101,12 @@ export default function CommentCaMarchePage() {
                     src="/images/how-it-works/how-to-sell-step2.png"
                     alt="Emballer et envoyer un colis"
                     fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    quality={90}
+                    unoptimized
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
+                  <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors duration-300" />
                   <div className="absolute top-3 left-3 flex items-center justify-center h-8 w-8 rounded-full bg-primary text-white text-sm font-bold">
                     2
                   </div>
@@ -125,8 +133,12 @@ export default function CommentCaMarchePage() {
                     src="/images/how-it-works/how-to-sell-step3.png"
                     alt="Recevoir de l'argent"
                     fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    quality={90}
+                    unoptimized
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
+                  <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors duration-300" />
                   <div className="absolute top-3 left-3 flex items-center justify-center h-8 w-8 rounded-full bg-primary text-white text-sm font-bold">
                     3
                   </div>
@@ -167,8 +179,12 @@ export default function CommentCaMarchePage() {
                     src="/images/how-it-works/shopping-step1.png"
                     alt="Parcourir des vêtements"
                     fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    quality={90}
+                    unoptimized
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
+                  <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors duration-300" />
                   <div className="absolute top-3 left-3 flex items-center justify-center h-8 w-8 rounded-full bg-primary text-white text-sm font-bold">
                     1
                   </div>
@@ -195,8 +211,12 @@ export default function CommentCaMarchePage() {
                     src="/images/how-it-works/shopping-step2.png"
                     alt="Payer en ligne en toute sécurité"
                     fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    quality={90}
+                    unoptimized
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
+                  <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors duration-300" />
                   <div className="absolute top-3 left-3 flex items-center justify-center h-8 w-8 rounded-full bg-primary text-white text-sm font-bold">
                     2
                   </div>
@@ -223,8 +243,12 @@ export default function CommentCaMarchePage() {
                     src="/images/how-it-works/shopping-step3.png"
                     alt="Recevoir un colis à la maison"
                     fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    quality={90}
+                    unoptimized
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
+                  <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors duration-300" />
                   <div className="absolute top-3 left-3 flex items-center justify-center h-8 w-8 rounded-full bg-primary text-white text-sm font-bold">
                     3
                   </div>
