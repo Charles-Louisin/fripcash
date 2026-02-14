@@ -339,6 +339,7 @@ export interface DashboardUser {
   reviewsCount: number;
   salesCount: number;
   purchasesCount: number;
+  articlesCount: number;
   walletBalance: number;
 }
 
@@ -354,6 +355,7 @@ export const mockCurrentUser: DashboardUser = {
   reviewsCount: 32,
   salesCount: 18,
   purchasesCount: 7,
+  articlesCount: 24,
   walletBalance: 45600,
 };
 
