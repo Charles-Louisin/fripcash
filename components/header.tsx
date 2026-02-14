@@ -351,6 +351,20 @@ export function Header() {
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [activeSubGroup, setActiveSubGroup] = useState<string | null>(null);
   const closeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [searchMode, setSearchMode] = useState<"articles" | "membres">("articles");
+  const [searchDropOpen, setSearchDropOpen] = useState(false);
+  const searchDropRef = useRef<HTMLDivElement>(null);
+
+  // Close search dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchDropRef.current && !searchDropRef.current.contains(e.target as Node)) {
+        setSearchDropOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const openMega = (catLabel: string) => {
     if (closeTimeout.current) clearTimeout(closeTimeout.current);
@@ -385,33 +399,54 @@ export function Header() {
       <div className="hidden lg:block border-b">
         <div className="container mx-auto flex h-16 items-center gap-4 px-4">
           {/* Logo */}
-          <Link href="/" className="shrink-0">
+          <Link href="/" className="shrink-0 -my-12">
             <Image
               src="/images/logo.png"
               alt="FripCash"
               width={500}
               height={500}
-              className="h-28 w-auto"
+              className="h-36 w-auto"
               priority
             />
           </Link>
 
-          {/* Articles link + Search bar */}
-          <div className="flex items-center gap-3 flex-1 max-w-2xl">
-            <Link
-              href="/produits"
-              className="inline-flex items-center gap-1 shrink-0 text-sm font-medium h-9 px-3 rounded-md border border-input bg-background hover:bg-muted transition-colors"
-            >
-              Articles
-              <FiChevronDown className="h-4 w-4" />
-            </Link>
+          {/* Search mode dropdown + Search bar */}
+          <div className="flex items-center flex-1 max-w-2xl">
+            <div ref={searchDropRef} className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setSearchDropOpen(!searchDropOpen)}
+                className="inline-flex items-center gap-1.5 text-sm font-medium h-9 px-3 rounded-l-md border border-r-0 border-input bg-background hover:bg-muted transition-colors"
+              >
+                {searchMode === "articles" ? "Articles" : "Membres"}
+                <FiChevronDown className={`h-3.5 w-3.5 transition-transform ${searchDropOpen ? "rotate-180" : ""}`} />
+              </button>
+              {searchDropOpen && (
+                <div className="absolute top-full left-0 mt-1 w-36 bg-background border border-border rounded-lg shadow-lg z-50 py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <button
+                    type="button"
+                    onClick={() => { setSearchMode("articles"); setSearchDropOpen(false); }}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${searchMode === "articles" ? "font-semibold text-foreground bg-muted/50" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                  >
+                    Articles
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setSearchMode("membres"); setSearchDropOpen(false); }}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${searchMode === "membres" ? "font-semibold text-foreground bg-muted/50" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                  >
+                    Membres
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div className="relative flex-1">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Rechercher des articles"
-                className="pl-9 h-9 bg-muted/50 border-input"
+                placeholder={searchMode === "articles" ? "Rechercher des articles" : "Rechercher des membres"}
+                className="pl-9 h-9 bg-muted/50 border-input rounded-l-none"
               />
             </div>
           </div>
@@ -433,6 +468,17 @@ export function Header() {
               asChild
             >
               <Link href="/inscription">Vends tes articles</Link>
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              asChild
+            >
+              <Link href="/dashboard/favoris">
+                <FiHeart className="h-5 w-5" />
+                <span className="sr-only">Favoris</span>
+              </Link>
             </Button>
 
             <Button
@@ -546,13 +592,13 @@ export function Header() {
       <div className="lg:hidden">
         {/* Row 1: Logo left, icons right */}
         <div className="flex items-center justify-between h-16 px-4 border-b">
-          <Link href="/" className="shrink-0">
+          <Link href="/" className="shrink-0 -my-10">
             <Image
               src="/images/logo.png"
               alt="FripCash"
               width={500}
               height={500}
-              className="h-24 w-auto"
+              className="h-32 w-auto"
               priority
             />
           </Link>
@@ -563,9 +609,11 @@ export function Header() {
               <span className="sr-only">Notifications</span>
             </Button>
 
-            <Button variant="ghost" size="icon">
-              <FiHeart className="h-5 w-5" />
-              <span className="sr-only">Favoris</span>
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/dashboard/favoris">
+                <FiHeart className="h-5 w-5" />
+                <span className="sr-only">Favoris</span>
+              </Link>
             </Button>
 
             <Button
@@ -594,22 +642,43 @@ export function Header() {
           </div>
         </div>
 
-        {/* Row 2: Articles link + Search bar */}
-        <div className="flex items-center gap-2 px-4 py-2 border-b">
-          <Link
-            href="/produits"
-            className="inline-flex items-center gap-1 shrink-0 text-sm font-medium h-9 px-3 rounded-md border border-input bg-background hover:bg-muted transition-colors"
-          >
-            Articles
-            <FiChevronDown className="h-4 w-4" />
-          </Link>
+        {/* Row 2: Search mode dropdown + Search bar */}
+        <div className="flex items-center px-4 py-2 border-b">
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setSearchDropOpen(!searchDropOpen)}
+              className="inline-flex items-center gap-1 text-sm font-medium h-9 px-3 rounded-l-md border border-r-0 border-input bg-background hover:bg-muted transition-colors"
+            >
+              {searchMode === "articles" ? "Articles" : "Membres"}
+              <FiChevronDown className={`h-3.5 w-3.5 transition-transform ${searchDropOpen ? "rotate-180" : ""}`} />
+            </button>
+            {searchDropOpen && (
+              <div className="absolute top-full left-0 mt-1 w-36 bg-background border border-border rounded-lg shadow-lg z-50 py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                <button
+                  type="button"
+                  onClick={() => { setSearchMode("articles"); setSearchDropOpen(false); }}
+                  className={`w-full text-left px-3 py-2 text-sm transition-colors ${searchMode === "articles" ? "font-semibold text-foreground bg-muted/50" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                >
+                  Articles
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSearchMode("membres"); setSearchDropOpen(false); }}
+                  className={`w-full text-left px-3 py-2 text-sm transition-colors ${searchMode === "membres" ? "font-semibold text-foreground bg-muted/50" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                >
+                  Membres
+                </button>
+              </div>
+            )}
+          </div>
 
           <div className="relative flex-1">
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Rechercher des articles"
-              className="pl-9 h-9 bg-muted/50 border-input"
+              placeholder={searchMode === "articles" ? "Rechercher des articles" : "Rechercher des membres"}
+              className="pl-9 h-9 bg-muted/50 border-input rounded-l-none"
             />
           </div>
         </div>

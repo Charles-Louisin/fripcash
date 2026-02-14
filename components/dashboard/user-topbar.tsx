@@ -1,6 +1,7 @@
 "use client";
 
-import { FiMenu, FiBell, FiSidebar } from "react-icons/fi";
+import { useState, useRef, useEffect } from "react";
+import { FiMenu, FiBell, FiSidebar, FiSearch, FiChevronDown } from "react-icons/fi";
 import { mockConversations } from "@/lib/mock-data";
 import { useProfileStore } from "@/stores/profile-store";
 
@@ -13,6 +14,19 @@ interface UserTopbarProps {
 export function UserTopbar({ onMenuClick, collapsed, onToggleCollapse }: UserTopbarProps) {
   const totalUnread = mockConversations.reduce((sum, c) => sum + c.unread, 0);
   const { avatar, name } = useProfileStore();
+  const [searchMode, setSearchMode] = useState<"articles" | "membres">("articles");
+  const [dropOpen, setDropOpen] = useState(false);
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
+        setDropOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   return (
     <header className="h-14 border-b border-border bg-background flex items-center px-4 gap-3 shrink-0">
@@ -35,7 +49,45 @@ export function UserTopbar({ onMenuClick, collapsed, onToggleCollapse }: UserTop
         <FiSidebar className="h-5 w-5 text-muted-foreground" />
       </button>
 
-      <div className="flex-1" />
+      {/* Search bar with mode toggle */}
+      <div className="flex items-center flex-1 max-w-md">
+        <div ref={dropRef} className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setDropOpen(!dropOpen)}
+            className="inline-flex items-center gap-1 text-xs font-medium h-8 px-2.5 rounded-l-lg border border-r-0 border-input bg-background hover:bg-muted transition-colors"
+          >
+            {searchMode === "articles" ? "Articles" : "Membres"}
+            <FiChevronDown className={`h-3 w-3 transition-transform ${dropOpen ? "rotate-180" : ""}`} />
+          </button>
+          {dropOpen && (
+            <div className="absolute top-full left-0 mt-1 w-32 bg-background border border-border rounded-lg shadow-lg z-50 py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+              <button
+                type="button"
+                onClick={() => { setSearchMode("articles"); setDropOpen(false); }}
+                className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${searchMode === "articles" ? "font-semibold text-foreground bg-muted/50" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+              >
+                Articles
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSearchMode("membres"); setDropOpen(false); }}
+                className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${searchMode === "membres" ? "font-semibold text-foreground bg-muted/50" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+              >
+                Membres
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="relative flex-1">
+          <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="search"
+            placeholder={searchMode === "articles" ? "Rechercher des articles..." : "Rechercher des membres..."}
+            className="w-full h-8 pl-8 pr-3 rounded-r-lg border border-input bg-muted/30 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+          />
+        </div>
+      </div>
 
       {/* Notifications */}
       <button type="button" className="relative p-2 rounded-lg hover:bg-accent transition-colors">
