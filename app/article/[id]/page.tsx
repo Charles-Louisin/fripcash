@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "@/components/ui/toast";
@@ -25,6 +25,10 @@ import {
   FiCheck,
   FiMessageCircle,
   FiSend,
+  FiCamera,
+  FiX,
+  FiChevronDown,
+  FiImage,
 } from "react-icons/fi";
 import { IoStarSharp, IoStarOutline } from "react-icons/io5";
 
@@ -124,6 +128,7 @@ interface Review {
   rating: number;
   date: string;
   comment: string;
+  images?: string[];
 }
 
 const initialReviews: Review[] = [
@@ -134,6 +139,10 @@ const initialReviews: Review[] = [
     rating: 5,
     date: "Il y a 2 jours",
     comment: "Article conforme à la description, envoi rapide et bien emballé. Je recommande ce vendeur !",
+    images: [
+      "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=300&h=300&fit=crop",
+      "https://images.unsplash.com/photo-1556906781-9a412961c28c?w=300&h=300&fit=crop",
+    ],
   },
   {
     id: 2,
@@ -150,6 +159,72 @@ const initialReviews: Review[] = [
     rating: 5,
     date: "Il y a 2 semaines",
     comment: "Parfait ! Exactement comme sur les photos. Vendeur très réactif.",
+    images: [
+      "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=300&h=300&fit=crop",
+    ],
+  },
+  {
+    id: 4,
+    author: "Amina B.",
+    avatar: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=80&h=80&fit=crop&crop=face",
+    rating: 5,
+    date: "Il y a 3 semaines",
+    comment: "Trop contente de mon achat ! La qualité est au rendez-vous et le vendeur a été super réactif. Je recommande à 100%.",
+    images: [
+      "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=300&h=300&fit=crop",
+    ],
+  },
+  {
+    id: 5,
+    author: "Fabrice K.",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face",
+    rating: 3,
+    date: "Il y a 1 mois",
+    comment: "L'article est correct mais la taille ne correspondait pas exactement. Communication un peu lente avec le vendeur.",
+  },
+  {
+    id: 6,
+    author: "Marie-Claire D.",
+    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face",
+    rating: 5,
+    date: "Il y a 1 mois",
+    comment: "Magnifique ! L'article est comme neuf, livraison rapide. Je suis fan de cette plateforme.",
+  },
+  {
+    id: 7,
+    author: "Patrick O.",
+    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face",
+    rating: 4,
+    date: "Il y a 1 mois",
+    comment: "Très bon rapport qualité/prix. L'emballage était soigné. Petit délai de livraison mais rien de grave.",
+    images: [
+      "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&h=300&fit=crop",
+      "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=300&h=300&fit=crop",
+    ],
+  },
+  {
+    id: 8,
+    author: "Estelle N.",
+    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face",
+    rating: 2,
+    date: "Il y a 2 mois",
+    comment: "Déçue, l'article avait une tache non mentionnée dans l'annonce. Le vendeur a quand même été compréhensif pour le remboursement.",
+  },
+  {
+    id: 9,
+    author: "Yves T.",
+    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face",
+    rating: 5,
+    date: "Il y a 2 mois",
+    comment: "Super expérience du début à la fin. L'article est exactement comme décrit. Merci !",
+  },
+  {
+    id: 10,
+    author: "Chantal M.",
+    avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&h=80&fit=crop&crop=face",
+    rating: 4,
+    date: "Il y a 3 mois",
+    comment: "Bon achat dans l'ensemble. Article propre et bien entretenu. La couleur est légèrement différente de la photo.",
   },
 ];
 
@@ -188,6 +263,51 @@ export default function ArticleDetailPage() {
   const [reviewText, setReviewText] = useState("");
   const [reviewRating, setReviewRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
+  const [reviewImages, setReviewImages] = useState<string[]>([]);
+  const reviewImageInputRef = useRef<HTMLInputElement>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [reviewFilter, setReviewFilter] = useState<number>(0); // 0 = all, 1-5 = star filter
+  const [reviewsToShow, setReviewsToShow] = useState(3);
+  const REVIEWS_PER_PAGE = 3;
+
+  // Computed: rating breakdown
+  const ratingCounts = [5, 4, 3, 2, 1].map((star) => ({
+    star,
+    count: reviews.filter((r) => r.rating === star).length,
+  }));
+  const avgRating = reviews.length > 0 ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0;
+  const photosCount = reviews.filter((r) => r.images && r.images.length > 0).length;
+
+  // Computed: filtered + paginated reviews
+  const filteredReviews = reviewFilter === 0
+    ? reviews
+    : reviewFilter === -1
+      ? reviews.filter((r) => r.images && r.images.length > 0)
+      : reviews.filter((r) => r.rating === reviewFilter);
+  const paginatedReviews = filteredReviews.slice(0, reviewsToShow);
+  const hasMoreReviews = filteredReviews.length > reviewsToShow;
+
+  const handleReviewImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const remaining = 4 - reviewImages.length;
+    const toProcess = Array.from(files).slice(0, remaining);
+    toProcess.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        if (ev.target?.result) {
+          setReviewImages((prev) => [...prev, ev.target!.result as string]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+    // reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const removeReviewImage = (index: number) => {
+    setReviewImages((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handlePostReview = () => {
     if (!reviewText.trim() || reviewRating === 0) return;
@@ -198,10 +318,12 @@ export default function ArticleDetailPage() {
       rating: reviewRating,
       date: "À l'instant",
       comment: reviewText.trim(),
+      images: reviewImages.length > 0 ? [...reviewImages] : undefined,
     };
     setReviews((prev) => [newReview, ...prev]);
     setReviewText("");
     setReviewRating(0);
+    setReviewImages([]);
     toast("Ton avis a été publié !");
   };
 
@@ -460,19 +582,107 @@ export default function ArticleDetailPage() {
 
           {/* ─── Reviews ─── */}
           <section className="mt-16">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-foreground">
-                Avis ({reviews.length})
-              </h2>
-              <div className="flex items-center gap-1.5">
-                <IoStarSharp className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                <span className="font-semibold text-foreground">
-                  {reviews.length > 0
-                    ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
-                    : "—"}
-                </span>
-                <span className="text-sm text-muted-foreground">/ 5</span>
+            {/* Header with rating summary */}
+            <div className="flex flex-col sm:flex-row sm:items-start gap-6 mb-8">
+              {/* Left: big average score */}
+              <div className="flex flex-col items-center sm:items-start shrink-0">
+                <div className="text-5xl font-bold text-foreground tabular-nums">
+                  {avgRating > 0 ? avgRating.toFixed(1) : "—"}
+                </div>
+                <div className="flex items-center gap-0.5 mt-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <IoStarSharp
+                      key={star}
+                      className={`h-4 w-4 ${
+                        star <= Math.round(avgRating)
+                          ? "fill-yellow-400 text-yellow-400"
+                          : "fill-muted-foreground/20 text-muted-foreground/20"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {reviews.length} avis
+                </p>
               </div>
+
+              {/* Right: rating breakdown bars */}
+              <div className="flex-1 space-y-1.5">
+                {ratingCounts.map(({ star, count }) => {
+                  const pct = reviews.length > 0 ? (count / reviews.length) * 100 : 0;
+                  return (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => {
+                        setReviewFilter(reviewFilter === star ? 0 : star);
+                        setReviewsToShow(REVIEWS_PER_PAGE);
+                      }}
+                      className={`flex items-center gap-2 w-full group text-left transition-opacity ${
+                        reviewFilter !== 0 && reviewFilter !== star && reviewFilter !== -1 ? "opacity-40" : ""
+                      }`}
+                    >
+                      <span className="text-xs text-muted-foreground w-3 tabular-nums shrink-0">{star}</span>
+                      <IoStarSharp className="h-3 w-3 fill-yellow-400 text-yellow-400 shrink-0" />
+                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-yellow-400 rounded-full transition-all duration-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground w-6 text-right tabular-nums shrink-0">
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Filter pills */}
+            <div className="flex flex-wrap gap-2 mb-6">
+              <button
+                type="button"
+                onClick={() => { setReviewFilter(0); setReviewsToShow(REVIEWS_PER_PAGE); }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  reviewFilter === 0
+                    ? "bg-foreground text-background"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                Tous ({reviews.length})
+              </button>
+              {[5, 4, 3, 2, 1].map((star) => {
+                const cnt = ratingCounts.find((r) => r.star === star)?.count ?? 0;
+                if (cnt === 0) return null;
+                return (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => { setReviewFilter(reviewFilter === star ? 0 : star); setReviewsToShow(REVIEWS_PER_PAGE); }}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      reviewFilter === star
+                        ? "bg-foreground text-background"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {star} <IoStarSharp className="h-3 w-3 fill-yellow-400 text-yellow-400" /> ({cnt})
+                  </button>
+                );
+              })}
+              {photosCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setReviewFilter(reviewFilter === -1 ? 0 : -1); setReviewsToShow(REVIEWS_PER_PAGE); }}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    reviewFilter === -1
+                      ? "bg-foreground text-background"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  <FiImage className="h-3 w-3" /> Avec photos ({photosCount})
+                </button>
+              )}
             </div>
 
             {/* Write a review */}
@@ -513,16 +723,63 @@ export default function ArticleDetailPage() {
                   onChange={(e) => setReviewText(e.target.value)}
                   placeholder="Partage ton expérience avec cet article..."
                   rows={3}
-                  className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none pr-12"
+                  className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
                 />
-                <button
-                  onClick={handlePostReview}
-                  disabled={!reviewText.trim() || reviewRating === 0}
-                  className="absolute right-3 bottom-3 flex items-center justify-center h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <FiSend className="h-4 w-4" />
-                </button>
               </div>
+
+              {/* Image upload for review */}
+              <div className="mt-3">
+                {/* Image previews */}
+                {reviewImages.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {reviewImages.map((img, idx) => (
+                      <div key={idx} className="relative group w-16 h-16 rounded-lg overflow-hidden border border-border">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={img} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeReviewImage(idx)}
+                          className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                        >
+                          <FiX className="h-4 w-4 text-white" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between">
+                  {/* Add photo button */}
+                  <button
+                    type="button"
+                    onClick={() => reviewImageInputRef.current?.click()}
+                    disabled={reviewImages.length >= 4}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <FiCamera className="h-4 w-4" />
+                    <span>Ajouter une photo ({reviewImages.length}/4)</span>
+                  </button>
+                  <input
+                    ref={reviewImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleReviewImageUpload}
+                    className="hidden"
+                  />
+
+                  {/* Submit button */}
+                  <button
+                    onClick={handlePostReview}
+                    disabled={!reviewText.trim() || reviewRating === 0}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <FiSend className="h-3.5 w-3.5" />
+                    <span>Publier</span>
+                  </button>
+                </div>
+              </div>
+
               {reviewRating === 0 && reviewText.trim() && (
                 <p className="text-xs text-muted-foreground mt-1.5">
                   Sélectionne une note pour publier ton avis
@@ -532,46 +789,110 @@ export default function ArticleDetailPage() {
 
             {/* Review list */}
             <div className="space-y-4">
-              {reviews.map((review) => (
-                <div
-                  key={review.id}
-                  className="border border-border rounded-xl p-4"
-                >
-                  <div className="flex items-start gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={review.avatar}
-                      alt={review.author}
-                      className="w-10 h-10 rounded-full object-cover shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-foreground">
-                          {review.author}
-                        </p>
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          {review.date}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-0.5 mt-0.5 mb-2">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <IoStarSharp
-                            key={star}
-                            className={`h-3.5 w-3.5 ${
-                              star <= review.rating
-                                ? "fill-yellow-400 text-yellow-400"
-                                : "fill-muted-foreground/20 text-muted-foreground/20"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <p className="text-sm text-muted-foreground leading-relaxed">
-                        {review.comment}
-                      </p>
-                    </div>
-                  </div>
+              {filteredReviews.length === 0 ? (
+                <div className="text-center py-10">
+                  <p className="text-sm text-muted-foreground">
+                    Aucun avis pour ce filtre.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setReviewFilter(0); setReviewsToShow(REVIEWS_PER_PAGE); }}
+                    className="text-xs text-primary hover:underline mt-2"
+                  >
+                    Voir tous les avis
+                  </button>
                 </div>
-              ))}
+              ) : (
+                <>
+                  {paginatedReviews.map((review) => (
+                    <div
+                      key={review.id}
+                      className="border border-border rounded-xl p-4 transition-colors hover:border-border/80"
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={review.avatar}
+                          alt={review.author}
+                          className="w-10 h-10 rounded-full object-cover shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-foreground">
+                              {review.author}
+                            </p>
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {review.date}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-0.5 mt-0.5 mb-2">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <IoStarSharp
+                                key={star}
+                                className={`h-3.5 w-3.5 ${
+                                  star <= review.rating
+                                    ? "fill-yellow-400 text-yellow-400"
+                                    : "fill-muted-foreground/20 text-muted-foreground/20"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            {review.comment}
+                          </p>
+                          {/* Review images */}
+                          {review.images && review.images.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-3">
+                              {review.images.map((img, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => setLightboxImage(img)}
+                                  className="w-20 h-20 rounded-lg overflow-hidden border border-border hover:border-primary/50 transition-colors cursor-pointer"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={img} alt={`Photo avis ${idx + 1}`} className="w-full h-full object-cover" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Show more / show less */}
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    {hasMoreReviews && (
+                      <button
+                        type="button"
+                        onClick={() => setReviewsToShow((prev) => prev + REVIEWS_PER_PAGE)}
+                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-full border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                      >
+                        <FiChevronDown className="h-4 w-4" />
+                        Voir plus d&apos;avis ({filteredReviews.length - reviewsToShow} restants)
+                      </button>
+                    )}
+                    {reviewsToShow > REVIEWS_PER_PAGE && (
+                      <button
+                        type="button"
+                        onClick={() => setReviewsToShow(REVIEWS_PER_PAGE)}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Réduire
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Showing count */}
+                  <p className="text-center text-xs text-muted-foreground pt-1">
+                    {Math.min(reviewsToShow, filteredReviews.length)} sur {filteredReviews.length} avis
+                    {reviewFilter !== 0 && (
+                      <> · <button type="button" onClick={() => { setReviewFilter(0); setReviewsToShow(REVIEWS_PER_PAGE); }} className="text-primary hover:underline">Effacer le filtre</button></>
+                    )}
+                  </p>
+                </>
+              )}
             </div>
           </section>
 
@@ -669,6 +990,29 @@ export default function ArticleDetailPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Image lightbox for review photos */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 flex items-center justify-center h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+          >
+            <FiX className="h-5 w-5 text-white" />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxImage}
+            alt="Photo agrandie"
+            className="max-w-full max-h-[85vh] rounded-xl object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
 
       <Footer />
     </div>
