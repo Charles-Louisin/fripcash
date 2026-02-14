@@ -1,16 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { FiArrowDownCircle, FiArrowUpCircle, FiRefreshCw, FiGift, FiCreditCard } from "react-icons/fi";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { FiArrowDownLeft, FiArrowUpRight, FiRefreshCw, FiGift, FiTrendingUp, FiTrendingDown, FiClock } from "react-icons/fi";
+import { TbSend } from "react-icons/tb";
+import { LiaWalletSolid } from "react-icons/lia";
 import { mockCurrentUser, mockUserTransactions } from "@/lib/mock-data";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 
-const typeConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  sale: { label: "Vente", icon: FiArrowDownCircle, color: "text-green-600 bg-green-100" },
-  withdrawal: { label: "Retrait", icon: FiArrowUpCircle, color: "text-red-600 bg-red-100" },
-  refund: { label: "Remboursement", icon: FiRefreshCw, color: "text-blue-600 bg-blue-100" },
-  bonus: { label: "Bonus", icon: FiGift, color: "text-amber-600 bg-amber-100" },
+const typeConfig: Record<string, { label: string; icon: React.ElementType; iconColor: string; bgColor: string }> = {
+  sale: { label: "Vente", icon: FiArrowDownLeft, iconColor: "text-emerald-600", bgColor: "bg-emerald-50" },
+  withdrawal: { label: "Retrait", icon: FiArrowUpRight, iconColor: "text-orange-600", bgColor: "bg-orange-50" },
+  refund: { label: "Remboursement", icon: FiRefreshCw, iconColor: "text-blue-600", bgColor: "bg-blue-50" },
+  bonus: { label: "Bonus", icon: FiGift, iconColor: "text-violet-600", bgColor: "bg-violet-50" },
 };
 
 const filterOptions = [
@@ -21,6 +22,12 @@ const filterOptions = [
   { id: "bonus", label: "Bonus" },
 ];
 
+const statusConfig: Record<string, { label: string; className: string }> = {
+  completed: { label: "Terminé", className: "text-foreground/60 bg-muted" },
+  pending: { label: "En cours", className: "text-amber-700 bg-amber-50 border border-amber-200" },
+  failed: { label: "Échoué", className: "text-red-700 bg-red-50 border border-red-200" },
+};
+
 export default function WalletPage() {
   const { showToast } = useToast();
   const [filter, setFilter] = useState("all");
@@ -28,9 +35,48 @@ export default function WalletPage() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawPhone, setWithdrawPhone] = useState(mockCurrentUser.phone);
 
+  const [activeCard, setActiveCard] = useState(0);
+  const carouselRef = useRef<HTMLDivElement>(null);
+
   const filtered = filter === "all"
     ? mockUserTransactions
     : mockUserTransactions.filter((t) => t.type === filter);
+
+  const totalIn = mockUserTransactions
+    .filter((t) => t.amount > 0 && t.status === "completed")
+    .reduce((sum, t) => sum + t.amount, 0);
+  const totalOut = mockUserTransactions
+    .filter((t) => t.amount < 0 && t.status === "completed")
+    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  const pendingCount = mockUserTransactions.filter((t) => t.status === "pending").length;
+
+  const walletCards = [
+    { label: "Solde disponible", icon: LiaWalletSolid, iconBg: "bg-foreground/5", iconColor: "text-foreground/70", value: mockCurrentUser.walletBalance, prefix: "", suffix: "FCFA", desc: "Disponible pour retrait" },
+    { label: "Revenus", icon: FiTrendingUp, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", value: totalIn, prefix: "+", suffix: "F", desc: "Ventes, bonus & remboursements" },
+    { label: "Retraits", icon: FiTrendingDown, iconBg: "bg-orange-50", iconColor: "text-orange-600", value: totalOut, prefix: "-", suffix: "F", desc: "Vers Mobile Money" },
+    { label: "En attente", icon: FiClock, iconBg: "bg-amber-50", iconColor: "text-amber-600", value: pendingCount, prefix: "", suffix: `transaction${pendingCount !== 1 ? "s" : ""}`, desc: "En cours de traitement" },
+  ];
+
+  const handleScroll = useCallback(() => {
+    if (!carouselRef.current) return;
+    const el = carouselRef.current;
+    const cardWidth = el.scrollWidth / walletCards.length;
+    const index = Math.round(el.scrollLeft / cardWidth);
+    setActiveCard(Math.min(index, walletCards.length - 1));
+  }, [walletCards.length]);
+
+  const scrollToCard = (index: number) => {
+    if (!carouselRef.current) return;
+    const cardWidth = carouselRef.current.scrollWidth / walletCards.length;
+    carouselRef.current.scrollTo({ left: cardWidth * index, behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    const el = carouselRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
 
   const handleWithdraw = () => {
     const amount = parseInt(withdrawAmount);
@@ -54,65 +100,132 @@ export default function WalletPage() {
         <p className="text-sm text-muted-foreground mt-1">Gérez votre solde et vos transactions</p>
       </div>
 
-      {/* Balance Card */}
-      <div className="rounded-xl border border-border bg-gradient-to-br from-primary/5 to-primary/10 p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Solde disponible</p>
-            <p className="text-4xl font-bold text-foreground">
-              {mockCurrentUser.walletBalance.toLocaleString("fr-FR")}{" "}
-              <span className="text-lg font-medium text-muted-foreground">FCFA</span>
-            </p>
-          </div>
-          <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
-            <FiCreditCard className="h-6 w-6 text-white" />
-          </div>
+      {/* ── Mobile: full-width snap carousel ── */}
+      <div className="sm:hidden">
+        <div
+          ref={carouselRef}
+          onScroll={handleScroll}
+          className="flex snap-x snap-mandatory overflow-x-auto scrollbar-none -mx-4 px-4 gap-3"
+        >
+          {walletCards.map((card, i) => (
+            <div
+              key={i}
+              className="snap-center shrink-0 w-[calc(100vw-5.5rem)] rounded-xl border border-border bg-card p-5"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm text-muted-foreground">{card.label}</p>
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${card.iconBg}`}>
+                  <card.icon className={`h-4.5 w-4.5 ${card.iconColor}`} />
+                </div>
+              </div>
+              <p className="text-3xl font-bold text-foreground tracking-tight">
+                {card.prefix}{card.value.toLocaleString("fr-FR")}
+                <span className="text-sm font-medium text-muted-foreground ml-1">{card.suffix}</span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">{card.desc}</p>
+            </div>
+          ))}
         </div>
+        {/* Dots */}
+        <div className="flex items-center justify-center gap-1.5 mt-3">
+          {walletCards.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => scrollToCard(i)}
+              className={`rounded-full transition-all duration-300 ${
+                activeCard === i
+                  ? "w-5 h-2 bg-foreground"
+                  : "w-2 h-2 bg-foreground/20"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* ── Desktop: grid layout ── */}
+      <div className="hidden sm:grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {walletCards.map((card, i) => (
+          <div key={i} className="rounded-xl border border-border bg-card p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-muted-foreground">{card.label}</p>
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${card.iconBg}`}>
+                <card.icon className={`h-4.5 w-4.5 ${card.iconColor}`} />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-foreground tracking-tight">
+              {card.prefix}{card.value.toLocaleString("fr-FR")}
+              <span className="text-sm font-medium text-muted-foreground ml-1">{card.suffix}</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">{card.desc}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Withdraw circular button ── */}
+      <div className="flex justify-start">
         <button
           type="button"
           onClick={() => setShowWithdraw(true)}
-          className="mt-4 h-10 px-6 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+          className="flex flex-col items-center gap-1.5 group"
         >
-          Retirer des fonds
+          <div className="w-12 h-12 rounded-full bg-foreground text-background flex items-center justify-center shadow-md group-hover:scale-105 group-active:scale-95 transition-transform">
+            <TbSend className="h-5 w-5" />
+          </div>
+          <span className="text-[11px] font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+            Retirer des fonds
+          </span>
         </button>
       </div>
 
-      {/* Filter */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {filterOptions.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            onClick={() => setFilter(f.id)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              filter === f.id
-                ? "bg-primary text-white"
-                : "bg-muted text-muted-foreground hover:bg-accent"
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+      {/* ── Filter tabs (scroll-x) ── */}
+      <div className="overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex items-center gap-1 border-b border-border pb-px w-max sm:w-full">
+          {filterOptions.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFilter(f.id)}
+              className={`px-4 py-2 text-sm font-medium transition-colors relative whitespace-nowrap shrink-0 ${
+                filter === f.id
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {f.label}
+              {filter === f.id && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full" />
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Transaction History */}
       <div className="rounded-xl border border-border bg-card">
-        <div className="p-4 border-b border-border">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <h3 className="font-semibold text-foreground">Historique des transactions</h3>
+          <span className="text-xs text-muted-foreground">{filtered.length} transaction{filtered.length !== 1 ? "s" : ""}</span>
         </div>
         {filtered.length === 0 ? (
-          <div className="p-8 text-center">
+          <div className="p-12 text-center">
             <p className="text-muted-foreground text-sm">Aucune transaction trouvée</p>
           </div>
         ) : (
-          <div className="divide-y divide-border">
-            {filtered.map((tx) => {
+          <div>
+            {filtered.map((tx, i) => {
               const config = typeConfig[tx.type];
               const TxIcon = config?.icon || FiRefreshCw;
+              const status = statusConfig[tx.status] || statusConfig.completed;
               return (
-                <div key={tx.id} className="flex items-center gap-4 p-4 hover:bg-accent/30 transition-colors">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${config?.color || "bg-muted text-muted-foreground"}`}>
-                    <TxIcon className="h-5 w-5" />
+                <div
+                  key={tx.id}
+                  className={`flex items-center gap-4 px-5 py-3.5 hover:bg-accent/30 transition-colors ${
+                    i < filtered.length - 1 ? "border-b border-border/50" : ""
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${config?.bgColor || "bg-muted"}`}>
+                    <TxIcon className={`h-4.5 w-4.5 ${config?.iconColor || "text-muted-foreground"}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{tx.description}</p>
@@ -120,15 +233,14 @@ export default function WalletPage() {
                       <p className="text-xs text-muted-foreground">
                         {new Date(tx.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
                       </p>
-                      <Badge
-                        variant={tx.status === "completed" ? "default" : tx.status === "pending" ? "secondary" : "destructive"}
-                        className="text-[10px]"
-                      >
-                        {tx.status === "completed" ? "Terminé" : tx.status === "pending" ? "En cours" : "Échoué"}
-                      </Badge>
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${status.className}`}>
+                        {status.label}
+                      </span>
                     </div>
                   </div>
-                  <p className={`text-sm font-bold shrink-0 ${tx.amount >= 0 ? "text-green-600" : "text-red-600"}`}>
+                  <p className={`text-sm font-semibold shrink-0 tabular-nums ${
+                    tx.amount >= 0 ? "text-emerald-600" : "text-foreground"
+                  }`}>
                     {tx.amount >= 0 ? "+" : ""}{tx.amount.toLocaleString("fr-FR")} F
                   </p>
                 </div>
@@ -142,11 +254,11 @@ export default function WalletPage() {
       {showWithdraw && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowWithdraw(false)} />
-          <div className="relative z-10 w-full max-w-sm mx-4 bg-background rounded-xl border border-border shadow-lg">
+          <div className="relative z-10 w-full max-w-sm mx-4 bg-background rounded-xl border border-border shadow-lg animate-in fade-in zoom-in-95 duration-200">
             <div className="p-6">
               <h3 className="text-lg font-semibold text-foreground mb-1">Retirer des fonds</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Solde disponible : <span className="font-semibold text-foreground">{mockCurrentUser.walletBalance.toLocaleString("fr-FR")} FCFA</span>
+              <p className="text-sm text-muted-foreground mb-5">
+                Solde : <span className="font-semibold text-foreground">{mockCurrentUser.walletBalance.toLocaleString("fr-FR")} FCFA</span>
               </p>
               <div className="space-y-4">
                 <div>
@@ -155,8 +267,9 @@ export default function WalletPage() {
                     type="number"
                     value={withdrawAmount}
                     onChange={(e) => setWithdrawAmount(e.target.value)}
-                    className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="10000"
+                    className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                    placeholder="10 000"
+                    autoFocus
                   />
                 </div>
                 <div>
@@ -165,13 +278,13 @@ export default function WalletPage() {
                     type="tel"
                     value={withdrawPhone}
                     onChange={(e) => setWithdrawPhone(e.target.value)}
-                    className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
                   />
                 </div>
               </div>
               <div className="flex items-center gap-3 mt-6">
-                <button type="button" onClick={() => setShowWithdraw(false)} className="flex-1 h-10 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-accent transition-colors">Annuler</button>
-                <button type="button" onClick={handleWithdraw} className="flex-1 h-10 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors">Retirer</button>
+                <button type="button" onClick={() => setShowWithdraw(false)} className="flex-1 h-11 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-accent transition-colors">Annuler</button>
+                <button type="button" onClick={handleWithdraw} className="flex-1 h-11 rounded-xl bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors">Retirer</button>
               </div>
             </div>
           </div>

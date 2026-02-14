@@ -1,45 +1,88 @@
 "use client";
 
-import { useState } from "react";
-import { FiCamera, FiStar, FiCalendar } from "react-icons/fi";
+import { useRef } from "react";
+import { FiCamera, FiStar, FiCalendar, FiShoppingBag, FiPackage, FiMapPin, FiMail, FiPhone, FiEdit2, FiCheck } from "react-icons/fi";
 import { mockCurrentUser } from "@/lib/mock-data";
 import { useToast } from "@/components/ui/toast";
+import { useProfileStore } from "@/stores/profile-store";
 
 export default function ProfilePage() {
   const { showToast } = useToast();
-  const [form, setForm] = useState({
-    name: mockCurrentUser.name,
-    pseudo: mockCurrentUser.pseudo,
-    phone: mockCurrentUser.phone,
-    bio: mockCurrentUser.bio,
-  });
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const { name, pseudo, phone, email, city, bio, avatar, updateProfile } = useProfileStore();
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showToast("L'image ne doit pas dépasser 2 Mo", "error");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      updateProfile({ avatar: reader.result as string });
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSave = () => {
     showToast("Profil mis à jour avec succès", "success");
   };
 
+  const stats = [
+    { label: "Ventes", value: mockCurrentUser.salesCount, icon: FiShoppingBag, color: "text-primary bg-primary/10" },
+    { label: "Achats", value: mockCurrentUser.purchasesCount, icon: FiPackage, color: "text-blue-600 bg-blue-50" },
+    { label: "Note", value: mockCurrentUser.rating, icon: FiStar, color: "text-amber-500 bg-amber-50", suffix: "/5" },
+    { label: "Avis", value: mockCurrentUser.reviewsCount, icon: FiEdit2, color: "text-purple-600 bg-purple-50" },
+  ];
+
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Mon profil</h1>
         <p className="text-sm text-muted-foreground mt-1">Gérez vos informations personnelles</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left - Edit Form */}
-        <div className="lg:col-span-2 space-y-6">
+      {/* Stats row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {stats.map((stat) => (
+          <div key={stat.label} className="rounded-xl border border-border bg-card p-4 flex items-center gap-3">
+            <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${stat.color}`}>
+              <stat.icon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-lg font-bold text-foreground leading-tight">
+                {stat.value}{stat.suffix || ""}
+              </p>
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+        {/* Left - Edit Form (wider) */}
+        <div className="xl:col-span-3 space-y-6">
           <div className="rounded-xl border border-border bg-card p-6">
-            <h3 className="font-semibold text-foreground mb-4">Informations personnelles</h3>
+            <h3 className="font-semibold text-foreground mb-5">Informations personnelles</h3>
 
             {/* Avatar */}
             <div className="flex items-center gap-4 mb-6">
               <div className="relative">
-                <div className="w-20 h-20 rounded-full overflow-hidden">
+                <div className="w-20 h-20 rounded-full overflow-hidden ring-2 ring-border ring-offset-2 ring-offset-background">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={mockCurrentUser.avatar} alt={mockCurrentUser.name} className="w-full h-full object-cover" />
+                  <img src={avatar} alt={name} className="w-full h-full object-cover" />
                 </div>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                />
                 <button
                   type="button"
+                  onClick={() => avatarInputRef.current?.click()}
                   className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors"
                 >
                   <FiCamera className="h-4 w-4" />
@@ -48,6 +91,13 @@ export default function ProfilePage() {
               <div>
                 <p className="text-sm font-medium text-foreground">Photo de profil</p>
                 <p className="text-xs text-muted-foreground">JPG, PNG. Max 2 Mo.</p>
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="text-xs text-primary font-medium mt-1 hover:underline"
+                >
+                  Changer la photo
+                </button>
               </div>
             </div>
 
@@ -58,105 +108,177 @@ export default function ProfilePage() {
                   <label className="block text-sm font-medium text-foreground mb-1.5">Nom complet</label>
                   <input
                     type="text"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={name}
+                    onChange={(e) => updateProfile({ name: e.target.value })}
+                    className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1.5">Pseudo</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">@</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">@</span>
                     <input
                       type="text"
-                      value={form.pseudo}
-                      onChange={(e) => setForm({ ...form, pseudo: e.target.value })}
-                      className="w-full h-10 pl-7 pr-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      value={pseudo}
+                      onChange={(e) => updateProfile({ pseudo: e.target.value })}
+                      className="w-full h-11 pl-8 pr-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
                     />
                   </div>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Numéro de téléphone</label>
-                <input
-                  type="tel"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Email</label>
+                  <div className="relative">
+                    <FiMail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => updateProfile({ email: e.target.value })}
+                      className="w-full h-11 pl-10 pr-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Téléphone</label>
+                  <div className="relative">
+                    <FiPhone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => updateProfile({ phone: e.target.value })}
+                      className="w-full h-11 pl-10 pr-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                    />
+                  </div>
+                </div>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Localisation</label>
+                <div className="relative">
+                  <FiMapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => updateProfile({ city: e.target.value })}
+                    className="w-full h-11 pl-10 pr-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                    placeholder="Ville, Pays"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Bio</label>
                 <textarea
-                  value={form.bio}
-                  onChange={(e) => setForm({ ...form, bio: e.target.value })}
+                  value={bio}
+                  onChange={(e) => {
+                    if (e.target.value.length <= 200) updateProfile({ bio: e.target.value });
+                  }}
                   rows={4}
-                  className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                  className="w-full px-4 py-3 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none transition-colors"
                   placeholder="Parlez de vous..."
                 />
-                <p className="text-xs text-muted-foreground mt-1">{form.bio.length}/200 caractères</p>
+                <p className="text-xs text-muted-foreground mt-1">{bio.length}/200 caractères</p>
               </div>
             </div>
 
             <button
               type="button"
               onClick={handleSave}
-              className="mt-4 h-10 px-6 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+              className="mt-5 h-11 px-6 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2"
             >
+              <FiCheck className="h-4 w-4" />
               Enregistrer les modifications
             </button>
           </div>
         </div>
 
         {/* Right - Public Preview */}
-        <div className="space-y-4">
+        <div className="xl:col-span-2 space-y-4">
           <div className="rounded-xl border border-border bg-card p-6">
-            <h3 className="font-semibold text-foreground text-sm mb-4">Aperçu public</h3>
-            <div className="text-center">
-              <div className="w-20 h-20 rounded-full overflow-hidden mx-auto mb-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={mockCurrentUser.avatar} alt={mockCurrentUser.name} className="w-full h-full object-cover" />
-              </div>
-              <p className="font-semibold text-foreground">{form.name}</p>
-              <p className="text-sm text-muted-foreground">@{form.pseudo}</p>
+            <h3 className="font-semibold text-foreground text-sm mb-5">Aperçu public</h3>
 
-              <div className="flex items-center justify-center gap-1 mt-2">
-                {[...Array(5)].map((_, i) => (
-                  <FiStar
-                    key={i}
-                    className={`h-4 w-4 ${i < Math.floor(mockCurrentUser.rating) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`}
-                  />
-                ))}
-                <span className="text-sm font-medium text-foreground ml-1">{mockCurrentUser.rating}</span>
+            {/* Profile card preview */}
+            <div className="rounded-xl border border-border bg-muted/30 p-5">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-primary/20 shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={avatar} alt={name} className="w-full h-full object-cover" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-foreground text-base truncate">{name}</p>
+                  <p className="text-sm text-muted-foreground">@{pseudo}</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    {[...Array(5)].map((_, i) => (
+                      <FiStar
+                        key={i}
+                        className={`h-3.5 w-3.5 ${i < Math.floor(mockCurrentUser.rating) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`}
+                      />
+                    ))}
+                    <span className="text-xs font-medium text-foreground ml-1">{mockCurrentUser.rating}</span>
+                    <span className="text-xs text-muted-foreground">({mockCurrentUser.reviewsCount})</span>
+                  </div>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">{mockCurrentUser.reviewsCount} avis</p>
+
+              {bio && (
+                <p className="text-sm text-muted-foreground mt-4 line-clamp-3">{bio}</p>
+              )}
+
+              {city && (
+                <div className="flex items-center gap-1.5 mt-3 text-xs text-muted-foreground">
+                  <FiMapPin className="h-3 w-3" />
+                  <span>{city}</span>
+                </div>
+              )}
             </div>
 
-            <div className="border-t border-border mt-4 pt-4 space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <FiCalendar className="h-4 w-4 text-muted-foreground" />
+            {/* Details */}
+            <div className="mt-5 space-y-3">
+              <div className="flex items-center gap-3 text-sm">
+                <FiCalendar className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground">Membre depuis</span>
                 <span className="font-medium text-foreground ml-auto">
                   {new Date(mockCurrentUser.joinedDate).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Ventes</span>
-                <span className="font-medium text-foreground">{mockCurrentUser.salesCount}</span>
+              <div className="flex items-center gap-3 text-sm">
+                <FiShoppingBag className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-muted-foreground">Articles en vente</span>
+                <span className="font-medium text-foreground ml-auto">{mockCurrentUser.articlesCount}</span>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Achats</span>
-                <span className="font-medium text-foreground">{mockCurrentUser.purchasesCount}</span>
+              <div className="flex items-center gap-3 text-sm">
+                <FiPackage className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-muted-foreground">Ventes réalisées</span>
+                <span className="font-medium text-foreground ml-auto">{mockCurrentUser.salesCount}</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <FiPhone className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-muted-foreground">Téléphone</span>
+                <span className="font-medium text-foreground ml-auto">{phone}</span>
               </div>
             </div>
           </div>
 
-          {form.bio && (
-            <div className="rounded-xl border border-border bg-card p-6">
-              <h3 className="font-semibold text-foreground text-sm mb-2">Bio</h3>
-              <p className="text-sm text-muted-foreground">{form.bio}</p>
-            </div>
-          )}
+          {/* Tips card */}
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
+            <h4 className="text-sm font-semibold text-foreground mb-2">Conseils pour ton profil</h4>
+            <ul className="space-y-2 text-xs text-muted-foreground">
+              <li className="flex items-start gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                Ajoute une photo claire pour gagner la confiance des acheteurs
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                Rédige une bio pour te présenter à la communauté
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                Vérifie ton numéro pour sécuriser ton compte
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>

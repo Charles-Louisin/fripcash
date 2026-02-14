@@ -19,7 +19,7 @@ import { IoWalletOutline } from "react-icons/io5";
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/toast";
-import { mockCurrentUser } from "@/lib/mock-data";
+import { useProfileStore } from "@/stores/profile-store";
 
 const navItems = [
   { href: "/dashboard", icon: MdOutlineDashboard, label: "Vue d'ensemble" },
@@ -92,6 +92,7 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
   const [search, setSearch] = useState("");
   const [logoutOpen, setLogoutOpen] = useState(false);
   const { showToast } = useToast();
+  const { avatar, name, pseudo } = useProfileStore();
 
   const filteredNav = search
     ? navItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase()))
@@ -109,17 +110,17 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
         {collapsed ? (
           <div className="w-9 h-9 rounded-full overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={mockCurrentUser.avatar} alt={mockCurrentUser.name} className="w-full h-full object-cover" />
+            <img src={avatar} alt={name} className="w-full h-full object-cover" />
           </div>
         ) : (
           <Link href="/dashboard/profil" className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={mockCurrentUser.avatar} alt={mockCurrentUser.name} className="w-full h-full object-cover" />
+              <img src={avatar} alt={name} className="w-full h-full object-cover" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-sidebar-foreground truncate">{mockCurrentUser.name}</p>
-              <p className="text-[11px] text-muted-foreground truncate">@{mockCurrentUser.pseudo}</p>
+              <p className="text-sm font-semibold text-sidebar-foreground truncate">{name}</p>
+              <p className="text-[11px] text-muted-foreground truncate">@{pseudo}</p>
             </div>
           </Link>
         )}
@@ -215,6 +216,7 @@ export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: (
   const [search, setSearch] = useState("");
   const [logoutOpen, setLogoutOpen] = useState(false);
   const { showToast } = useToast();
+  const { avatar, name, pseudo } = useProfileStore();
 
   const filteredNav = search
     ? navItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase()))
@@ -231,11 +233,11 @@ export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: (
           <Link href="/dashboard/profil" className="flex items-center gap-3 min-w-0" onClick={onClose}>
             <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={mockCurrentUser.avatar} alt={mockCurrentUser.name} className="w-full h-full object-cover" />
+              <img src={avatar} alt={name} className="w-full h-full object-cover" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-sidebar-foreground truncate">{mockCurrentUser.name}</p>
-              <p className="text-[11px] text-muted-foreground truncate">@{mockCurrentUser.pseudo}</p>
+              <p className="text-sm font-semibold text-sidebar-foreground truncate">{name}</p>
+              <p className="text-[11px] text-muted-foreground truncate">@{pseudo}</p>
             </div>
           </Link>
         </div>

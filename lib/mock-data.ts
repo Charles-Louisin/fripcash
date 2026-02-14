@@ -55,13 +55,26 @@ export interface MockDispute {
   description: string;
 }
 
+export interface MockCategoryItem {
+  id: number;
+  name: string;
+  articlesCount: number;
+}
+
+export interface MockSubGroup {
+  id: number;
+  name: string;
+  articlesCount: number;
+  items: MockCategoryItem[];
+}
+
 export interface MockCategory {
   id: number;
   name: string;
   slug: string;
   articlesCount: number;
   enabled: boolean;
-  subCategories: { id: number; name: string; articlesCount: number }[];
+  subGroups: MockSubGroup[];
 }
 
 // ---------- USERS ----------
@@ -121,49 +134,151 @@ export const mockDisputes: MockDispute[] = [
 
 // ---------- CATEGORIES ----------
 export const mockCategories: MockCategory[] = [
-  { id: 1, name: "Femme", slug: "femme", articlesCount: 1250, enabled: true, subCategories: [
-    { id: 101, name: "Robes", articlesCount: 340 },
-    { id: 102, name: "Tops & T-shirts", articlesCount: 280 },
-    { id: 103, name: "Pantalons", articlesCount: 195 },
-    { id: 104, name: "Chaussures", articlesCount: 220 },
-    { id: 105, name: "Sacs", articlesCount: 215 },
+  { id: 1, name: "Femme", slug: "femme", articlesCount: 1250, enabled: true, subGroups: [
+    { id: 110, name: "Vêtements", articlesCount: 620, items: [
+      { id: 111, name: "Robes", articlesCount: 120 },
+      { id: 112, name: "Hauts et t-shirts", articlesCount: 95 },
+      { id: 113, name: "Pantalons et leggings", articlesCount: 80 },
+      { id: 114, name: "Jupes", articlesCount: 55 },
+      { id: 115, name: "Jeans", articlesCount: 70 },
+      { id: 116, name: "Sweats et sweats à capuche", articlesCount: 45 },
+      { id: 117, name: "Manteaux et vestes", articlesCount: 60 },
+      { id: 118, name: "Blazers et tailleurs", articlesCount: 30 },
+      { id: 119, name: "Shorts", articlesCount: 25 },
+      { id: 120, name: "Maillots de bain", articlesCount: 15 },
+      { id: 121, name: "Lingerie et pyjamas", articlesCount: 10 },
+      { id: 122, name: "Vêtements de sport", articlesCount: 10 },
+      { id: 123, name: "Maternité", articlesCount: 5 },
+    ]},
+    { id: 130, name: "Chaussures", articlesCount: 220, items: [
+      { id: 131, name: "Baskets", articlesCount: 80 },
+      { id: 132, name: "Sandales", articlesCount: 55 },
+      { id: 133, name: "Talons", articlesCount: 50 },
+      { id: 134, name: "Bottes", articlesCount: 35 },
+    ]},
+    { id: 140, name: "Sacs", articlesCount: 195, items: [
+      { id: 141, name: "Sacs à main", articlesCount: 130 },
+      { id: 142, name: "Sacs à dos", articlesCount: 65 },
+    ]},
+    { id: 150, name: "Accessoires", articlesCount: 120, items: [
+      { id: 151, name: "Bijoux", articlesCount: 50 },
+      { id: 152, name: "Ceintures", articlesCount: 35 },
+      { id: 153, name: "Lunettes", articlesCount: 35 },
+    ]},
+    { id: 160, name: "Beauté", articlesCount: 95, items: [
+      { id: 161, name: "Maquillage", articlesCount: 40 },
+      { id: 162, name: "Soins", articlesCount: 30 },
+      { id: 163, name: "Parfums", articlesCount: 25 },
+    ]},
   ]},
-  { id: 2, name: "Homme", slug: "homme", articlesCount: 980, enabled: true, subCategories: [
-    { id: 201, name: "T-shirts", articlesCount: 250 },
-    { id: 202, name: "Jeans", articlesCount: 180 },
-    { id: 203, name: "Vestes", articlesCount: 150 },
-    { id: 204, name: "Chaussures", articlesCount: 200 },
-    { id: 205, name: "Accessoires", articlesCount: 200 },
+  { id: 2, name: "Homme", slug: "homme", articlesCount: 980, enabled: true, subGroups: [
+    { id: 210, name: "Vêtements", articlesCount: 580, items: [
+      { id: 211, name: "T-shirts et polos", articlesCount: 140 },
+      { id: 212, name: "Chemises", articlesCount: 80 },
+      { id: 213, name: "Pantalons", articlesCount: 90 },
+      { id: 214, name: "Jeans", articlesCount: 75 },
+      { id: 215, name: "Sweats et hoodies", articlesCount: 65 },
+      { id: 216, name: "Vestes et manteaux", articlesCount: 60 },
+      { id: 217, name: "Costumes", articlesCount: 40 },
+      { id: 218, name: "Shorts", articlesCount: 30 },
+    ]},
+    { id: 220, name: "Chaussures", articlesCount: 200, items: [
+      { id: 221, name: "Baskets", articlesCount: 100 },
+      { id: 222, name: "Chaussures de ville", articlesCount: 60 },
+      { id: 223, name: "Bottes", articlesCount: 40 },
+    ]},
+    { id: 230, name: "Accessoires", articlesCount: 200, items: [
+      { id: 231, name: "Montres", articlesCount: 80 },
+      { id: 232, name: "Ceintures", articlesCount: 60 },
+      { id: 233, name: "Sacs", articlesCount: 60 },
+    ]},
   ]},
-  { id: 3, name: "Enfant", slug: "enfant", articlesCount: 450, enabled: true, subCategories: [
-    { id: 301, name: "Bébé (0-2 ans)", articlesCount: 120 },
-    { id: 302, name: "Fille", articlesCount: 180 },
-    { id: 303, name: "Garçon", articlesCount: 150 },
+  { id: 3, name: "Enfant", slug: "enfant", articlesCount: 450, enabled: true, subGroups: [
+    { id: 310, name: "Fille", articlesCount: 180, items: [
+      { id: 311, name: "Robes", articlesCount: 70 },
+      { id: 312, name: "Hauts", articlesCount: 60 },
+      { id: 313, name: "Pantalons", articlesCount: 50 },
+    ]},
+    { id: 320, name: "Garçon", articlesCount: 150, items: [
+      { id: 321, name: "T-shirts", articlesCount: 60 },
+      { id: 322, name: "Pantalons", articlesCount: 50 },
+      { id: 323, name: "Sweats", articlesCount: 40 },
+    ]},
+    { id: 330, name: "Bébé", articlesCount: 80, items: [
+      { id: 331, name: "Bodies", articlesCount: 45 },
+      { id: 332, name: "Pyjamas", articlesCount: 35 },
+    ]},
+    { id: 340, name: "Chaussures", articlesCount: 40, items: [] },
   ]},
-  { id: 4, name: "Maison", slug: "maison", articlesCount: 320, enabled: true, subCategories: [
-    { id: 401, name: "Décoration", articlesCount: 130 },
-    { id: 402, name: "Mobilier", articlesCount: 90 },
-    { id: 403, name: "Cuisine", articlesCount: 100 },
+  { id: 4, name: "Maison", slug: "maison", articlesCount: 320, enabled: true, subGroups: [
+    { id: 410, name: "Décoration", articlesCount: 130, items: [
+      { id: 411, name: "Coussins", articlesCount: 45 },
+      { id: 412, name: "Cadres", articlesCount: 40 },
+      { id: 413, name: "Bougies", articlesCount: 45 },
+    ]},
+    { id: 420, name: "Linge de maison", articlesCount: 90, items: [
+      { id: 421, name: "Draps", articlesCount: 50 },
+      { id: 422, name: "Serviettes", articlesCount: 40 },
+    ]},
+    { id: 430, name: "Cuisine", articlesCount: 100, items: [
+      { id: 431, name: "Vaisselle", articlesCount: 55 },
+      { id: 432, name: "Ustensiles", articlesCount: 45 },
+    ]},
   ]},
-  { id: 5, name: "Électronique", slug: "electronique", articlesCount: 280, enabled: true, subCategories: [
-    { id: 501, name: "Téléphones", articlesCount: 120 },
-    { id: 502, name: "Ordinateurs", articlesCount: 80 },
-    { id: 503, name: "Accessoires tech", articlesCount: 80 },
+  { id: 5, name: "Électronique", slug: "electronique", articlesCount: 280, enabled: true, subGroups: [
+    { id: 510, name: "Téléphones", articlesCount: 120, items: [
+      { id: 511, name: "Smartphones", articlesCount: 90 },
+      { id: 512, name: "Coques et accessoires", articlesCount: 30 },
+    ]},
+    { id: 520, name: "Informatique", articlesCount: 80, items: [
+      { id: 521, name: "Ordinateurs portables", articlesCount: 35 },
+      { id: 522, name: "Tablettes", articlesCount: 25 },
+      { id: 523, name: "Accessoires", articlesCount: 20 },
+    ]},
+    { id: 530, name: "Audio & Photo", articlesCount: 80, items: [
+      { id: 531, name: "Écouteurs", articlesCount: 35 },
+      { id: 532, name: "Enceintes", articlesCount: 25 },
+      { id: 533, name: "Appareils photo", articlesCount: 20 },
+    ]},
   ]},
-  { id: 6, name: "Loisirs", slug: "loisirs", articlesCount: 190, enabled: true, subCategories: [
-    { id: 601, name: "Livres", articlesCount: 90 },
-    { id: 602, name: "Jeux de société", articlesCount: 50 },
-    { id: 603, name: "Musique", articlesCount: 50 },
+  { id: 6, name: "Loisirs", slug: "loisirs", articlesCount: 190, enabled: true, subGroups: [
+    { id: 610, name: "Jeux & Jouets", articlesCount: 90, items: [
+      { id: 611, name: "Jeux de société", articlesCount: 35 },
+      { id: 612, name: "Puzzles", articlesCount: 25 },
+      { id: 613, name: "Figurines", articlesCount: 30 },
+    ]},
+    { id: 620, name: "Collections", articlesCount: 50, items: [
+      { id: 621, name: "Vinyles", articlesCount: 25 },
+      { id: 622, name: "Cartes", articlesCount: 25 },
+    ]},
+    { id: 630, name: "Loisirs créatifs", articlesCount: 50, items: [] },
   ]},
-  { id: 7, name: "Sport", slug: "sport", articlesCount: 210, enabled: true, subCategories: [
-    { id: 701, name: "Vêtements sport", articlesCount: 100 },
-    { id: 702, name: "Chaussures sport", articlesCount: 70 },
-    { id: 703, name: "Équipement", articlesCount: 40 },
+  { id: 7, name: "Sport", slug: "sport", articlesCount: 210, enabled: true, subGroups: [
+    { id: 710, name: "Vêtements de sport", articlesCount: 100, items: [
+      { id: 711, name: "Running", articlesCount: 35 },
+      { id: 712, name: "Fitness", articlesCount: 35 },
+      { id: 713, name: "Football", articlesCount: 30 },
+    ]},
+    { id: 720, name: "Chaussures de sport", articlesCount: 70, items: [] },
+    { id: 730, name: "Équipement", articlesCount: 40, items: [
+      { id: 731, name: "Vélos", articlesCount: 20 },
+      { id: 732, name: "Accessoires", articlesCount: 20 },
+    ]},
   ]},
-  { id: 8, name: "Divertissement", slug: "divertissement", articlesCount: 150, enabled: false, subCategories: [
-    { id: 801, name: "Jeux vidéo", articlesCount: 80 },
-    { id: 802, name: "Films & Séries", articlesCount: 40 },
-    { id: 803, name: "Consoles", articlesCount: 30 },
+  { id: 8, name: "Divertissement", slug: "divertissement", articlesCount: 150, enabled: false, subGroups: [
+    { id: 810, name: "Livres", articlesCount: 50, items: [
+      { id: 811, name: "Romans", articlesCount: 20 },
+      { id: 812, name: "BD & Mangas", articlesCount: 15 },
+      { id: 813, name: "Manuels scolaires", articlesCount: 15 },
+    ]},
+    { id: 820, name: "Musique & Films", articlesCount: 40, items: [
+      { id: 821, name: "CD & Vinyles", articlesCount: 20 },
+      { id: 822, name: "DVD & Blu-ray", articlesCount: 20 },
+    ]},
+    { id: 830, name: "Jeux vidéo", articlesCount: 60, items: [
+      { id: 831, name: "Consoles", articlesCount: 30 },
+      { id: 832, name: "Jeux", articlesCount: 30 },
+    ]},
   ]},
 ];
 

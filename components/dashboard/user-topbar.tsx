@@ -1,7 +1,8 @@
 "use client";
 
 import { FiMenu, FiBell, FiSidebar } from "react-icons/fi";
-import { mockCurrentUser, mockConversations } from "@/lib/mock-data";
+import { mockConversations } from "@/lib/mock-data";
+import { useProfileStore } from "@/stores/profile-store";
 
 interface UserTopbarProps {
   onMenuClick: () => void;
@@ -11,6 +12,7 @@ interface UserTopbarProps {
 
 export function UserTopbar({ onMenuClick, collapsed, onToggleCollapse }: UserTopbarProps) {
   const totalUnread = mockConversations.reduce((sum, c) => sum + c.unread, 0);
+  const { avatar, name } = useProfileStore();
 
   return (
     <header className="h-14 border-b border-border bg-background flex items-center px-4 gap-3 shrink-0">
@@ -49,10 +51,10 @@ export function UserTopbar({ onMenuClick, collapsed, onToggleCollapse }: UserTop
       <div className="flex items-center gap-2">
         <div className="w-8 h-8 rounded-full overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={mockCurrentUser.avatar} alt={mockCurrentUser.name} className="w-full h-full object-cover" />
+          <img src={avatar} alt={name} className="w-full h-full object-cover" />
         </div>
         <div className="hidden sm:block">
-          <p className="text-sm font-medium text-foreground leading-none">{mockCurrentUser.name}</p>
+          <p className="text-sm font-medium text-foreground leading-none">{name}</p>
           <p className="text-[11px] text-muted-foreground">Mon compte</p>
         </div>
       </div>

@@ -84,7 +84,7 @@ export default function NotFound() {
           />
 
           <div
-            className="flex flex-wrap gap-4 justify-center lg:justify-start"
+            className="flex flex-row gap-3 justify-center lg:justify-start"
             style={{
               opacity: 0,
               animation: "fade-in-up 0.6s ease forwards",
@@ -93,17 +93,17 @@ export default function NotFound() {
           >
             <Link
               href="/"
-              className="inline-flex items-center gap-2 bg-primary text-primary-foreground font-semibold px-6 py-3 rounded-full hover:opacity-90 transition-opacity"
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground font-semibold px-5 py-3 rounded-full hover:opacity-90 transition-opacity text-sm sm:text-base"
             >
-              Retour à l&apos;accueil
+              Accueil
               <FiArrowRight className="w-4 h-4" />
             </Link>
 
             <button
               onClick={() => router.back()}
-              className="inline-flex items-center gap-2 border border-primary text-primary font-semibold px-6 py-3 rounded-full hover:bg-primary hover:text-primary-foreground transition-colors"
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 border border-primary text-primary font-semibold px-5 py-3 rounded-full hover:bg-primary hover:text-primary-foreground transition-colors text-sm sm:text-base"
             >
-              Revenir en arrière
+              Retour
             </button>
           </div>
         </div>

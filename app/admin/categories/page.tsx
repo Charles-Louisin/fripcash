@@ -2,8 +2,16 @@
 
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { mockCategories, type MockCategory } from "@/lib/mock-data";
+import { mockCategories, type MockCategory, type MockSubGroup, type MockCategoryItem } from "@/lib/mock-data";
 import { useToast } from "@/components/ui/toast";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+} from "@/components/ui/sheet";
 import {
   FiPlus,
   FiEdit2,
@@ -12,114 +20,308 @@ import {
   FiChevronRight,
   FiToggleLeft,
   FiToggleRight,
+  FiSearch,
+  FiAlertCircle,
 } from "react-icons/fi";
+
+type EditLevel = "category" | "subGroup" | "item";
+
+interface SheetState {
+  open: boolean;
+  level: EditLevel;
+  editing: boolean;
+  parentCategoryId?: number;
+  parentSubGroupId?: number;
+  // form fields
+  name: string;
+  slug: string;
+  enabled: boolean;
+  // ids for editing
+  editId?: number;
+}
+
+const emptySheet: SheetState = {
+  open: false,
+  level: "category",
+  editing: false,
+  name: "",
+  slug: "",
+  enabled: true,
+};
 
 export default function CategoriesPage() {
   const { toast } = useToast();
-  const [categories, setCategories] = useState(mockCategories);
-  const [expandedIds, setExpandedIds] = useState<number[]>([]);
-  const [showDialog, setShowDialog] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<MockCategory | null>(null);
-  const [formName, setFormName] = useState("");
+  const [categories, setCategories] = useState<MockCategory[]>(mockCategories);
+  const [expandedCats, setExpandedCats] = useState<number[]>([]);
+  const [expandedSubs, setExpandedSubs] = useState<number[]>([]);
+  const [search, setSearch] = useState("");
+  const [sheet, setSheet] = useState<SheetState>(emptySheet);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; name: string; onConfirm: (() => void) | null }>({ open: false, name: "", onConfirm: null });
 
-  const toggleExpand = (id: number) => {
-    setExpandedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
+  // ── Expand/collapse ──
+  const toggleCat = (id: number) =>
+    setExpandedCats((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const toggleSub = (id: number) =>
+    setExpandedSubs((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
+  // ── Toggle enabled ──
   const toggleEnabled = (id: number) => {
     setCategories((prev) =>
       prev.map((c) => (c.id === id ? { ...c, enabled: !c.enabled } : c))
     );
     const cat = categories.find((c) => c.id === id);
-    toast(
-      cat?.enabled
-        ? `${cat.name} a été désactivée.`
-        : `${cat?.name} a été activée.`,
-      "info"
-    );
+    toast(cat?.enabled ? `${cat.name} désactivée.` : `${cat?.name} activée.`, "info");
   };
 
-  const handleDelete = (id: number) => {
+  // ── Delete (with confirmation) ──
+  const askDeleteCategory = (id: number) => {
     const cat = categories.find((c) => c.id === id);
-    setCategories((prev) => prev.filter((c) => c.id !== id));
-    toast(`${cat?.name} a été supprimée.`, "info");
+    setDeleteConfirm({
+      open: true,
+      name: cat?.name || "",
+      onConfirm: () => {
+        setCategories((prev) => prev.filter((c) => c.id !== id));
+        toast(`${cat?.name} supprimée.`, "info");
+        setDeleteConfirm({ open: false, name: "", onConfirm: null });
+      },
+    });
   };
 
-  const openAdd = () => {
-    setEditingCategory(null);
-    setFormName("");
-    setShowDialog(true);
+  const askDeleteSubGroup = (catId: number, subId: number, subName: string) => {
+    setDeleteConfirm({
+      open: true,
+      name: subName,
+      onConfirm: () => {
+        setCategories((prev) =>
+          prev.map((c) =>
+            c.id === catId
+              ? { ...c, subGroups: c.subGroups.filter((s) => s.id !== subId) }
+              : c
+          )
+        );
+        toast("Sous-catégorie supprimée.", "info");
+        setDeleteConfirm({ open: false, name: "", onConfirm: null });
+      },
+    });
   };
 
-  const openEdit = (cat: MockCategory) => {
-    setEditingCategory(cat);
-    setFormName(cat.name);
-    setShowDialog(true);
+  const askDeleteItem = (catId: number, subId: number, itemId: number, itemName: string) => {
+    setDeleteConfirm({
+      open: true,
+      name: itemName,
+      onConfirm: () => {
+        setCategories((prev) =>
+          prev.map((c) =>
+            c.id === catId
+              ? {
+                  ...c,
+                  subGroups: c.subGroups.map((s) =>
+                    s.id === subId
+                      ? { ...s, items: s.items.filter((i) => i.id !== itemId) }
+                      : s
+                  ),
+                }
+              : c
+          )
+        );
+        toast("Type supprimé.", "info");
+        setDeleteConfirm({ open: false, name: "", onConfirm: null });
+      },
+    });
   };
 
+  // ── Open sheet for add/edit ──
+  const openAddCategory = () =>
+    setSheet({ ...emptySheet, open: true, level: "category" });
+
+  const openEditCategory = (cat: MockCategory) =>
+    setSheet({ ...emptySheet, open: true, level: "category", editing: true, editId: cat.id, name: cat.name, slug: cat.slug, enabled: cat.enabled });
+
+  const openAddSubGroup = (catId: number) =>
+    setSheet({ ...emptySheet, open: true, level: "subGroup", parentCategoryId: catId });
+
+  const openEditSubGroup = (catId: number, sub: MockSubGroup) =>
+    setSheet({ ...emptySheet, open: true, level: "subGroup", editing: true, parentCategoryId: catId, editId: sub.id, name: sub.name });
+
+  const openAddItem = (catId: number, subId: number) =>
+    setSheet({ ...emptySheet, open: true, level: "item", parentCategoryId: catId, parentSubGroupId: subId });
+
+  const openEditItem = (catId: number, subId: number, item: MockCategoryItem) =>
+    setSheet({ ...emptySheet, open: true, level: "item", editing: true, parentCategoryId: catId, parentSubGroupId: subId, editId: item.id, name: item.name });
+
+  const closeSheet = () => setSheet(emptySheet);
+
+  // ── Save handler ──
   const handleSave = () => {
-    if (!formName.trim()) {
+    if (!sheet.name.trim()) {
       toast("Le nom est requis.", "error");
       return;
     }
-    if (editingCategory) {
-      setCategories((prev) =>
-        prev.map((c) =>
-          c.id === editingCategory.id
-            ? { ...c, name: formName, slug: formName.toLowerCase().replace(/\s+/g, "-") }
-            : c
-        )
-      );
-      toast(`${formName} a été modifiée.`, "success");
-    } else {
-      const newCat: MockCategory = {
-        id: Date.now(),
-        name: formName,
-        slug: formName.toLowerCase().replace(/\s+/g, "-"),
-        articlesCount: 0,
-        enabled: true,
-        subCategories: [],
-      };
-      setCategories((prev) => [...prev, newCat]);
-      toast(`${formName} a été ajoutée.`, "success");
+
+    if (sheet.level === "category") {
+      if (sheet.editing && sheet.editId) {
+        setCategories((prev) =>
+          prev.map((c) =>
+            c.id === sheet.editId
+              ? { ...c, name: sheet.name, slug: sheet.slug || sheet.name.toLowerCase().replace(/\s+/g, "-"), enabled: sheet.enabled }
+              : c
+          )
+        );
+        toast(`${sheet.name} modifiée.`, "success");
+      } else {
+        const newCat: MockCategory = {
+          id: Date.now(),
+          name: sheet.name,
+          slug: sheet.slug || sheet.name.toLowerCase().replace(/\s+/g, "-"),
+          articlesCount: 0,
+          enabled: sheet.enabled,
+          subGroups: [],
+        };
+        setCategories((prev) => [...prev, newCat]);
+        toast(`${sheet.name} ajoutée.`, "success");
+      }
+    } else if (sheet.level === "subGroup") {
+      if (sheet.editing && sheet.editId) {
+        setCategories((prev) =>
+          prev.map((c) =>
+            c.id === sheet.parentCategoryId
+              ? { ...c, subGroups: c.subGroups.map((s) => (s.id === sheet.editId ? { ...s, name: sheet.name } : s)) }
+              : c
+          )
+        );
+        toast(`${sheet.name} modifiée.`, "success");
+      } else {
+        const newSub: MockSubGroup = {
+          id: Date.now(),
+          name: sheet.name,
+          articlesCount: 0,
+          items: [],
+        };
+        setCategories((prev) =>
+          prev.map((c) =>
+            c.id === sheet.parentCategoryId
+              ? { ...c, subGroups: [...c.subGroups, newSub] }
+              : c
+          )
+        );
+        toast(`${sheet.name} ajoutée.`, "success");
+      }
+    } else if (sheet.level === "item") {
+      if (sheet.editing && sheet.editId) {
+        setCategories((prev) =>
+          prev.map((c) =>
+            c.id === sheet.parentCategoryId
+              ? {
+                  ...c,
+                  subGroups: c.subGroups.map((s) =>
+                    s.id === sheet.parentSubGroupId
+                      ? { ...s, items: s.items.map((i) => (i.id === sheet.editId ? { ...i, name: sheet.name } : i)) }
+                      : s
+                  ),
+                }
+              : c
+          )
+        );
+        toast(`${sheet.name} modifié.`, "success");
+      } else {
+        const newItem: MockCategoryItem = {
+          id: Date.now(),
+          name: sheet.name,
+          articlesCount: 0,
+        };
+        setCategories((prev) =>
+          prev.map((c) =>
+            c.id === sheet.parentCategoryId
+              ? {
+                  ...c,
+                  subGroups: c.subGroups.map((s) =>
+                    s.id === sheet.parentSubGroupId
+                      ? { ...s, items: [...s.items, newItem] }
+                      : s
+                  ),
+                }
+              : c
+          )
+        );
+        toast(`${sheet.name} ajouté.`, "success");
+      }
     }
-    setShowDialog(false);
-    setFormName("");
-    setEditingCategory(null);
+    closeSheet();
   };
+
+  // ── Filter ──
+  const filtered = search
+    ? categories.filter(
+        (c) =>
+          c.name.toLowerCase().includes(search.toLowerCase()) ||
+          c.subGroups.some(
+            (s) =>
+              s.name.toLowerCase().includes(search.toLowerCase()) ||
+              s.items.some((i) => i.name.toLowerCase().includes(search.toLowerCase()))
+          )
+      )
+    : categories;
+
+  const totalArticles = categories.reduce((sum, c) => sum + c.articlesCount, 0);
+  const totalSubGroups = categories.reduce((sum, c) => sum + c.subGroups.length, 0);
+  const totalItems = categories.reduce((sum, c) => sum + c.subGroups.reduce((s2, sg) => s2 + sg.items.length, 0), 0);
+
+  const sheetTitle = sheet.editing
+    ? sheet.level === "category"
+      ? "Modifier la catégorie"
+      : sheet.level === "subGroup"
+      ? "Modifier la sous-catégorie"
+      : "Modifier le type"
+    : sheet.level === "category"
+    ? "Nouvelle catégorie"
+    : sheet.level === "subGroup"
+    ? "Nouvelle sous-catégorie"
+    : "Nouveau type";
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Catégories</h1>
-          <p className="text-sm text-muted-foreground mt-1">Gérer les catégories de la plateforme</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {categories.length} catégories · {totalSubGroups} sous-catégories · {totalItems} types · {totalArticles.toLocaleString()} articles
+          </p>
         </div>
         <button
-          onClick={openAdd}
-          className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+          onClick={openAddCategory}
+          className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors self-start"
         >
           <FiPlus className="h-4 w-4" />
-          <span className="hidden sm:inline">Ajouter</span>
+          <span>Ajouter une catégorie</span>
         </button>
       </div>
 
-      {/* Categories List */}
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <input
+          type="text"
+          placeholder="Rechercher une catégorie..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full h-10 pl-9 pr-4 rounded-xl border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+        />
+      </div>
+
+      {/* Categories Tree */}
       <div className="space-y-2">
-        {categories.map((cat) => {
-          const isExpanded = expandedIds.includes(cat.id);
+        {filtered.map((cat) => {
+          const isCatExpanded = expandedCats.includes(cat.id);
           return (
             <div key={cat.id} className="rounded-xl border border-border bg-card overflow-hidden">
-              {/* Category Row */}
+              {/* ── Level 1: Category Row ── */}
               <div className="flex items-center gap-3 px-4 py-3">
                 <button
-                  onClick={() => toggleExpand(cat.id)}
+                  onClick={() => toggleCat(cat.id)}
                   className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
                 >
-                  {isExpanded ? (
+                  {isCatExpanded ? (
                     <FiChevronDown className="h-4 w-4 text-muted-foreground" />
                   ) : (
                     <FiChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -134,11 +336,18 @@ export default function CategoriesPage() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {cat.articlesCount} articles · {cat.subCategories.length} sous-catégories
+                    {cat.articlesCount.toLocaleString()} articles · {cat.subGroups.length} sous-catégories
                   </p>
                 </div>
 
                 <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => openAddSubGroup(cat.id)}
+                    className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                    title="Ajouter une sous-catégorie"
+                  >
+                    <FiPlus className="h-4 w-4 text-primary" />
+                  </button>
                   <button
                     onClick={() => toggleEnabled(cat.id)}
                     className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
@@ -151,81 +360,289 @@ export default function CategoriesPage() {
                     )}
                   </button>
                   <button
-                    onClick={() => openEdit(cat)}
+                    onClick={() => openEditCategory(cat)}
                     className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                    title="Modifier"
                   >
                     <FiEdit2 className="h-4 w-4 text-muted-foreground" />
                   </button>
                   <button
-                    onClick={() => handleDelete(cat.id)}
+                    onClick={() => askDeleteCategory(cat.id)}
                     className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                    title="Supprimer"
                   >
                     <FiTrash2 className="h-4 w-4 text-destructive" />
                   </button>
                 </div>
               </div>
 
-              {/* Sub-categories */}
-              {isExpanded && cat.subCategories.length > 0 && (
-                <div className="border-t border-border bg-muted/30">
-                  {cat.subCategories.map((sub) => (
-                    <div
-                      key={sub.id}
-                      className="flex items-center justify-between px-4 py-2.5 pl-14 border-b border-border last:border-b-0"
-                    >
-                      <span className="text-sm text-foreground">{sub.name}</span>
-                      <span className="text-xs text-muted-foreground">{sub.articlesCount} articles</span>
-                    </div>
-                  ))}
+              {/* ── Level 2: SubGroups ── */}
+              {isCatExpanded && cat.subGroups.length > 0 && (
+                <div className="border-t border-border bg-muted/20">
+                  {cat.subGroups.map((sub) => {
+                    const isSubExpanded = expandedSubs.includes(sub.id);
+                    return (
+                      <div key={sub.id} className="border-b border-border last:border-b-0">
+                        <div className="flex items-center gap-3 px-4 py-2.5 pl-10">
+                          <button
+                            onClick={() => toggleSub(sub.id)}
+                            className="h-6 w-6 flex items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
+                          >
+                            {sub.items.length > 0 ? (
+                              isSubExpanded ? (
+                                <FiChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                              ) : (
+                                <FiChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                              )
+                            ) : (
+                              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
+                            )}
+                          </button>
+
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium text-foreground">{sub.name}</span>
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {sub.articlesCount} articles{sub.items.length > 0 && ` · ${sub.items.length} types`}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-0.5">
+                            {sub.items.length >= 0 && (
+                              <button
+                                onClick={() => openAddItem(cat.id, sub.id)}
+                                className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                                title="Ajouter un type"
+                              >
+                                <FiPlus className="h-3.5 w-3.5 text-primary" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => openEditSubGroup(cat.id, sub)}
+                              className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                              title="Modifier"
+                            >
+                              <FiEdit2 className="h-3.5 w-3.5 text-muted-foreground" />
+                            </button>
+                            <button
+                              onClick={() => askDeleteSubGroup(cat.id, sub.id, sub.name)}
+                              className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                              title="Supprimer"
+                            >
+                              <FiTrash2 className="h-3.5 w-3.5 text-destructive" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* ── Level 3: Items ── */}
+                        {isSubExpanded && sub.items.length > 0 && (
+                          <div className="bg-muted/10">
+                            {sub.items.map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex items-center justify-between px-4 py-2 pl-20 border-t border-border/50"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-primary/50 shrink-0" />
+                                  <span className="text-sm text-foreground">{item.name}</span>
+                                  <span className="text-xs text-muted-foreground">{item.articlesCount} articles</span>
+                                </div>
+                                <div className="flex items-center gap-0.5">
+                                  <button
+                                    onClick={() => openEditItem(cat.id, sub.id, item)}
+                                    className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                                    title="Modifier"
+                                  >
+                                    <FiEdit2 className="h-3 w-3 text-muted-foreground" />
+                                  </button>
+                                  <button
+                                    onClick={() => askDeleteItem(cat.id, sub.id, item.id, item.name)}
+                                    className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                                    title="Supprimer"
+                                  >
+                                    <FiTrash2 className="h-3 w-3 text-destructive" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {isCatExpanded && cat.subGroups.length === 0 && (
+                <div className="border-t border-border bg-muted/20 px-4 py-4 pl-14">
+                  <p className="text-sm text-muted-foreground italic">Aucune sous-catégorie.</p>
+                  <button
+                    onClick={() => openAddSubGroup(cat.id)}
+                    className="mt-2 text-sm text-primary font-medium hover:underline"
+                  >
+                    + Ajouter une sous-catégorie
+                  </button>
                 </div>
               )}
             </div>
           );
         })}
+
+        {filtered.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground">
+            <p className="text-sm">Aucune catégorie trouvée.</p>
+          </div>
+        )}
       </div>
 
-      {/* Add/Edit Dialog */}
-      {showDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setShowDialog(false)} />
-          <div className="relative bg-background rounded-xl border border-border shadow-lg w-full max-w-sm p-6 z-10">
-            <button
-              onClick={() => setShowDialog(false)}
-              className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground"
-            >
-              &times;
-            </button>
-            <h2 className="text-lg font-bold text-foreground mb-4">
-              {editingCategory ? "Modifier la catégorie" : "Nouvelle catégorie"}
-            </h2>
-            <div className="space-y-4">
+      {/* ── Add/Edit Sheet ── */}
+      <Sheet open={sheet.open} onOpenChange={(open) => !open && closeSheet()}>
+        <SheetContent className="sm:w-[420px] overflow-y-auto px-5">
+          <SheetHeader>
+            <SheetTitle>{sheetTitle}</SheetTitle>
+            <SheetDescription>
+              {sheet.level === "category" && "Remplis les informations de la catégorie principale."}
+              {sheet.level === "subGroup" && "Remplis le nom de la sous-catégorie."}
+              {sheet.level === "item" && "Remplis le nom du type d'article."}
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="py-4 space-y-5">
+            {/* Name */}
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-1.5">
+                Nom *
+              </label>
+              <input
+                type="text"
+                placeholder={
+                  sheet.level === "category"
+                    ? "Ex: Femme, Homme, Sport..."
+                    : sheet.level === "subGroup"
+                    ? "Ex: Vêtements, Chaussures..."
+                    : "Ex: Robes, Baskets, Jeans..."
+                }
+                value={sheet.name}
+                onChange={(e) =>
+                  setSheet({
+                    ...sheet,
+                    name: e.target.value,
+                    slug: e.target.value.toLowerCase().replace(/[^a-z0-9à-ÿ]+/g, "-").replace(/^-|-$/g, ""),
+                  })
+                }
+                className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                autoFocus
+              />
+            </div>
+
+            {/* Slug (only for categories) */}
+            {sheet.level === "category" && (
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Nom de la catégorie
+                <label className="block text-sm font-semibold text-foreground mb-1.5">
+                  Slug
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Femme, Homme, Sport..."
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
-                  autoFocus
+                  placeholder="auto-generated"
+                  value={sheet.slug}
+                  onChange={(e) => setSheet({ ...sheet, slug: e.target.value })}
+                  className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
+                <p className="text-xs text-muted-foreground mt-1">URL: /categories/{sheet.slug || "..."}</p>
               </div>
-              <div className="flex gap-2">
+            )}
+
+            {/* Enabled toggle (only for categories) */}
+            {sheet.level === "category" && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Activée</p>
+                  <p className="text-xs text-muted-foreground">Visible sur la plateforme</p>
+                </div>
                 <button
-                  onClick={handleSave}
-                  className="flex-1 h-9 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+                  type="button"
+                  onClick={() => setSheet({ ...sheet, enabled: !sheet.enabled })}
+                  className="h-10 w-10 flex items-center justify-center rounded-lg hover:bg-accent transition-colors"
                 >
-                  {editingCategory ? "Enregistrer" : "Ajouter"}
-                </button>
-                <button
-                  onClick={() => setShowDialog(false)}
-                  className="flex-1 h-9 rounded-lg border border-border text-sm font-medium hover:bg-accent transition-colors"
-                >
-                  Annuler
+                  {sheet.enabled ? (
+                    <FiToggleRight className="h-6 w-6 text-primary" />
+                  ) : (
+                    <FiToggleLeft className="h-6 w-6 text-muted-foreground" />
+                  )}
                 </button>
               </div>
+            )}
+
+            {/* Context info */}
+            {sheet.level === "subGroup" && sheet.parentCategoryId && (
+              <div className="rounded-lg bg-muted/50 px-4 py-3">
+                <p className="text-xs text-muted-foreground">
+                  Catégorie parente : <span className="font-semibold text-foreground">{categories.find((c) => c.id === sheet.parentCategoryId)?.name}</span>
+                </p>
+              </div>
+            )}
+
+            {sheet.level === "item" && sheet.parentCategoryId && sheet.parentSubGroupId && (
+              <div className="rounded-lg bg-muted/50 px-4 py-3 space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  Catégorie : <span className="font-semibold text-foreground">{categories.find((c) => c.id === sheet.parentCategoryId)?.name}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Sous-catégorie : <span className="font-semibold text-foreground">
+                    {categories.find((c) => c.id === sheet.parentCategoryId)?.subGroups.find((s) => s.id === sheet.parentSubGroupId)?.name}
+                  </span>
+                </p>
+              </div>
+            )}
+          </div>
+
+          <SheetFooter className="flex flex-row gap-3 px-0">
+            <button
+              type="button"
+              onClick={closeSheet}
+              className="flex-1 h-11 rounded-xl border border-border text-sm font-medium hover:bg-accent transition-colors"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              className="flex-1 h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors"
+            >
+              {sheet.editing ? "Enregistrer" : "Ajouter"}
+            </button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      {deleteConfirm.open && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setDeleteConfirm({ open: false, name: "", onConfirm: null })} />
+          <div className="relative z-10 w-full max-w-sm bg-background rounded-xl border border-border shadow-lg animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 text-center">
+              <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+                <FiAlertCircle className="h-6 w-6 text-destructive" />
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-1">Confirmer la suppression</h3>
+              <p className="text-sm text-muted-foreground">
+                Es-tu sûr de vouloir supprimer <span className="font-medium text-foreground">&quot;{deleteConfirm.name}&quot;</span> ? Cette action est irréversible.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 px-6 pb-6">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm({ open: false, name: "", onConfirm: null })}
+                className="flex-1 h-10 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-accent transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteConfirm.onConfirm?.()}
+                className="flex-1 h-10 rounded-lg bg-destructive text-white text-sm font-medium hover:bg-destructive/90 transition-colors"
+              >
+                Supprimer
+              </button>
             </div>
           </div>
         </div>

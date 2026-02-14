@@ -146,7 +146,7 @@ export function AppSheet() {
                       onClick={closeSheet}
                       className="flex items-center gap-3 px-2 py-3 rounded-md text-sm text-foreground hover:bg-muted transition-colors border-b border-border/50 last:border-0"
                     >
-                      <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
+                      <Icon className="h-5 w-5 text-primary shrink-0" />
                       {cat.label}
                     </Link>
                   );
