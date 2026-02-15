@@ -20,9 +20,37 @@ import {
   FiArrowLeft,
   FiCheck,
   FiLock,
+  FiTruck,
+  FiPackage,
 } from "react-icons/fi";
+import { LuHandshake } from "react-icons/lu";
+import type { DeliveryMode } from "@/lib/mock-data";
 
 type PaymentMethod = "mobile-money" | "card" | "wallet";
+
+const deliveryModes: { id: DeliveryMode; icon: React.ElementType; label: string; description: string; detail: string }[] = [
+  {
+    id: "main-propre",
+    icon: LuHandshake,
+    label: "Main propre",
+    description: "Tu te déplaces chez le vendeur pour récupérer l'article.",
+    detail: "Le vendeur te donnera un code à 6 chiffres. Saisis-le pour libérer le paiement.",
+  },
+  {
+    id: "buyer-delivery",
+    icon: FiTruck,
+    label: "Livraison à tes frais",
+    description: "Un livreur sera envoyé récupérer l'article et te le livrer.",
+    detail: "Un code à 6 chiffres sera remis au livreur. Saisis-le pour libérer le paiement.",
+  },
+  {
+    id: "seller-delivery",
+    icon: FiPackage,
+    label: "Livraison par le vendeur",
+    description: "Le vendeur organise lui-même la livraison. Les frais sont inclus dans le prix.",
+    detail: "Un code à 6 chiffres sera remis au livreur. Saisis-le pour confirmer la réception.",
+  },
+];
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -40,8 +68,10 @@ export default function CheckoutPage() {
   const displayItems = mounted ? items : [];
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("mobile-money");
+  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>("main-propre");
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [orderNumber, setOrderNumber] = useState("");
 
   // Form state
   const [form, setForm] = useState({
@@ -50,7 +80,7 @@ export default function CheckoutPage() {
     email: "",
     address: "",
     city: "",
-    country: "Cameroun",
+    country: "Guinée",
     // Card fields
     cardNumber: "",
     cardExpiry: "",
@@ -63,10 +93,18 @@ export default function CheckoutPage() {
   const updateField = (field: string, value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
+  const selectedDelivery = deliveryModes.find((d) => d.id === deliveryMode)!;
+
   const handlePlaceOrder = async () => {
     // Basic validation
-    if (!form.fullName.trim() || !form.phone.trim() || !form.address.trim() || !form.city.trim()) {
+    if (!form.fullName.trim() || !form.phone.trim() || !form.city.trim()) {
       toast("Remplis tous les champs obligatoires.", "error");
+      return;
+    }
+
+    // Address required for delivery modes
+    if (deliveryMode !== "main-propre" && !form.address.trim()) {
+      toast("Remplis ton adresse de livraison.", "error");
       return;
     }
 
@@ -85,13 +123,15 @@ export default function CheckoutPage() {
     // Simulate payment processing
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
+    const num = `FC-${Date.now().toString().slice(-8)}`;
+    setOrderNumber(num);
     setIsProcessing(false);
     setOrderPlaced(true);
     clearCart();
-    toast("Commande confirmée !", "success");
+    toast("Paiement sécurisé en attente de livraison", "success");
   };
 
-  /* ─── Order confirmed screen ─── */
+  /* ─── Order confirmed screen (Escrow) ─── */
   if (orderPlaced) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -99,33 +139,59 @@ export default function CheckoutPage() {
         <AppSheet />
 
         <main className="flex-1 flex items-center justify-center">
-          <div className="text-center max-w-md mx-auto px-4 py-20">
-            <div className="flex items-center justify-center h-20 w-20 rounded-full bg-primary/10 mx-auto mb-6">
-              <FiCheck className="h-10 w-10 text-primary" />
+          <div className="text-center max-w-lg mx-auto px-4 py-16">
+            {/* Lock icon for escrow */}
+            <div className="flex items-center justify-center h-20 w-20 rounded-full bg-amber-100 mx-auto mb-6">
+              <FiLock className="h-10 w-10 text-amber-600" />
             </div>
             <h1 className="text-2xl font-bold text-foreground mb-2">
-              Commande confirmée !
+              Paiement sécurisé en séquestre
             </h1>
-            <p className="text-muted-foreground mb-2">
-              Merci pour ta commande. Tu recevras un email de confirmation avec
-              les détails de suivi.
+            <p className="text-muted-foreground mb-4">
+              Ton paiement a été reçu et <span className="font-semibold text-foreground">bloqué en toute sécurité</span> jusqu&apos;à
+              ce que tu confirmes la réception de l&apos;article.
             </p>
-            <p className="text-sm text-muted-foreground mb-8">
-              Numéro de commande :{" "}
-              <span className="font-semibold text-foreground">
-                FC-{Date.now().toString().slice(-8)}
-              </span>
-            </p>
+
+            {/* Order details */}
+            <div className="bg-muted/50 rounded-xl p-4 mb-6 text-left space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">N° de commande</span>
+                <span className="font-semibold text-foreground">{orderNumber}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Mode de livraison</span>
+                <span className="font-medium text-foreground">{selectedDelivery.label}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Statut du paiement</span>
+                <span className="inline-flex items-center gap-1.5 text-amber-600 font-medium">
+                  <FiLock className="h-3.5 w-3.5" />
+                  Bloqué en séquestre
+                </span>
+              </div>
+            </div>
+
+            {/* How it works */}
+            <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-8 text-left">
+              <p className="text-sm font-semibold text-foreground mb-2">Comment ça fonctionne ?</p>
+              <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
+                <li>Le vendeur est notifié de ta commande et reçoit un <span className="font-medium text-foreground">code à 6 chiffres</span></li>
+                <li>À la réception, le vendeur ou livreur te communique le code</li>
+                <li>Tu saisis ce code dans ton <span className="font-medium text-foreground">tableau de bord</span> pour confirmer</li>
+                <li>Le paiement est <span className="font-medium text-foreground">libéré vers le vendeur</span></li>
+              </ol>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button asChild className="rounded-full px-6">
-                <Link href="/">Continuer mes achats</Link>
+                <Link href="/dashboard/commandes">Suivre ma commande</Link>
               </Button>
               <Button
                 variant="outline"
                 asChild
                 className="rounded-full px-6"
               >
-                <Link href="/dashboard/commandes">Voir mes commandes</Link>
+                <Link href="/">Continuer mes achats</Link>
               </Button>
             </div>
           </div>
@@ -232,7 +298,7 @@ export default function CheckoutPage() {
                       type="tel"
                       value={form.phone}
                       onChange={(e) => updateField("phone", e.target.value)}
-                      placeholder="+237 6XX XXX XXX"
+                      placeholder="+224 6XX XXX XXX"
                       className="mt-2 h-12 px-4 text-base rounded-xl"
                     />
                   </div>
@@ -249,16 +315,18 @@ export default function CheckoutPage() {
                     />
                   </div>
 
-                  <div className="sm:col-span-2">
-                    <Label htmlFor="address" className="text-sm font-medium">Adresse de livraison *</Label>
-                    <Input
-                      id="address"
-                      value={form.address}
-                      onChange={(e) => updateField("address", e.target.value)}
-                      placeholder="Quartier, rue, numéro..."
-                      className="mt-2 h-12 px-4 text-base rounded-xl"
-                    />
-                  </div>
+                  {deliveryMode !== "main-propre" && (
+                    <div className="sm:col-span-2">
+                      <Label htmlFor="address" className="text-sm font-medium">Adresse de livraison *</Label>
+                      <Input
+                        id="address"
+                        value={form.address}
+                        onChange={(e) => updateField("address", e.target.value)}
+                        placeholder="Quartier, rue, numéro..."
+                        className="mt-2 h-12 px-4 text-base rounded-xl"
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <Label htmlFor="city" className="text-sm font-medium">Ville *</Label>
@@ -266,7 +334,7 @@ export default function CheckoutPage() {
                       id="city"
                       value={form.city}
                       onChange={(e) => updateField("city", e.target.value)}
-                      placeholder="Douala"
+                      placeholder="Conakry"
                       className="mt-2 h-12 px-4 text-base rounded-xl"
                     />
                   </div>
@@ -279,6 +347,77 @@ export default function CheckoutPage() {
                       onChange={(e) => updateField("country", e.target.value)}
                       className="mt-2 h-12 px-4 text-base rounded-xl"
                     />
+                  </div>
+                </div>
+              </section>
+
+              {/* ─── Delivery mode ─── */}
+              <section className="border border-border rounded-2xl p-6 sm:p-8">
+                <h2 className="text-lg font-bold text-foreground mb-2">
+                  Mode de livraison
+                </h2>
+                <p className="text-sm text-muted-foreground mb-5">
+                  Choisis comment tu souhaites recevoir ton article.
+                </p>
+
+                <div className="space-y-3">
+                  {deliveryModes.map((mode) => {
+                    const isSelected = deliveryMode === mode.id;
+                    return (
+                      <button
+                        key={mode.id}
+                        type="button"
+                        onClick={() => setDeliveryMode(mode.id)}
+                        className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                          isSelected
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/30"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                            isSelected ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+                          }`}>
+                            <mode.icon className="h-5 w-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className={`text-sm font-semibold ${isSelected ? "text-primary" : "text-foreground"}`}>
+                                {mode.label}
+                              </p>
+                              {isSelected && (
+                                <span className="flex items-center justify-center h-5 w-5 rounded-full bg-primary text-white">
+                                  <FiCheck className="h-3 w-3" />
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-0.5">
+                              {mode.description}
+                            </p>
+                            {isSelected && (
+                              <div className="flex items-start gap-2 mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                                <FiShield className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                                <p className="text-xs text-amber-800">
+                                  {mode.detail}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Escrow info banner */}
+                <div className="mt-5 flex items-start gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                  <FiLock className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Protection séquestre</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Ton paiement est bloqué jusqu&apos;à confirmation de la réception.
+                      Le vendeur ne reçoit l&apos;argent qu&apos;après ta validation par code à 6 chiffres.
+                    </p>
                   </div>
                 </div>
               </section>
@@ -403,7 +542,7 @@ export default function CheckoutPage() {
                     <FiShield className="h-4 w-4 text-primary shrink-0" />
                     <div>
                       <p className="text-sm font-medium text-foreground">
-                        Solde FripCash : 0,00 &euro;
+                        Solde FripCash : 0 GNF
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Le montant sera débité de ton porte-monnaie FripCash.
@@ -445,7 +584,7 @@ export default function CheckoutPage() {
                           {item.size ? ` · ${item.size}` : ""}
                         </p>
                         <p className="text-sm font-semibold text-foreground mt-0.5">
-                          {(item.price * item.quantity).toFixed(2)} &euro;
+                          {(item.price * item.quantity).toLocaleString("fr-FR")} GNF
                         </p>
                       </div>
                       <button
@@ -458,24 +597,30 @@ export default function CheckoutPage() {
                   ))}
                 </div>
 
+                {/* Delivery mode badge */}
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/50 border border-border">
+                  <selectedDelivery.icon className="h-4 w-4 text-primary shrink-0" />
+                  <p className="text-xs font-medium text-foreground">{selectedDelivery.label}</p>
+                </div>
+
                 {/* Totals */}
                 <div className="border-t pt-4 space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">
                       Sous-total ({count} article{count > 1 ? "s" : ""})
                     </span>
-                    <span className="font-medium">{sub.toFixed(2)} &euro;</span>
+                    <span className="font-medium">{sub.toLocaleString("fr-FR")} GNF</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Livraison</span>
                     <span className="font-medium">
-                      {shippingFees.toFixed(2)} &euro;
+                      {shippingFees.toLocaleString("fr-FR")} GNF
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-lg font-bold border-t pt-3">
                     <span>Total</span>
                     <span className="text-primary">
-                      {total.toFixed(2)} &euro;
+                      {total.toLocaleString("fr-FR")} GNF
                     </span>
                   </div>
                 </div>
@@ -494,7 +639,7 @@ export default function CheckoutPage() {
                   ) : (
                     <>
                       <FiLock className="h-4 w-4" />
-                      Payer {total.toFixed(2)} &euro;
+                      Payer {total.toLocaleString("fr-FR")} GNF
                     </>
                   )}
                 </Button>
@@ -503,7 +648,7 @@ export default function CheckoutPage() {
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <FiShield className="h-3.5 w-3.5 shrink-0" />
                   <p>
-                    Paiement 100% sécurisé. Tes données sont protégées.
+                    Paiement bloqué en séquestre jusqu&apos;à confirmation de réception.
                   </p>
                 </div>
               </div>

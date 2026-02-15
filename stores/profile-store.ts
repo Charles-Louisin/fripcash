@@ -17,7 +17,7 @@ export const useProfileStore = create<ProfileState>()((set) => ({
   pseudo: mockCurrentUser.pseudo,
   phone: mockCurrentUser.phone,
   email: "amina.bello@email.com",
-  city: "Douala, Cameroun",
+  city: "Conakry, Guinée",
   bio: mockCurrentUser.bio,
   avatar: mockCurrentUser.avatar,
   updateProfile: (data) => set((state) => ({ ...state, ...data })),

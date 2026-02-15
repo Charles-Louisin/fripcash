@@ -238,7 +238,7 @@ export default function UtilisateursPage() {
               </div>
               <div className="flex justify-between py-2">
                 <span className="text-muted-foreground">Revenus totaux</span>
-                <span className="font-bold text-primary">{selectedUser.totalRevenue.toLocaleString("fr-FR")} FCFA</span>
+                <span className="font-bold text-primary">{selectedUser.totalRevenue.toLocaleString("fr-FR")} GNF</span>
               </div>
             </div>
           </div>

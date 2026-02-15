@@ -12,7 +12,7 @@ export default function ParametresPage() {
   // General settings
   const [platformName, setPlatformName] = useState("FripCash");
   const [contactEmail, setContactEmail] = useState("contact@fripcash.com");
-  const [contactPhone, setContactPhone] = useState("+237 6XX XXX XXX");
+  const [contactPhone, setContactPhone] = useState("+224 6XX XXX XXX");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
 
   // Commission settings
@@ -163,7 +163,7 @@ export default function ParametresPage() {
               {/* Minimum commission */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Commission minimale (FCFA)
+                  Commission minimale (GNF)
                 </label>
                 <input
                   type="number"

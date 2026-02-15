@@ -257,7 +257,7 @@ export default function ArticlesPage() {
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Prix</span>
-                <span className="font-bold text-primary">{selectedArticle.price.toLocaleString("fr-FR")} FCFA</span>
+                <span className="font-bold text-primary">{selectedArticle.price.toLocaleString("fr-FR")} GNF</span>
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">État</span>

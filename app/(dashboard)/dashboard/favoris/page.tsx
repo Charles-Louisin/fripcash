@@ -65,7 +65,7 @@ export default function FavoritesPage() {
                 <div className="mt-2 space-y-0.5">
                   <p className="text-sm font-medium text-foreground truncate">{item.brand} <span className="text-muted-foreground font-normal"> · {item.condition}</span></p>
                   {item.size && <p className="text-xs text-muted-foreground">{item.size}</p>}
-                  <p className="text-sm font-bold text-foreground">{item.price.toLocaleString("fr-FR")} FCFA</p>
+                  <p className="text-sm font-bold text-foreground">{item.price.toLocaleString("fr-FR")} GNF</p>
                 </div>
               </Link>
 

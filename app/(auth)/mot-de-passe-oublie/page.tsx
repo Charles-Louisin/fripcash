@@ -64,7 +64,7 @@ export default function MotDePasseOubliePage() {
                 <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="tel"
-                  placeholder="+237 6XX XXX XXX"
+                  placeholder="+224 6XX XXX XXX"
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}

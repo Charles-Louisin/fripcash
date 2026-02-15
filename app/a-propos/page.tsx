@@ -32,7 +32,7 @@ export default function AProposPage() {
             </h1>
             <p className="text-lg text-muted-foreground leading-relaxed">
               FripCash est née d&apos;une idée simple : permettre à chacun de donner une seconde vie
-              à ses vêtements tout en gagnant de l&apos;argent. Basée au Cameroun, notre plateforme
+              à ses vêtements tout en gagnant de l&apos;argent. Basée en Guinée, notre plateforme
               connecte vendeurs et acheteurs dans un espace sécurisé et convivial.
             </p>
           </div>

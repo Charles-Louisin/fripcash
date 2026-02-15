@@ -48,7 +48,7 @@ export default function DashboardOverviewPage() {
     { label: "Articles en vente", value: activeListings, icon: FiShoppingBag, color: "bg-primary/10 text-primary" },
     { label: "Ventes", value: totalSales, icon: FiTrendingUp, color: "bg-green-100 text-green-600" },
     { label: "Achats", value: totalPurchases, icon: FiShoppingCart, color: "bg-blue-100 text-blue-600" },
-    { label: "Solde (FCFA)", value: mockCurrentUser.walletBalance.toLocaleString("fr-FR"), icon: FiCreditCard, color: "bg-amber-100 text-amber-600" },
+    { label: "Solde (GNF)", value: mockCurrentUser.walletBalance.toLocaleString("fr-FR"), icon: FiCreditCard, color: "bg-amber-100 text-amber-600" },
   ];
 
   const activityIcons: Record<string, string> = {
@@ -194,7 +194,7 @@ export default function DashboardOverviewPage() {
           {/* Wallet */}
           <div className="rounded-xl border border-border bg-card p-5">
             <h3 className="font-semibold text-foreground text-sm mb-3">Mon porte-monnaie</h3>
-            <p className="text-3xl font-bold text-primary">{mockCurrentUser.walletBalance.toLocaleString("fr-FR")} <span className="text-base font-medium">FCFA</span></p>
+            <p className="text-3xl font-bold text-primary">{mockCurrentUser.walletBalance.toLocaleString("fr-FR")} <span className="text-base font-medium">GNF</span></p>
             <Link href="/dashboard/porte-monnaie" className="flex items-center gap-1 text-xs text-primary font-medium mt-3 hover:underline">
               Voir les transactions <FiArrowRight className="h-3 w-3" />
             </Link>

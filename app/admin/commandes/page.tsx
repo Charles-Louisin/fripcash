@@ -8,8 +8,9 @@ import { FiSearch, FiEye } from "react-icons/fi";
 
 const statusConfig: Record<MockOrder["status"], { label: string; variant: "default" | "secondary" | "destructive" | "success" | "warning" | "outline" }> = {
   pending: { label: "En attente", variant: "warning" },
-  paid: { label: "Payé", variant: "default" },
-  shipped: { label: "Expédié", variant: "secondary" },
+  paid_escrow: { label: "Payé (séquestre)", variant: "default" },
+  in_delivery: { label: "En livraison", variant: "secondary" },
+  awaiting_confirmation: { label: "Confirmation", variant: "warning" },
   delivered: { label: "Livré", variant: "success" },
   disputed: { label: "En litige", variant: "destructive" },
   refunded: { label: "Remboursé", variant: "outline" },
@@ -153,8 +154,9 @@ export default function CommandesPage() {
         >
           <option value="all">Tous les statuts</option>
           <option value="pending">En attente</option>
-          <option value="paid">Payé</option>
-          <option value="shipped">Expédié</option>
+          <option value="paid_escrow">Payé (séquestre)</option>
+          <option value="in_delivery">En livraison</option>
+          <option value="awaiting_confirmation">Confirmation</option>
           <option value="delivered">Livré</option>
           <option value="disputed">En litige</option>
           <option value="refunded">Remboursé</option>

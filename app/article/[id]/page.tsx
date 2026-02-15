@@ -469,10 +469,10 @@ export default function ArticleDetailPage() {
               {/* Price */}
               <div className="mb-4">
                 <p className="text-3xl font-bold text-foreground">
-                  {product.price.toFixed(2)} &euro;
+                  {product.price.toLocaleString("fr-FR")} GNF
                 </p>
                 <p className="text-sm text-primary font-medium mt-0.5">
-                  {product.priceWithShipping.toFixed(2)} &euro; frais de port inclus
+                  {product.priceWithShipping.toLocaleString("fr-FR")} GNF frais de port inclus
                 </p>
               </div>
 
@@ -936,7 +936,7 @@ export default function ArticleDetailPage() {
             <DialogDescription>
               {offerSent
                 ? "Le vendeur a été notifié et te répondra bientôt."
-                : `Prix actuel : ${product.price.toFixed(2)} €. Propose ton prix.`}
+                : `Prix actuel : ${product.price.toLocaleString("fr-FR")} GNF. Propose ton prix.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -946,7 +946,7 @@ export default function ArticleDetailPage() {
                 <FiCheck className="h-7 w-7 text-primary" />
               </div>
               <p className="text-sm text-muted-foreground text-center">
-                Ton offre de <span className="font-semibold text-foreground">{Number(offerPrice).toFixed(2)} €</span> a
+                Ton offre de <span className="font-semibold text-foreground">{Number(offerPrice).toLocaleString("fr-FR")} GNF</span> a
                 été envoyée à <span className="font-semibold text-foreground">{product.seller.name}</span>
               </p>
               <button
@@ -960,7 +960,7 @@ export default function ArticleDetailPage() {
             <div className="space-y-4 pt-2">
               <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">
-                  Ton prix (€)
+                  Ton prix (GNF)
                 </label>
                 <input
                   type="number"

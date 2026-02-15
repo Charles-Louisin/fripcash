@@ -128,7 +128,7 @@ export function CartSheet() {
 
                       {/* Price */}
                       <p className="text-sm font-bold text-foreground">
-                        {(item.price * item.quantity).toFixed(2)} &euro;
+                        {(item.price * item.quantity).toLocaleString("fr-FR")} GNF
                       </p>
                     </div>
                   </div>
@@ -142,7 +142,7 @@ export function CartSheet() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Sous-total</span>
                   <span className="font-medium text-foreground">
-                    {sub.toFixed(2)} &euro;
+                    {sub.toLocaleString("fr-FR")} GNF
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
@@ -150,13 +150,13 @@ export function CartSheet() {
                     Frais de livraison
                   </span>
                   <span className="font-medium text-foreground">
-                    {shippingFees.toFixed(2)} &euro;
+                    {shippingFees.toLocaleString("fr-FR")} GNF
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-base font-bold border-t pt-2">
                   <span>Total</span>
                   <span className="text-primary">
-                    {total.toFixed(2)} &euro;
+                    {total.toLocaleString("fr-FR")} GNF
                   </span>
                 </div>
               </div>

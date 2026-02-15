@@ -125,11 +125,11 @@ const chartConfig = {
     label: "Transactions",
   },
   revenus: {
-    label: "Revenus (FCFA)",
+    label: "Revenus (GNF)",
     color: "var(--chart-1)",
   },
   commissions: {
-    label: "Commissions (FCFA)",
+    label: "Commissions (GNF)",
     color: "var(--chart-2)",
   },
 } satisfies ChartConfig

@@ -26,6 +26,10 @@ export interface MockArticle {
   postedDate: string;
 }
 
+export type DeliveryMode = "main-propre" | "buyer-delivery" | "seller-delivery";
+export type OrderStatus = "pending" | "paid_escrow" | "in_delivery" | "awaiting_confirmation" | "delivered" | "disputed" | "refunded";
+export type EscrowStatus = "blocked" | "released";
+
 export interface MockOrder {
   id: string;
   buyer: string;
@@ -37,7 +41,10 @@ export interface MockOrder {
   amount: number;
   commission: number;
   shippingCost: number;
-  status: "pending" | "paid" | "shipped" | "delivered" | "disputed" | "refunded";
+  status: OrderStatus;
+  deliveryMode: DeliveryMode;
+  confirmationCode: string;
+  escrowStatus: EscrowStatus;
   date: string;
 }
 
@@ -79,18 +86,18 @@ export interface MockCategory {
 
 // ---------- USERS ----------
 export const mockUsers: MockUser[] = [
-  { id: 1, name: "Amina Bello", pseudo: "amina_b", phone: "+237 690 123 456", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-08-15", articlesCount: 24, salesCount: 18, totalRevenue: 156000 },
-  { id: 2, name: "Jean-Pierre Fotso", pseudo: "jp_fotso", phone: "+237 677 234 567", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-09-02", articlesCount: 12, salesCount: 8, totalRevenue: 89000 },
-  { id: 3, name: "Marie Ndongo", pseudo: "marie_nd", phone: "+237 655 345 678", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop", status: "banned", joinedDate: "2025-07-20", articlesCount: 3, salesCount: 1, totalRevenue: 5000 },
-  { id: 4, name: "Samuel Ekane", pseudo: "sam_ek", phone: "+237 699 456 789", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-10-11", articlesCount: 45, salesCount: 38, totalRevenue: 420000 },
-  { id: 5, name: "Fatou Diallo", pseudo: "fatou_d", phone: "+237 670 567 890", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop", status: "pending", joinedDate: "2026-01-05", articlesCount: 0, salesCount: 0, totalRevenue: 0 },
-  { id: 6, name: "Paul Mbarga", pseudo: "paul_mb", phone: "+237 681 678 901", avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-11-22", articlesCount: 8, salesCount: 5, totalRevenue: 67000 },
-  { id: 7, name: "Aisha Njoya", pseudo: "aisha_nj", phone: "+237 692 789 012", avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-12-01", articlesCount: 15, salesCount: 11, totalRevenue: 134000 },
-  { id: 8, name: "David Tagne", pseudo: "dav_tag", phone: "+237 656 890 123", avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&h=100&fit=crop", status: "active", joinedDate: "2026-01-15", articlesCount: 6, salesCount: 3, totalRevenue: 28000 },
-  { id: 9, name: "Carine Essomba", pseudo: "carine_e", phone: "+237 674 901 234", avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&h=100&fit=crop", status: "pending", joinedDate: "2026-02-01", articlesCount: 0, salesCount: 0, totalRevenue: 0 },
-  { id: 10, name: "Yves Nkoulou", pseudo: "yves_nk", phone: "+237 698 012 345", avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-06-30", articlesCount: 52, salesCount: 45, totalRevenue: 580000 },
-  { id: 11, name: "Sandrine Ateba", pseudo: "sand_at", phone: "+237 661 123 456", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-09-18", articlesCount: 19, salesCount: 14, totalRevenue: 175000 },
-  { id: 12, name: "Eric Tchinda", pseudo: "eric_tc", phone: "+237 676 234 567", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop", status: "banned", joinedDate: "2025-08-05", articlesCount: 2, salesCount: 0, totalRevenue: 0 },
+  { id: 1, name: "Amina Bello", pseudo: "amina_b", phone: "+224 690 123 456", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-08-15", articlesCount: 24, salesCount: 18, totalRevenue: 156000 },
+  { id: 2, name: "Jean-Pierre Fotso", pseudo: "jp_fotso", phone: "+224 677 234 567", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-09-02", articlesCount: 12, salesCount: 8, totalRevenue: 89000 },
+  { id: 3, name: "Marie Ndongo", pseudo: "marie_nd", phone: "+224 655 345 678", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop", status: "banned", joinedDate: "2025-07-20", articlesCount: 3, salesCount: 1, totalRevenue: 5000 },
+  { id: 4, name: "Samuel Ekane", pseudo: "sam_ek", phone: "+224 699 456 789", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-10-11", articlesCount: 45, salesCount: 38, totalRevenue: 420000 },
+  { id: 5, name: "Fatou Diallo", pseudo: "fatou_d", phone: "+224 670 567 890", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop", status: "pending", joinedDate: "2026-01-05", articlesCount: 0, salesCount: 0, totalRevenue: 0 },
+  { id: 6, name: "Paul Mbarga", pseudo: "paul_mb", phone: "+224 681 678 901", avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-11-22", articlesCount: 8, salesCount: 5, totalRevenue: 67000 },
+  { id: 7, name: "Aisha Njoya", pseudo: "aisha_nj", phone: "+224 692 789 012", avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-12-01", articlesCount: 15, salesCount: 11, totalRevenue: 134000 },
+  { id: 8, name: "David Tagne", pseudo: "dav_tag", phone: "+224 656 890 123", avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&h=100&fit=crop", status: "active", joinedDate: "2026-01-15", articlesCount: 6, salesCount: 3, totalRevenue: 28000 },
+  { id: 9, name: "Carine Essomba", pseudo: "carine_e", phone: "+224 674 901 234", avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&h=100&fit=crop", status: "pending", joinedDate: "2026-02-01", articlesCount: 0, salesCount: 0, totalRevenue: 0 },
+  { id: 10, name: "Yves Nkoulou", pseudo: "yves_nk", phone: "+224 698 012 345", avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-06-30", articlesCount: 52, salesCount: 45, totalRevenue: 580000 },
+  { id: 11, name: "Sandrine Ateba", pseudo: "sand_at", phone: "+224 661 123 456", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop", status: "active", joinedDate: "2025-09-18", articlesCount: 19, salesCount: 14, totalRevenue: 175000 },
+  { id: 12, name: "Eric Tchinda", pseudo: "eric_tc", phone: "+224 676 234 567", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop", status: "banned", joinedDate: "2025-08-05", articlesCount: 2, salesCount: 0, totalRevenue: 0 },
 ];
 
 // ---------- ARTICLES ----------
@@ -111,16 +118,16 @@ export const mockArticles: MockArticle[] = [
 
 // ---------- ORDERS ----------
 export const mockOrders: MockOrder[] = [
-  { id: "CMD-001", buyer: "Fatou Diallo", buyerId: 5, seller: "Amina Bello", sellerId: 1, article: "Robe d'été fleurie", articleId: 1, amount: 8500, commission: 850, shippingCost: 1500, status: "delivered", date: "2026-02-10" },
-  { id: "CMD-002", buyer: "Aisha Njoya", buyerId: 7, seller: "Samuel Ekane", sellerId: 4, article: "Jean Levi's 501", articleId: 2, amount: 15000, commission: 1500, shippingCost: 2000, status: "shipped", date: "2026-02-11" },
-  { id: "CMD-003", buyer: "Paul Mbarga", buyerId: 6, seller: "Yves Nkoulou", sellerId: 10, article: "iPhone 13 Pro", articleId: 4, amount: 180000, commission: 18000, shippingCost: 3000, status: "paid", date: "2026-02-12" },
-  { id: "CMD-004", buyer: "David Tagne", buyerId: 8, seller: "Jean-Pierre Fotso", sellerId: 2, article: "Veste en cuir vintage", articleId: 6, amount: 22000, commission: 2200, shippingCost: 2500, status: "delivered", date: "2026-02-08" },
-  { id: "CMD-005", buyer: "Sandrine Ateba", buyerId: 11, seller: "Aisha Njoya", sellerId: 7, article: "Robe de soirée noire", articleId: 7, amount: 12000, commission: 1200, shippingCost: 1500, status: "pending", date: "2026-02-13" },
-  { id: "CMD-006", buyer: "Amina Bello", buyerId: 1, seller: "Sandrine Ateba", sellerId: 11, article: "Table basse en bois", articleId: 9, amount: 35000, commission: 3500, shippingCost: 5000, status: "disputed", date: "2026-02-07" },
-  { id: "CMD-007", buyer: "Jean-Pierre Fotso", buyerId: 2, seller: "Samuel Ekane", sellerId: 4, article: "Baskets Adidas Yeezy", articleId: 12, amount: 55000, commission: 5500, shippingCost: 2500, status: "delivered", date: "2026-02-06" },
-  { id: "CMD-008", buyer: "Carine Essomba", buyerId: 9, seller: "Paul Mbarga", sellerId: 6, article: "Nike Air Max 90", articleId: 3, amount: 25000, commission: 2500, shippingCost: 2000, status: "refunded", date: "2026-02-09" },
-  { id: "CMD-009", buyer: "Eric Tchinda", buyerId: 12, seller: "Amina Bello", sellerId: 1, article: "Robe d'été fleurie", articleId: 1, amount: 8500, commission: 850, shippingCost: 1500, status: "shipped", date: "2026-02-12" },
-  { id: "CMD-010", buyer: "Yves Nkoulou", buyerId: 10, seller: "David Tagne", sellerId: 8, article: "Console PS5", articleId: 8, amount: 220000, commission: 22000, shippingCost: 4000, status: "paid", date: "2026-02-13" },
+  { id: "CMD-001", buyer: "Fatou Diallo", buyerId: 5, seller: "Amina Bello", sellerId: 1, article: "Robe d'été fleurie", articleId: 1, amount: 8500, commission: 850, shippingCost: 1500, status: "delivered", deliveryMode: "main-propre", confirmationCode: "482917", escrowStatus: "released", date: "2026-02-10" },
+  { id: "CMD-002", buyer: "Aisha Njoya", buyerId: 7, seller: "Samuel Ekane", sellerId: 4, article: "Jean Levi's 501", articleId: 2, amount: 15000, commission: 1500, shippingCost: 2000, status: "in_delivery", deliveryMode: "seller-delivery", confirmationCode: "739154", escrowStatus: "blocked", date: "2026-02-11" },
+  { id: "CMD-003", buyer: "Paul Mbarga", buyerId: 6, seller: "Yves Nkoulou", sellerId: 10, article: "iPhone 13 Pro", articleId: 4, amount: 180000, commission: 18000, shippingCost: 3000, status: "paid_escrow", deliveryMode: "buyer-delivery", confirmationCode: "516382", escrowStatus: "blocked", date: "2026-02-12" },
+  { id: "CMD-004", buyer: "David Tagne", buyerId: 8, seller: "Jean-Pierre Fotso", sellerId: 2, article: "Veste en cuir vintage", articleId: 6, amount: 22000, commission: 2200, shippingCost: 2500, status: "delivered", deliveryMode: "main-propre", confirmationCode: "274619", escrowStatus: "released", date: "2026-02-08" },
+  { id: "CMD-005", buyer: "Sandrine Ateba", buyerId: 11, seller: "Aisha Njoya", sellerId: 7, article: "Robe de soirée noire", articleId: 7, amount: 12000, commission: 1200, shippingCost: 1500, status: "pending", deliveryMode: "seller-delivery", confirmationCode: "891043", escrowStatus: "blocked", date: "2026-02-13" },
+  { id: "CMD-006", buyer: "Amina Bello", buyerId: 1, seller: "Sandrine Ateba", sellerId: 11, article: "Table basse en bois", articleId: 9, amount: 35000, commission: 3500, shippingCost: 5000, status: "disputed", deliveryMode: "buyer-delivery", confirmationCode: "365728", escrowStatus: "blocked", date: "2026-02-07" },
+  { id: "CMD-007", buyer: "Jean-Pierre Fotso", buyerId: 2, seller: "Samuel Ekane", sellerId: 4, article: "Baskets Adidas Yeezy", articleId: 12, amount: 55000, commission: 5500, shippingCost: 2500, status: "delivered", deliveryMode: "seller-delivery", confirmationCode: "648291", escrowStatus: "released", date: "2026-02-06" },
+  { id: "CMD-008", buyer: "Carine Essomba", buyerId: 9, seller: "Paul Mbarga", sellerId: 6, article: "Nike Air Max 90", articleId: 3, amount: 25000, commission: 2500, shippingCost: 2000, status: "refunded", deliveryMode: "main-propre", confirmationCode: "173854", escrowStatus: "released", date: "2026-02-09" },
+  { id: "CMD-009", buyer: "Eric Tchinda", buyerId: 12, seller: "Amina Bello", sellerId: 1, article: "Robe d'été fleurie", articleId: 1, amount: 8500, commission: 850, shippingCost: 1500, status: "in_delivery", deliveryMode: "buyer-delivery", confirmationCode: "925471", escrowStatus: "blocked", date: "2026-02-12" },
+  { id: "CMD-010", buyer: "Yves Nkoulou", buyerId: 10, seller: "David Tagne", sellerId: 8, article: "Console PS5", articleId: 8, amount: 220000, commission: 22000, shippingCost: 4000, status: "paid_escrow", deliveryMode: "seller-delivery", confirmationCode: "418263", escrowStatus: "blocked", date: "2026-02-13" },
 ];
 
 // ---------- DISPUTES ----------
@@ -316,7 +323,7 @@ export interface ActivityItem {
 
 export const recentActivity: ActivityItem[] = [
   { id: 1, type: "signup", message: "Carine Essomba a créé un compte", time: "Il y a 2 min" },
-  { id: 2, type: "sale", message: "Commande CMD-010 — Console PS5 (220 000 FCFA)", time: "Il y a 15 min" },
+  { id: 2, type: "sale", message: "Commande CMD-010 — Console PS5 (220 000 GNF)", time: "Il y a 15 min" },
   { id: 3, type: "article", message: "Pyjama enfant Disney en attente de validation", time: "Il y a 30 min" },
   { id: 4, type: "dispute", message: "Nouveau litige LIT-005 ouvert — iPhone 13 Pro", time: "Il y a 1h" },
   { id: 5, type: "sale", message: "Commande CMD-009 expédiée — Robe d'été fleurie", time: "Il y a 2h" },
@@ -347,7 +354,7 @@ export const mockCurrentUser: DashboardUser = {
   id: 1,
   name: "Amina Bello",
   pseudo: "amina_b",
-  phone: "+237 690 123 456",
+  phone: "+224 690 123 456",
   avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop",
   bio: "Passionnée de mode et de seconde main. Je vends des pièces uniques que je déniche avec soin.",
   joinedDate: "2025-08-15",
@@ -394,20 +401,23 @@ export interface UserOrder {
   otherPartyAvatar: string;
   amount: number;
   shippingCost: number;
-  status: "pending" | "paid" | "shipped" | "delivered" | "disputed" | "refunded";
+  status: OrderStatus;
+  deliveryMode: DeliveryMode;
+  confirmationCode: string;
+  escrowStatus: EscrowStatus;
   date: string;
   trackingNumber?: string;
 }
 
 export const mockUserOrders: UserOrder[] = [
-  { id: "CMD-001", type: "sale", article: "Robe d'été fleurie", articleImage: "https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=100&h=100&fit=crop", otherParty: "Fatou Diallo", otherPartyAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop", amount: 8500, shippingCost: 1500, status: "delivered", date: "2026-02-10", trackingNumber: "CM123456789" },
-  { id: "CMD-009", type: "sale", article: "Robe d'été fleurie", articleImage: "https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=100&h=100&fit=crop", otherParty: "Eric Tchinda", otherPartyAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop", amount: 8500, shippingCost: 1500, status: "shipped", date: "2026-02-12", trackingNumber: "CM987654321" },
-  { id: "CMD-006", type: "purchase", article: "Table basse en bois", articleImage: "https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=100&h=100&fit=crop", otherParty: "Sandrine Ateba", otherPartyAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop", amount: 35000, shippingCost: 5000, status: "disputed", date: "2026-02-07" },
-  { id: "CMD-015", type: "purchase", article: "Console PS5", articleImage: "https://images.unsplash.com/photo-1606813907291-d86efa9b94db?w=100&h=100&fit=crop", otherParty: "David Tagne", otherPartyAvatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&h=100&fit=crop", amount: 220000, shippingCost: 4000, status: "paid", date: "2026-02-13" },
-  { id: "CMD-012", type: "sale", article: "Chemisier en soie", articleImage: "https://images.unsplash.com/photo-1598554747436-c9293d6a588f?w=100&h=100&fit=crop", otherParty: "Aisha Njoya", otherPartyAvatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100&h=100&fit=crop", amount: 12000, shippingCost: 1500, status: "delivered", date: "2026-01-30" },
-  { id: "CMD-016", type: "purchase", article: "Baskets Adidas Yeezy", articleImage: "https://images.unsplash.com/photo-1587563871167-1ee9c731aefb?w=100&h=100&fit=crop", otherParty: "Samuel Ekane", otherPartyAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop", amount: 55000, shippingCost: 2500, status: "delivered", date: "2026-02-06" },
-  { id: "CMD-018", type: "sale", article: "Montre Casio vintage", articleImage: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=100&h=100&fit=crop", otherParty: "Paul Mbarga", otherPartyAvatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&h=100&fit=crop", amount: 18000, shippingCost: 1500, status: "delivered", date: "2026-01-25" },
-  { id: "CMD-020", type: "purchase", article: "Veste en cuir vintage", articleImage: "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=100&h=100&fit=crop", otherParty: "Jean-Pierre Fotso", otherPartyAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop", amount: 22000, shippingCost: 2500, status: "pending", date: "2026-02-13" },
+  { id: "CMD-001", type: "sale", article: "Robe d'été fleurie", articleImage: "https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=100&h=100&fit=crop", otherParty: "Fatou Diallo", otherPartyAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop", amount: 8500, shippingCost: 1500, status: "delivered", deliveryMode: "main-propre", confirmationCode: "482917", escrowStatus: "released", date: "2026-02-10", trackingNumber: "GN123456789" },
+  { id: "CMD-009", type: "sale", article: "Robe d'été fleurie", articleImage: "https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=100&h=100&fit=crop", otherParty: "Eric Tchinda", otherPartyAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop", amount: 8500, shippingCost: 1500, status: "in_delivery", deliveryMode: "buyer-delivery", confirmationCode: "925471", escrowStatus: "blocked", date: "2026-02-12", trackingNumber: "GN987654321" },
+  { id: "CMD-006", type: "purchase", article: "Table basse en bois", articleImage: "https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=100&h=100&fit=crop", otherParty: "Sandrine Ateba", otherPartyAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop", amount: 35000, shippingCost: 5000, status: "disputed", deliveryMode: "buyer-delivery", confirmationCode: "365728", escrowStatus: "blocked", date: "2026-02-07" },
+  { id: "CMD-015", type: "purchase", article: "Console PS5", articleImage: "https://images.unsplash.com/photo-1606813907291-d86efa9b94db?w=100&h=100&fit=crop", otherParty: "David Tagne", otherPartyAvatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&h=100&fit=crop", amount: 220000, shippingCost: 4000, status: "paid_escrow", deliveryMode: "seller-delivery", confirmationCode: "418263", escrowStatus: "blocked", date: "2026-02-13" },
+  { id: "CMD-012", type: "sale", article: "Chemisier en soie", articleImage: "https://images.unsplash.com/photo-1598554747436-c9293d6a588f?w=100&h=100&fit=crop", otherParty: "Aisha Njoya", otherPartyAvatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100&h=100&fit=crop", amount: 12000, shippingCost: 1500, status: "delivered", deliveryMode: "seller-delivery", confirmationCode: "648291", escrowStatus: "released", date: "2026-01-30" },
+  { id: "CMD-016", type: "purchase", article: "Baskets Adidas Yeezy", articleImage: "https://images.unsplash.com/photo-1587563871167-1ee9c731aefb?w=100&h=100&fit=crop", otherParty: "Samuel Ekane", otherPartyAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop", amount: 55000, shippingCost: 2500, status: "delivered", deliveryMode: "main-propre", confirmationCode: "173854", escrowStatus: "released", date: "2026-02-06" },
+  { id: "CMD-018", type: "sale", article: "Montre Casio vintage", articleImage: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=100&h=100&fit=crop", otherParty: "Paul Mbarga", otherPartyAvatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&h=100&fit=crop", amount: 18000, shippingCost: 1500, status: "delivered", deliveryMode: "main-propre", confirmationCode: "274619", escrowStatus: "released", date: "2026-01-25" },
+  { id: "CMD-020", type: "purchase", article: "Veste en cuir vintage", articleImage: "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=100&h=100&fit=crop", otherParty: "Jean-Pierre Fotso", otherPartyAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop", amount: 22000, shippingCost: 2500, status: "awaiting_confirmation", deliveryMode: "buyer-delivery", confirmationCode: "539182", escrowStatus: "blocked", date: "2026-02-13" },
 ];
 
 export interface UserTransaction {

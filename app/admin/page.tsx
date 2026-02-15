@@ -48,7 +48,7 @@ export default function AdminDashboardPage() {
           icon={FiShoppingBag}
         />
         <StatCard
-          title="Revenus (FCFA)"
+          title="Revenus (GNF)"
           value={totalRevenue.toLocaleString("fr-FR")}
           change="+23% ce mois"
           changeType="positive"

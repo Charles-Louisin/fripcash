@@ -66,7 +66,7 @@ export default function ContactPage() {
                 {
                   icon: FiPhone,
                   title: "Téléphone",
-                  line1: "+237 6XX XXX XXX",
+                  line1: "+224 6XX XXX XXX",
                   line2: "Lun - Ven, 8h - 18h",
                 },
                 {
@@ -78,8 +78,8 @@ export default function ContactPage() {
                 {
                   icon: FiMapPin,
                   title: "Adresse",
-                  line1: "Douala, Cameroun",
-                  line2: "Akwa, Rue de la Joie",
+                  line1: "Conakry, Guinée",
+                  line2: "Kaloum, Rue du Commerce",
                 },
                 {
                   icon: FiClock,
@@ -125,7 +125,7 @@ export default function ContactPage() {
                     </label>
                     <input
                       type="tel"
-                      placeholder="+237 6XX XXX XXX"
+                      placeholder="+224 6XX XXX XXX"
                       value={form.phone}
                       onChange={(e) => setForm({ ...form, phone: e.target.value })}
                       className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"

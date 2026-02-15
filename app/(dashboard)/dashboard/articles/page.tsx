@@ -311,7 +311,7 @@ export default function MyArticlesPage() {
               <div className="p-3">
                 <p className="text-sm font-semibold text-foreground truncate">{item.title}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{item.category} · {item.condition}</p>
-                <p className="text-sm font-bold text-primary mt-1">{item.price.toLocaleString("fr-FR")} FCFA</p>
+                <p className="text-sm font-bold text-primary mt-1">{item.price.toLocaleString("fr-FR")} GNF</p>
 
                 <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1"><FiEye className="h-3 w-3" /> {item.views}</span>
@@ -379,7 +379,7 @@ export default function MyArticlesPage() {
                     </td>
                     {/* Price */}
                     <td className="px-4 py-3 text-right">
-                      <span className="text-sm font-bold text-primary whitespace-nowrap">{item.price.toLocaleString("fr-FR")} FCFA</span>
+                      <span className="text-sm font-bold text-primary whitespace-nowrap">{item.price.toLocaleString("fr-FR")} GNF</span>
                     </td>
                     {/* Views */}
                     <td className="px-4 py-3 text-center hidden lg:table-cell">
@@ -638,7 +638,7 @@ export default function MyArticlesPage() {
 
             {/* ─── Price ─── */}
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Prix (FCFA) *</label>
+              <label className="block text-sm font-semibold text-foreground mb-1.5">Prix (GNF) *</label>
               <div className="relative">
                 <input
                   type="number"
@@ -649,7 +649,7 @@ export default function MyArticlesPage() {
                   min="0"
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
-                  FCFA
+                  GNF
                 </span>
               </div>
             </div>

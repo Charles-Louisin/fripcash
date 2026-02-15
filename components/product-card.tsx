@@ -51,10 +51,10 @@ export function ProductCard({ product }: { product: Product }) {
         )}
         <div>
           <p className="text-sm font-semibold text-foreground">
-            {product.price.toFixed(2)} &euro;
+            {product.price.toLocaleString("fr-FR")} GNF
           </p>
           <p className="text-xs text-primary font-medium">
-            {product.priceWithShipping.toFixed(2)} &euro; incl.
+            {product.priceWithShipping.toLocaleString("fr-FR")} GNF incl.
           </p>
         </div>
       </div>

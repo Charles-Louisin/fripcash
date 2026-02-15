@@ -199,7 +199,7 @@ export function ProductFilters({
       {/* Price Range */}
       <div>
         <h4 className="text-sm font-semibold text-foreground mb-2">
-          Prix (€)
+          Prix (GNF)
         </h4>
         <div className="flex items-center gap-2">
           <input

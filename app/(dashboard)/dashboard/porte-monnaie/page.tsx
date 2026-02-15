@@ -51,7 +51,7 @@ export default function WalletPage() {
   const pendingCount = mockUserTransactions.filter((t) => t.status === "pending").length;
 
   const walletCards = [
-    { label: "Solde disponible", icon: LiaWalletSolid, iconBg: "bg-foreground/5", iconColor: "text-foreground/70", value: mockCurrentUser.walletBalance, prefix: "", suffix: "FCFA", desc: "Disponible pour retrait" },
+    { label: "Solde disponible", icon: LiaWalletSolid, iconBg: "bg-foreground/5", iconColor: "text-foreground/70", value: mockCurrentUser.walletBalance, prefix: "", suffix: "GNF", desc: "Disponible pour retrait" },
     { label: "Revenus", icon: FiTrendingUp, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", value: totalIn, prefix: "+", suffix: "F", desc: "Ventes, bonus & remboursements" },
     { label: "Retraits", icon: FiTrendingDown, iconBg: "bg-orange-50", iconColor: "text-orange-600", value: totalOut, prefix: "-", suffix: "F", desc: "Vers Mobile Money" },
     { label: "En attente", icon: FiClock, iconBg: "bg-amber-50", iconColor: "text-amber-600", value: pendingCount, prefix: "", suffix: `transaction${pendingCount !== 1 ? "s" : ""}`, desc: "En cours de traitement" },
@@ -88,7 +88,7 @@ export default function WalletPage() {
       showToast("Solde insuffisant", "error");
       return;
     }
-    showToast(`Retrait de ${amount.toLocaleString("fr-FR")} FCFA initié`, "success");
+    showToast(`Retrait de ${amount.toLocaleString("fr-FR")} GNF initié`, "success");
     setShowWithdraw(false);
     setWithdrawAmount("");
   };
@@ -258,11 +258,11 @@ export default function WalletPage() {
             <div className="p-6">
               <h3 className="text-lg font-semibold text-foreground mb-1">Retirer des fonds</h3>
               <p className="text-sm text-muted-foreground mb-5">
-                Solde : <span className="font-semibold text-foreground">{mockCurrentUser.walletBalance.toLocaleString("fr-FR")} FCFA</span>
+                Solde : <span className="font-semibold text-foreground">{mockCurrentUser.walletBalance.toLocaleString("fr-FR")} GNF</span>
               </p>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Montant (FCFA)</label>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Montant (GNF)</label>
                   <input
                     type="number"
                     value={withdrawAmount}

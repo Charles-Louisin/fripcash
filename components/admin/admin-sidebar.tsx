@@ -214,7 +214,7 @@ export function AdminSidebar({ collapsed }: AdminSidebarProps) {
             </div>
             <div className="min-w-0">
               <p className="text-xs font-medium text-sidebar-foreground truncate">FripCash Admin</p>
-              <p className="text-[10px] text-muted-foreground">Douala, CM</p>
+              <p className="text-[10px] text-muted-foreground">Conakry, GN</p>
             </div>
           </div>
         )}
