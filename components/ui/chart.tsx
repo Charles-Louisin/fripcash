@@ -141,6 +141,9 @@ const ChartTooltipContent = React.forwardRef<
       labelKey,
       nameKey,
       labelClassName: _labelClassName, // eslint-disable-line @typescript-eslint/no-unused-vars
+      // Strip Recharts internal props that shouldn't reach the DOM
+      // @ts-expect-error - Recharts passes these internally
+      itemSorter: _a, itemStyle: _b, labelStyle: _c, reverseDirection: _d, useTranslate3d: _e, wrapperStyle: _f, activeIndex: _g, accessibilityLayer: _h, // eslint-disable-line @typescript-eslint/no-unused-vars
       ...props
     },
     ref
