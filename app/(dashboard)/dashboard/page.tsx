@@ -9,7 +9,9 @@ import {
   mockUserListings,
   mockUserOrders,
   mockUserActivity,
-  mockUserSalesChart,
+  mockUserSalesChartWeek,
+  mockUserSalesChartMonth,
+  mockUserSalesChartYear,
 } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,6 +29,13 @@ import {
   ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const chartConfig = {
   ventes: {
@@ -39,7 +48,16 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+type ChartRange = "week" | "month" | "year";
+
+const chartDataMap: Record<ChartRange, { data: typeof mockUserSalesChartYear; description: string; selectLabel: string }> = {
+  year: { data: mockUserSalesChartYear, description: "Évolution sur les 6 derniers mois", selectLabel: "6 derniers mois" },
+  month: { data: mockUserSalesChartMonth, description: "Évolution ce mois-ci", selectLabel: "Ce mois-ci" },
+  week: { data: mockUserSalesChartWeek, description: "Évolution cette semaine", selectLabel: "Cette semaine" },
+};
+
 export default function DashboardOverviewPage() {
+  const [chartRange, setChartRange] = React.useState<ChartRange>("year");
   const activeListings = mockUserListings.filter((l) => l.status === "active").length;
   const totalSales = mockUserOrders.filter((o) => o.type === "sale").length;
   const totalPurchases = mockUserOrders.filter((o) => o.type === "purchase").length;
@@ -109,12 +127,27 @@ export default function DashboardOverviewPage() {
         <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
           <div className="grid flex-1 gap-1">
             <CardTitle>Mes ventes & achats</CardTitle>
-            <CardDescription>Évolution sur les 6 derniers mois</CardDescription>
+            <CardDescription>{chartDataMap[chartRange].description}</CardDescription>
           </div>
+          <Select value={chartRange} onValueChange={(v) => setChartRange(v as ChartRange)}>
+            <SelectTrigger
+              className="hidden w-[160px] rounded-lg sm:ml-auto sm:flex"
+              aria-label="Sélectionner une période"
+            >
+              <SelectValue placeholder="6 derniers mois" />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl">
+              {(Object.keys(chartDataMap) as ChartRange[]).map((range) => (
+                <SelectItem key={range} value={range} className="rounded-lg">
+                  {chartDataMap[range].selectLabel}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardHeader>
         <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-          <ChartContainer config={chartConfig} className="aspect-auto h-[220px] w-full">
-            <AreaChart data={mockUserSalesChart}>
+          <ChartContainer config={chartConfig} className="aspect-auto h-[220px] w-full min-h-[220px]">
+            <AreaChart data={chartDataMap[chartRange].data}>
               <defs>
                 <linearGradient id="fillVentes" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--color-ventes)" stopOpacity={0.8} />
@@ -127,7 +160,7 @@ export default function DashboardOverviewPage() {
               </defs>
               <CartesianGrid vertical={false} />
               <XAxis
-                dataKey="month"
+                dataKey="label"
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}

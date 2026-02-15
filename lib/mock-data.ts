@@ -568,18 +568,35 @@ export const mockConversations: Conversation[] = [
 ];
 
 export interface UserSalesChartData {
-  month: string;
+  label: string;
   ventes: number;
   achats: number;
 }
 
-export const mockUserSalesChart: UserSalesChartData[] = [
-  { month: "Sep", ventes: 2, achats: 1 },
-  { month: "Oct", ventes: 3, achats: 0 },
-  { month: "Nov", ventes: 1, achats: 2 },
-  { month: "Déc", ventes: 4, achats: 1 },
-  { month: "Jan", ventes: 5, achats: 2 },
-  { month: "Fév", ventes: 3, achats: 1 },
+export const mockUserSalesChartWeek: UserSalesChartData[] = [
+  { label: "Lun", ventes: 1, achats: 0 },
+  { label: "Mar", ventes: 0, achats: 1 },
+  { label: "Mer", ventes: 2, achats: 0 },
+  { label: "Jeu", ventes: 0, achats: 0 },
+  { label: "Ven", ventes: 1, achats: 1 },
+  { label: "Sam", ventes: 3, achats: 0 },
+  { label: "Dim", ventes: 0, achats: 1 },
+];
+
+export const mockUserSalesChartMonth: UserSalesChartData[] = [
+  { label: "Sem 1", ventes: 3, achats: 1 },
+  { label: "Sem 2", ventes: 5, achats: 2 },
+  { label: "Sem 3", ventes: 2, achats: 3 },
+  { label: "Sem 4", ventes: 4, achats: 1 },
+];
+
+export const mockUserSalesChartYear: UserSalesChartData[] = [
+  { label: "Sep", ventes: 2, achats: 1 },
+  { label: "Oct", ventes: 3, achats: 0 },
+  { label: "Nov", ventes: 1, achats: 2 },
+  { label: "Déc", ventes: 4, achats: 1 },
+  { label: "Jan", ventes: 5, achats: 2 },
+  { label: "Fév", ventes: 3, achats: 1 },
 ];
 
 export interface UserActivityItem {
