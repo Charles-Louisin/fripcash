@@ -90,23 +90,17 @@ export default function DashboardOverviewPage() {
       <div className="flex flex-wrap gap-3 justify-end">
         <Link
           href="/dashboard/articles"
-          className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors group"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary text-primary-foreground text-sm font-medium shadow-sm hover:bg-primary/90 transition-colors"
         >
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <FiPlus className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-sm font-medium text-foreground">Vendre un article</span>
-          <FiArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+          <FiPlus className="h-4 w-4" />
+          Vendre un article
         </Link>
         <Link
           href="/produits"
-          className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors group"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-border bg-card text-sm font-medium text-foreground shadow-sm hover:bg-accent transition-colors"
         >
-          <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center shrink-0">
-            <FiSearch className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-sm font-medium text-foreground">Parcourir les articles</span>
-          <FiArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-blue-500 transition-colors" />
+          <FiSearch className="h-4 w-4 text-muted-foreground" />
+          Parcourir les articles
         </Link>
       </div>
 
