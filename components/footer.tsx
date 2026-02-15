@@ -21,12 +21,13 @@ export function Footer() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mb-10">
             {/* Brand & Social */}
             <div>
-              <Link href="/" className="inline-block mb-3">
+              <Link href="/" className="inline-block mb-3 -my-12">
                 <Image
                   src="/images/logo.png"
                   alt="FripCash"
-                  width={120}
-                  height={120}
+                  width={300}
+                  height={300}
+                  className="h-36 w-auto"
                 />
               </Link>
               <p className="mb-6 text-muted-foreground text-sm leading-relaxed">
