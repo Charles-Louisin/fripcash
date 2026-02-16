@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { authApi, setToken, removeToken } from "@/lib/api";
+import { useCartStore } from "@/stores/cart-store";
 
 function hasToken(): boolean {
   if (typeof window === "undefined") return false;
@@ -95,5 +96,6 @@ export function useLogout() {
     removeToken();
     queryClient.setQueryData(["me"], null);
     queryClient.clear();
+    useCartStore.getState().clearCart();
   };
 }
