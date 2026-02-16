@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FiHeart } from "react-icons/fi";
 
 export interface Product {
-  id: number;
+  id: number | string;
   image: string;
   brand: string;
   condition: string;

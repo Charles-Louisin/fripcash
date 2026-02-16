@@ -24,7 +24,7 @@ import {
   FiPackage,
 } from "react-icons/fi";
 import { LuHandshake } from "react-icons/lu";
-import type { DeliveryMode } from "@/lib/mock-data";
+type DeliveryMode = "main-propre" | "buyer-delivery" | "seller-delivery";
 
 type PaymentMethod = "mobile-money" | "card" | "wallet";
 

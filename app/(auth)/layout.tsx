@@ -10,7 +10,7 @@ export default function AuthLayout({
   return (
     <div className="flex min-h-screen">
       {/* Left side — image panel */}
-      <div className="relative hidden lg:flex lg:w-1/2">
+      <div className="relative hidden md:flex md:w-1/2 bg-black">
         {/* Background image */}
         <div
           className="absolute inset-0 bg-cover bg-center"
@@ -48,9 +48,9 @@ export default function AuthLayout({
       </div>
 
       {/* Right side — form panel */}
-      <div className="flex w-full lg:w-1/2 flex-col items-center justify-center px-6 py-12 bg-background">
+      <div className="flex w-full md:w-1/2 flex-col items-center justify-center px-6 py-12 bg-background">
         {/* Mobile logo */}
-        <div className="lg:hidden mb-8">
+        <div className="md:hidden mb-8">
           <Link href="/">
             <Image
               src="/images/logo.png"

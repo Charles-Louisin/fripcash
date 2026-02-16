@@ -117,6 +117,14 @@ export function Footer() {
                     Contact
                   </Link>
                 </li>
+                <li>
+                  <Link
+                    href="/dashboard/parametres"
+                    className="text-muted-foreground hover:text-primary hover:underline text-sm transition-colors"
+                  >
+                    Se désinscrire de la newsletter
+                  </Link>
+                </li>
               </ul>
             </div>
 

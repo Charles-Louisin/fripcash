@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { DataTable } from "@/components/admin/data-table";
 import { Badge } from "@/components/ui/badge";
-import { mockOrders, type MockOrder } from "@/lib/mock-data";
+import { useAdminOrders } from "@/hooks/use-admin";
 import { FiSearch, FiEye } from "react-icons/fi";
 
-const statusConfig: Record<MockOrder["status"], { label: string; variant: "default" | "secondary" | "destructive" | "success" | "warning" | "outline" }> = {
+const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "success" | "warning" | "outline" }> = {
   pending: { label: "En attente", variant: "warning" },
   paid_escrow: { label: "Payé (séquestre)", variant: "default" },
   in_delivery: { label: "En livraison", variant: "secondary" },
@@ -19,35 +19,45 @@ const statusConfig: Record<MockOrder["status"], { label: string; variant: "defau
 export default function CommandesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedOrder, setSelectedOrder] = useState<MockOrder | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
-  const filtered = useMemo(() => {
-    return mockOrders.filter((o) => {
-      const matchSearch =
-        o.id.toLowerCase().includes(search.toLowerCase()) ||
-        o.buyer.toLowerCase().includes(search.toLowerCase()) ||
-        o.seller.toLowerCase().includes(search.toLowerCase()) ||
-        o.article.toLowerCase().includes(search.toLowerCase());
-      const matchStatus = statusFilter === "all" || o.status === statusFilter;
-      return matchSearch && matchStatus;
-    });
-  }, [search, statusFilter]);
+  const { data, isLoading } = useAdminOrders({ status: statusFilter === "all" ? undefined : statusFilter });
+  const orders = data?.data ?? [];
 
-  const totalAmount = filtered.reduce((sum, o) => sum + o.amount, 0);
-  const totalCommission = filtered.reduce((sum, o) => sum + o.commission, 0);
+  const filtered = search
+    ? orders.filter((o: any) => {
+        const q = search.toLowerCase();
+        const articleTitle = typeof o.article === "object" ? o.article.title : "";
+        const buyerName = typeof o.buyer === "object" ? o.buyer.pseudo : "";
+        const sellerName = typeof o.seller === "object" ? o.seller.pseudo : "";
+        return (
+          o._id.toLowerCase().includes(q) ||
+          buyerName.toLowerCase().includes(q) ||
+          sellerName.toLowerCase().includes(q) ||
+          articleTitle.toLowerCase().includes(q)
+        );
+      })
+    : orders;
+
+  const totalAmount = filtered.reduce((sum: number, o: any) => sum + (o.amount || 0), 0);
+  const totalCommission = filtered.reduce((sum: number, o: any) => sum + (o.commission || 0), 0);
+
+  const getArticleTitle = (o: any) => typeof o.article === "object" ? o.article.title : "Article";
+  const getBuyer = (o: any) => typeof o.buyer === "object" ? o.buyer.pseudo : "Acheteur";
+  const getSeller = (o: any) => typeof o.seller === "object" ? o.seller.pseudo : "Vendeur";
 
   const columns = [
     {
       key: "id",
       header: "N° Commande",
-      render: (o: MockOrder) => <span className="font-mono font-medium text-foreground text-xs">{o.id}</span>,
+      render: (o: any) => <span className="font-mono font-medium text-foreground text-xs">#{o._id?.slice(-6)}</span>,
     },
     {
       key: "article",
       header: "Article",
-      render: (o: MockOrder) => (
+      render: (o: any) => (
         <div className="min-w-0">
-          <p className="font-medium text-foreground truncate max-w-[160px]">{o.article}</p>
+          <p className="font-medium text-foreground truncate max-w-[160px]">{getArticleTitle(o)}</p>
         </div>
       ),
     },
@@ -55,34 +65,34 @@ export default function CommandesPage() {
       key: "buyer",
       header: "Acheteur",
       className: "hidden md:table-cell",
-      render: (o: MockOrder) => <span className="text-muted-foreground">{o.buyer}</span>,
+      render: (o: any) => <span className="text-muted-foreground">{getBuyer(o)}</span>,
     },
     {
       key: "seller",
       header: "Vendeur",
       className: "hidden md:table-cell",
-      render: (o: MockOrder) => <span className="text-muted-foreground">{o.seller}</span>,
+      render: (o: any) => <span className="text-muted-foreground">{getSeller(o)}</span>,
     },
     {
       key: "amount",
       header: "Montant",
-      render: (o: MockOrder) => (
-        <span className="font-medium text-foreground">{o.amount.toLocaleString("fr-FR")} F</span>
+      render: (o: any) => (
+        <span className="font-medium text-foreground">{(o.amount || 0).toLocaleString("fr-FR")} F</span>
       ),
     },
     {
       key: "commission",
       header: "Commission",
       className: "hidden lg:table-cell",
-      render: (o: MockOrder) => (
-        <span className="text-primary font-medium">{o.commission.toLocaleString("fr-FR")} F</span>
+      render: (o: any) => (
+        <span className="text-primary font-medium">{(o.commission || 0).toLocaleString("fr-FR")} F</span>
       ),
     },
     {
       key: "status",
       header: "Statut",
-      render: (o: MockOrder) => {
-        const config = statusConfig[o.status];
+      render: (o: any) => {
+        const config = statusConfig[o.status] || { label: o.status, variant: "secondary" as const };
         return <Badge variant={config.variant}>{config.label}</Badge>;
       },
     },
@@ -90,9 +100,9 @@ export default function CommandesPage() {
       key: "date",
       header: "Date",
       className: "hidden sm:table-cell",
-      render: (o: MockOrder) => (
+      render: (o: any) => (
         <span className="text-muted-foreground text-xs">
-          {new Date(o.date).toLocaleDateString("fr-FR")}
+          {new Date(o.createdAt).toLocaleDateString("fr-FR")}
         </span>
       ),
     },
@@ -100,7 +110,7 @@ export default function CommandesPage() {
       key: "actions",
       header: "",
       className: "w-10",
-      render: (o: MockOrder) => (
+      render: (o: any) => (
         <button
           onClick={() => setSelectedOrder(o)}
           className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
@@ -111,15 +121,21 @@ export default function CommandesPage() {
     },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Commandes</h1>
         <p className="text-sm text-muted-foreground mt-1">Suivi des transactions sur la plateforme</p>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Commandes</p>
@@ -135,7 +151,6 @@ export default function CommandesPage() {
         </div>
       </div>
 
-      {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-sm">
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -156,17 +171,13 @@ export default function CommandesPage() {
           <option value="pending">En attente</option>
           <option value="paid_escrow">Payé (séquestre)</option>
           <option value="in_delivery">En livraison</option>
-          <option value="awaiting_confirmation">Confirmation</option>
           <option value="delivered">Livré</option>
           <option value="disputed">En litige</option>
-          <option value="refunded">Remboursé</option>
         </select>
       </div>
 
-      {/* Table */}
       <DataTable columns={columns} data={filtered} emptyMessage="Aucune commande trouvée" />
 
-      {/* Order Detail Dialog */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/50" onClick={() => setSelectedOrder(null)} />
@@ -178,51 +189,39 @@ export default function CommandesPage() {
               &times;
             </button>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-foreground">{selectedOrder.id}</h2>
-              <Badge variant={statusConfig[selectedOrder.status].variant}>
-                {statusConfig[selectedOrder.status].label}
+              <h2 className="text-lg font-bold text-foreground">#{selectedOrder._id?.slice(-6)}</h2>
+              <Badge variant={statusConfig[selectedOrder.status]?.variant || "secondary"}>
+                {statusConfig[selectedOrder.status]?.label || selectedOrder.status}
               </Badge>
             </div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Article</span>
-                <span className="font-medium text-foreground">{selectedOrder.article}</span>
+                <span className="font-medium text-foreground">{getArticleTitle(selectedOrder)}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Acheteur</span>
-                <span className="font-medium">{selectedOrder.buyer}</span>
+                <span className="font-medium">{getBuyer(selectedOrder)}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Vendeur</span>
-                <span className="font-medium">{selectedOrder.seller}</span>
+                <span className="font-medium">{getSeller(selectedOrder)}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-border">
-                <span className="text-muted-foreground">Montant article</span>
-                <span className="font-medium">{selectedOrder.amount.toLocaleString("fr-FR")} F</span>
+                <span className="text-muted-foreground">Montant</span>
+                <span className="font-medium">{(selectedOrder.amount || 0).toLocaleString("fr-FR")} F</span>
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Frais de port</span>
-                <span className="font-medium">{selectedOrder.shippingCost.toLocaleString("fr-FR")} F</span>
+                <span className="font-medium">{(selectedOrder.shippingCost || 0).toLocaleString("fr-FR")} F</span>
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Commission FripCash</span>
-                <span className="font-bold text-primary">{selectedOrder.commission.toLocaleString("fr-FR")} F</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-border">
-                <span className="text-muted-foreground">Total payé par l&apos;acheteur</span>
-                <span className="font-bold text-foreground">
-                  {(selectedOrder.amount + selectedOrder.shippingCost).toLocaleString("fr-FR")} F
-                </span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-border">
-                <span className="text-muted-foreground">Reçu par le vendeur</span>
-                <span className="font-medium">
-                  {(selectedOrder.amount - selectedOrder.commission).toLocaleString("fr-FR")} F
-                </span>
+                <span className="font-bold text-primary">{(selectedOrder.commission || 0).toLocaleString("fr-FR")} F</span>
               </div>
               <div className="flex justify-between py-2">
                 <span className="text-muted-foreground">Date</span>
-                <span className="font-medium">{new Date(selectedOrder.date).toLocaleDateString("fr-FR")}</span>
+                <span className="font-medium">{new Date(selectedOrder.createdAt).toLocaleDateString("fr-FR")}</span>
               </div>
             </div>
           </div>

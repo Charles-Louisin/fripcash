@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { mockUserOrders, type UserOrder, type OrderStatus, type DeliveryMode } from "@/lib/mock-data";
+import { useMyOrders, useConfirmDelivery, useShipOrder } from "@/hooks/use-orders";
+import { useMe } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -16,6 +17,10 @@ import {
   FiCopy,
 } from "react-icons/fi";
 import { LuHandshake } from "react-icons/lu";
+
+type OrderStatus = "pending" | "paid_escrow" | "in_delivery" | "awaiting_confirmation" | "delivered" | "disputed" | "refunded";
+type DeliveryMode = "main-propre" | "buyer-delivery" | "seller-delivery";
+type EscrowStatus = "blocked" | "released";
 
 const orderTabs = [
   { id: "all", label: "Toutes" },
@@ -41,19 +46,51 @@ const deliveryModeLabels: Record<DeliveryMode, { label: string; icon: React.Elem
 
 const statusFilters: OrderStatus[] = ["pending", "paid_escrow", "in_delivery", "awaiting_confirmation", "delivered", "disputed"];
 
+function getOrderType(order: any, userId: string): "purchase" | "sale" {
+  const buyerId = typeof order.buyer === "object" ? order.buyer._id : order.buyer;
+  return buyerId === userId ? "purchase" : "sale";
+}
+
+function getOtherParty(order: any, type: "purchase" | "sale"): string {
+  if (type === "purchase") {
+    return typeof order.seller === "object" ? order.seller.pseudo : "Vendeur";
+  }
+  return typeof order.buyer === "object" ? order.buyer.pseudo : "Acheteur";
+}
+
+function getArticleTitle(order: any): string {
+  return typeof order.article === "object" ? order.article.title : "Article";
+}
+
+function getArticleImage(order: any): string {
+  if (typeof order.article === "object" && order.article.images?.length > 0) {
+    return order.article.images[0];
+  }
+  return "";
+}
+
 export default function MyOrdersPage() {
   const { showToast } = useToast();
+  const { data: user } = useMe();
+  const { data: orders, isLoading } = useMyOrders();
+  const confirmDelivery = useConfirmDelivery();
+  const shipOrder = useShipOrder();
+
   const [activeTab, setActiveTab] = useState("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedOrder, setSelectedOrder] = useState<UserOrder | null>(null);
-  const [orders, setOrders] = useState<UserOrder[]>(mockUserOrders);
-
-  // Buyer confirmation code input
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [confirmCode, setConfirmCode] = useState(["", "", "", "", "", ""]);
 
-  const filtered = orders
-    .filter((o) => activeTab === "all" || o.type === activeTab)
-    .filter((o) => statusFilter === "all" || o.status === statusFilter);
+  const userId = user?.id || "";
+
+  const enrichedOrders = (orders || []).map((o: any) => {
+    const type = getOrderType(o, userId);
+    return { ...o, type, otherParty: getOtherParty(o, type), articleTitle: getArticleTitle(o), articleImage: getArticleImage(o) };
+  });
+
+  const filtered = enrichedOrders
+    .filter((o: any) => activeTab === "all" || o.type === activeTab)
+    .filter((o: any) => statusFilter === "all" || o.status === statusFilter);
 
   const handleCodeChange = (index: number, value: string) => {
     if (value.length > 1) return;
@@ -73,40 +110,54 @@ export default function MyOrdersPage() {
     }
   };
 
-  const handleConfirmReception = (order: UserOrder) => {
+  const handleConfirmReception = (order: any) => {
     const enteredCode = confirmCode.join("");
     if (enteredCode.length !== 6) {
       showToast("Saisis le code complet à 6 chiffres.", "error");
       return;
     }
-    if (enteredCode === order.confirmationCode) {
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === order.id ? { ...o, status: "delivered" as OrderStatus, escrowStatus: "released" as const } : o
-        )
-      );
-      setSelectedOrder({ ...order, status: "delivered", escrowStatus: "released" });
-      setConfirmCode(["", "", "", "", "", ""]);
-      showToast("Réception confirmée ! Le paiement a été libéré vers le vendeur.", "success");
-    } else {
-      showToast("Code incorrect. Vérifie auprès du vendeur ou livreur.", "error");
-    }
+    confirmDelivery.mutate(
+      { id: order._id, code: enteredCode },
+      {
+        onSuccess: () => {
+          setConfirmCode(["", "", "", "", "", ""]);
+          setSelectedOrder(null);
+          showToast("Réception confirmée ! Le paiement a été libéré vers le vendeur.", "success");
+        },
+        onError: (err: any) => {
+          showToast(err.message || "Code incorrect. Vérifie auprès du vendeur ou livreur.", "error");
+        },
+      }
+    );
   };
 
-  const handleMarkShipped = (order: UserOrder) => {
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === order.id ? { ...o, status: "in_delivery" as OrderStatus } : o
-      )
+  const handleMarkShipped = (order: any) => {
+    shipOrder.mutate(
+      { id: order._id },
+      {
+        onSuccess: () => {
+          setSelectedOrder(null);
+          showToast("Commande marquée comme expédiée.", "success");
+        },
+        onError: (err: any) => {
+          showToast(err.message || "Erreur lors de la mise à jour.", "error");
+        },
+      }
     );
-    setSelectedOrder({ ...order, status: "in_delivery" });
-    showToast("Commande marquée comme expédiée.", "success");
   };
 
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
     showToast("Code copié !", "info");
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -118,7 +169,7 @@ export default function MyOrdersPage() {
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-border">
         {orderTabs.map((tab) => {
-          const count = tab.id === "all" ? orders.length : orders.filter((o) => o.type === tab.id).length;
+          const count = tab.id === "all" ? enrichedOrders.length : enrichedOrders.filter((o: any) => o.type === tab.id).length;
           return (
             <button
               key={tab.id}
@@ -173,14 +224,14 @@ export default function MyOrdersPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((order) => {
-            const config = statusConfig[order.status];
+          {filtered.map((order: any) => {
+            const config = statusConfig[order.status as OrderStatus];
             const StatusIcon = config?.icon || FiPackage;
-            const deliveryInfo = deliveryModeLabels[order.deliveryMode];
+            const deliveryInfo = deliveryModeLabels[order.deliveryMode as DeliveryMode];
             const DeliveryIcon = deliveryInfo?.icon || FiPackage;
             return (
               <div
-                key={order.id}
+                key={order._id}
                 className="rounded-xl border border-border bg-card p-4 hover:bg-accent/30 transition-colors cursor-pointer"
                 onClick={() => {
                   setSelectedOrder(order);
@@ -188,14 +239,16 @@ export default function MyOrdersPage() {
                 }}
               >
                 <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={order.articleImage} alt={order.article} className="w-full h-full object-cover" />
+                  <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 bg-muted">
+                    {order.articleImage && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={order.articleImage} alt={order.articleTitle} className="w-full h-full object-cover" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="text-sm font-semibold text-foreground">{order.article}</p>
+                        <p className="text-sm font-semibold text-foreground">{order.articleTitle}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {order.type === "purchase" ? "Acheté à" : "Vendu à"}{" "}
                           <span className="font-medium text-foreground">{order.otherParty}</span>
@@ -211,8 +264,7 @@ export default function MyOrdersPage() {
                     </div>
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-foreground">{order.amount.toLocaleString("fr-FR")} GNF</p>
-                        {/* Escrow indicator */}
+                        <p className="text-sm font-bold text-foreground">{(order.amount || 0).toLocaleString("fr-FR")} GNF</p>
                         {order.escrowStatus === "blocked" && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
                             <FiLock className="h-2.5 w-2.5" /> Séquestre
@@ -229,7 +281,7 @@ export default function MyOrdersPage() {
                           <DeliveryIcon className="h-3 w-3" />
                           {deliveryInfo?.label}
                         </span>
-                        <p className="text-xs text-muted-foreground">{new Date(order.date).toLocaleDateString("fr-FR")}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleDateString("fr-FR")}</p>
                       </div>
                     </div>
                   </div>
@@ -246,20 +298,22 @@ export default function MyOrdersPage() {
           <div className="absolute inset-0 bg-black/50" onClick={() => setSelectedOrder(null)} />
           <div className="relative z-10 w-full max-w-md mx-4 bg-background rounded-xl border border-border shadow-lg max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4">Commande {selectedOrder.id}</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-4">Commande #{selectedOrder._id?.slice(-6)}</h3>
 
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-20 h-20 rounded-lg overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={selectedOrder.articleImage} alt={selectedOrder.article} className="w-full h-full object-cover" />
+                <div className="w-20 h-20 rounded-lg overflow-hidden bg-muted">
+                  {selectedOrder.articleImage && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={selectedOrder.articleImage} alt={selectedOrder.articleTitle} className="w-full h-full object-cover" />
+                  )}
                 </div>
                 <div>
-                  <p className="font-semibold text-foreground">{selectedOrder.article}</p>
+                  <p className="font-semibold text-foreground">{selectedOrder.articleTitle}</p>
                   <p className="text-sm text-muted-foreground">
                     {selectedOrder.type === "purchase" ? "Vendu par" : "Acheté par"} {selectedOrder.otherParty}
                   </p>
-                  <Badge variant={statusConfig[selectedOrder.status]?.variant || "secondary"} className="mt-1 text-[10px]">
-                    {statusConfig[selectedOrder.status]?.label || selectedOrder.status}
+                  <Badge variant={statusConfig[selectedOrder.status as OrderStatus]?.variant || "secondary"} className="mt-1 text-[10px]">
+                    {statusConfig[selectedOrder.status as OrderStatus]?.label || selectedOrder.status}
                   </Badge>
                 </div>
               </div>
@@ -268,21 +322,22 @@ export default function MyOrdersPage() {
               <div className="border-t border-border pt-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Montant</span>
-                  <span className="font-medium">{selectedOrder.amount.toLocaleString("fr-FR")} GNF</span>
+                  <span className="font-medium">{(selectedOrder.amount || 0).toLocaleString("fr-FR")} GNF</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Frais de livraison</span>
-                  <span className="font-medium">{selectedOrder.shippingCost.toLocaleString("fr-FR")} GNF</span>
+                  <span className="font-medium">{(selectedOrder.shippingCost || 0).toLocaleString("fr-FR")} GNF</span>
                 </div>
                 <div className="flex justify-between text-sm font-semibold border-t border-border pt-2">
                   <span>Total</span>
-                  <span className="text-primary">{(selectedOrder.amount + selectedOrder.shippingCost).toLocaleString("fr-FR")} GNF</span>
+                  <span className="text-primary">{((selectedOrder.amount || 0) + (selectedOrder.shippingCost || 0)).toLocaleString("fr-FR")} GNF</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Mode de livraison</span>
                   <span className="font-medium flex items-center gap-1">
                     {(() => {
-                      const dInfo = deliveryModeLabels[selectedOrder.deliveryMode];
+                      const dInfo = deliveryModeLabels[selectedOrder.deliveryMode as DeliveryMode];
+                      if (!dInfo) return selectedOrder.deliveryMode;
                       const DIcon = dInfo.icon;
                       return (<><DIcon className="h-3.5 w-3.5 text-primary" /> {dInfo.label}</>);
                     })()}
@@ -302,12 +357,12 @@ export default function MyOrdersPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Date</span>
-                  <span>{new Date(selectedOrder.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}</span>
+                  <span>{new Date(selectedOrder.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}</span>
                 </div>
               </div>
 
               {/* ─── SELLER: Show confirmation code ─── */}
-              {selectedOrder.type === "sale" && selectedOrder.escrowStatus === "blocked" && (
+              {selectedOrder.type === "sale" && selectedOrder.escrowStatus === "blocked" && selectedOrder.confirmationCode && (
                 <div className="mt-4 p-4 rounded-xl bg-primary/5 border border-primary/20">
                   <p className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
                     <FiShield className="h-4 w-4 text-primary" />
@@ -319,7 +374,7 @@ export default function MyOrdersPage() {
                   </p>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1.5">
-                      {selectedOrder.confirmationCode.split("").map((digit, i) => (
+                      {selectedOrder.confirmationCode.split("").map((digit: string, i: number) => (
                         <div
                           key={i}
                           className="h-12 w-10 rounded-lg bg-background border-2 border-primary/30 flex items-center justify-center text-xl font-bold text-primary"
@@ -338,18 +393,17 @@ export default function MyOrdersPage() {
                     </button>
                   </div>
 
-                  {/* Mark as shipped button */}
                   {selectedOrder.status === "paid_escrow" && (
                     <button
                       type="button"
                       onClick={() => handleMarkShipped(selectedOrder)}
-                      className="mt-4 w-full h-10 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                      disabled={shipOrder.isPending}
+                      className="mt-4 w-full h-10 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                       <FiTruck className="h-4 w-4" />
-                      Marquer comme expédié
+                      {shipOrder.isPending ? "Envoi..." : "Marquer comme expédié"}
                     </button>
                   )}
-
                 </div>
               )}
 
@@ -366,7 +420,6 @@ export default function MyOrdersPage() {
                     pour confirmer que tu as bien reçu l&apos;article et libérer le paiement.
                   </p>
 
-                  {/* 6-digit code input */}
                   <div className="flex items-center justify-center gap-2 mb-3">
                     {confirmCode.map((digit, i) => (
                       <input
@@ -386,10 +439,11 @@ export default function MyOrdersPage() {
                   <button
                     type="button"
                     onClick={() => handleConfirmReception(selectedOrder)}
-                    className="w-full h-10 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                    disabled={confirmDelivery.isPending}
+                    className="w-full h-10 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     <FiCheckCircle className="h-4 w-4" />
-                    Confirmer la réception
+                    {confirmDelivery.isPending ? "Vérification..." : "Confirmer la réception"}
                   </button>
 
                   <p className="text-[10px] text-amber-700 mt-2 flex items-center gap-1">

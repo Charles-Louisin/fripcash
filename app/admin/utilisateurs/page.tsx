@@ -11,70 +11,54 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { mockUsers, type MockUser } from "@/lib/mock-data";
+import { useAdminUsers, useUpdateUserStatus } from "@/hooks/use-admin";
 import { useToast } from "@/components/ui/toast";
 import { FiSearch, FiMoreHorizontal, FiEye, FiShield, FiSlash, FiTrash2 } from "react-icons/fi";
 
-const statusConfig = {
-  active: { label: "Actif", variant: "success" as const },
-  banned: { label: "Banni", variant: "destructive" as const },
-  pending: { label: "En attente", variant: "warning" as const },
+const statusConfig: Record<string, { label: string; variant: "success" | "destructive" | "warning" }> = {
+  active: { label: "Actif", variant: "success" },
+  banned: { label: "Banni", variant: "destructive" },
+  pending: { label: "En attente", variant: "warning" },
 };
 
 export default function UtilisateursPage() {
-  const { toast } = useToast();
-  const [users, setUsers] = useState(mockUsers);
+  const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedUser, setSelectedUser] = useState<MockUser | null>(null);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
 
-  const filtered = useMemo(() => {
-    return users.filter((u) => {
-      const matchSearch =
-        u.name.toLowerCase().includes(search.toLowerCase()) ||
-        u.pseudo.toLowerCase().includes(search.toLowerCase()) ||
-        u.phone.includes(search);
-      const matchStatus = statusFilter === "all" || u.status === statusFilter;
-      return matchSearch && matchStatus;
-    });
-  }, [users, search, statusFilter]);
+  const { data, isLoading } = useAdminUsers({ status: statusFilter === "all" ? undefined : statusFilter, q: search || undefined });
+  const updateStatus = useUpdateUserStatus();
 
-  const handleBan = (user: MockUser) => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === user.id ? { ...u, status: u.status === "banned" ? "active" as const : "banned" as const } : u
-      )
-    );
-    toast(
-      user.status === "banned" ? `${user.name} a été débanni.` : `${user.name} a été banni.`,
-      user.status === "banned" ? "success" : "warning"
+  const users = data?.data ?? [];
+
+  const handleBan = (user: any) => {
+    const newStatus = user.status === "banned" ? "active" : "banned";
+    updateStatus.mutate(
+      { id: user._id, status: newStatus },
+      { onSuccess: () => showToast(newStatus === "banned" ? `${user.pseudo} a été banni.` : `${user.pseudo} a été débanni.`, newStatus === "banned" ? "warning" : "success") }
     );
   };
 
-  const handleVerify = (user: MockUser) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === user.id ? { ...u, status: "active" as const } : u))
+  const handleVerify = (user: any) => {
+    updateStatus.mutate(
+      { id: user._id, status: "active" },
+      { onSuccess: () => showToast(`${user.pseudo} a été vérifié.`, "success") }
     );
-    toast(`${user.name} a été vérifié.`, "success");
-  };
-
-  const handleDelete = (user: MockUser) => {
-    setUsers((prev) => prev.filter((u) => u.id !== user.id));
-    toast(`${user.name} a été supprimé.`, "info");
   };
 
   const columns = [
     {
       key: "user",
       header: "Utilisateur",
-      render: (u: MockUser) => (
+      render: (u: any) => (
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={u.avatar} alt={u.name} />
-            <AvatarFallback>{u.name.charAt(0)}</AvatarFallback>
+            <AvatarImage src={u.avatar} alt={u.pseudo} />
+            <AvatarFallback>{(u.firstName || "U").charAt(0)}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium text-foreground">{u.name}</p>
+            <p className="font-medium text-foreground">{u.firstName} {u.lastName}</p>
             <p className="text-xs text-muted-foreground">@{u.pseudo}</p>
           </div>
         </div>
@@ -84,13 +68,13 @@ export default function UtilisateursPage() {
       key: "phone",
       header: "Téléphone",
       className: "hidden md:table-cell",
-      render: (u: MockUser) => <span className="text-muted-foreground">{u.phone}</span>,
+      render: (u: any) => <span className="text-muted-foreground">{u.phone}</span>,
     },
     {
       key: "status",
       header: "Statut",
-      render: (u: MockUser) => {
-        const config = statusConfig[u.status];
+      render: (u: any) => {
+        const config = statusConfig[u.status] || statusConfig.active;
         return <Badge variant={config.variant}>{config.label}</Badge>;
       },
     },
@@ -98,23 +82,15 @@ export default function UtilisateursPage() {
       key: "articles",
       header: "Articles",
       className: "hidden lg:table-cell",
-      render: (u: MockUser) => <span className="text-muted-foreground">{u.articlesCount}</span>,
-    },
-    {
-      key: "revenue",
-      header: "Revenus",
-      className: "hidden lg:table-cell",
-      render: (u: MockUser) => (
-        <span className="font-medium text-foreground">{u.totalRevenue.toLocaleString("fr-FR")} F</span>
-      ),
+      render: (u: any) => <span className="text-muted-foreground">{u.articlesCount ?? 0}</span>,
     },
     {
       key: "joined",
       header: "Inscrit le",
       className: "hidden sm:table-cell",
-      render: (u: MockUser) => (
+      render: (u: any) => (
         <span className="text-muted-foreground">
-          {new Date(u.joinedDate).toLocaleDateString("fr-FR")}
+          {new Date(u.createdAt).toLocaleDateString("fr-FR")}
         </span>
       ),
     },
@@ -122,7 +98,7 @@ export default function UtilisateursPage() {
       key: "actions",
       header: "",
       className: "w-10",
-      render: (u: MockUser) => (
+      render: (u: any) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors">
@@ -144,26 +120,27 @@ export default function UtilisateursPage() {
               <FiSlash className="h-4 w-4 mr-2" />
               {u.status === "banned" ? "Débannir" : "Bannir"}
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => handleDelete(u)} className="cursor-pointer text-destructive">
-              <FiTrash2 className="h-4 w-4 mr-2" />
-              Supprimer
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ),
     },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Utilisateurs</h1>
         <p className="text-sm text-muted-foreground mt-1">Gérer les comptes utilisateurs</p>
       </div>
 
-      {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-sm">
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -187,15 +164,12 @@ export default function UtilisateursPage() {
         </select>
       </div>
 
-      {/* Count */}
       <p className="text-sm text-muted-foreground">
-        <span className="font-semibold text-primary">{filtered.length}</span> utilisateur{filtered.length !== 1 ? "s" : ""}
+        <span className="font-semibold text-primary">{users.length}</span> utilisateur{users.length !== 1 ? "s" : ""}
       </p>
 
-      {/* Table */}
-      <DataTable columns={columns} data={filtered} emptyMessage="Aucun utilisateur trouvé" />
+      <DataTable columns={columns} data={users} emptyMessage="Aucun utilisateur trouvé" />
 
-      {/* User Detail Dialog */}
       {selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/50" onClick={() => setSelectedUser(null)} />
@@ -208,14 +182,14 @@ export default function UtilisateursPage() {
             </button>
             <div className="flex items-center gap-4 mb-6">
               <Avatar className="h-16 w-16">
-                <AvatarImage src={selectedUser.avatar} alt={selectedUser.name} />
-                <AvatarFallback>{selectedUser.name.charAt(0)}</AvatarFallback>
+                <AvatarImage src={selectedUser.avatar} alt={selectedUser.pseudo} />
+                <AvatarFallback>{(selectedUser.firstName || "U").charAt(0)}</AvatarFallback>
               </Avatar>
               <div>
-                <h2 className="text-lg font-bold text-foreground">{selectedUser.name}</h2>
+                <h2 className="text-lg font-bold text-foreground">{selectedUser.firstName} {selectedUser.lastName}</h2>
                 <p className="text-sm text-muted-foreground">@{selectedUser.pseudo}</p>
-                <Badge variant={statusConfig[selectedUser.status].variant} className="mt-1">
-                  {statusConfig[selectedUser.status].label}
+                <Badge variant={statusConfig[selectedUser.status]?.variant || "secondary"} className="mt-1">
+                  {statusConfig[selectedUser.status]?.label || selectedUser.status}
                 </Badge>
               </div>
             </div>
@@ -226,19 +200,19 @@ export default function UtilisateursPage() {
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Inscrit le</span>
-                <span className="font-medium text-foreground">{new Date(selectedUser.joinedDate).toLocaleDateString("fr-FR")}</span>
+                <span className="font-medium text-foreground">{new Date(selectedUser.createdAt).toLocaleDateString("fr-FR")}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Articles publiés</span>
-                <span className="font-medium text-foreground">{selectedUser.articlesCount}</span>
+                <span className="font-medium text-foreground">{selectedUser.articlesCount ?? 0}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Ventes réalisées</span>
-                <span className="font-medium text-foreground">{selectedUser.salesCount}</span>
+                <span className="font-medium text-foreground">{selectedUser.salesCount ?? 0}</span>
               </div>
               <div className="flex justify-between py-2">
-                <span className="text-muted-foreground">Revenus totaux</span>
-                <span className="font-bold text-primary">{selectedUser.totalRevenue.toLocaleString("fr-FR")} GNF</span>
+                <span className="text-muted-foreground">Solde</span>
+                <span className="font-bold text-primary">{(selectedUser.walletBalance ?? 0).toLocaleString("fr-FR")} GNF</span>
               </div>
             </div>
           </div>

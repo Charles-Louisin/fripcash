@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { mockCategories, type MockCategory, type MockSubGroup, type MockCategoryItem } from "@/lib/mock-data";
+import { useAllCategories } from "@/hooks/use-categories";
+import { categoriesApi } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Sheet,
   SheetContent,
@@ -30,14 +32,18 @@ interface SheetState {
   open: boolean;
   level: EditLevel;
   editing: boolean;
-  parentCategoryId?: number;
-  parentSubGroupId?: number;
-  // form fields
+  // For category-level edits
+  categoryDbId?: string;
+  // For subGroup-level: which category and which subGroup index
+  parentCategoryDbId?: string;
+  subGroupIndex?: number;
+  // For item-level: which subGroup index and item index
+  parentSubGroupIndex?: number;
+  itemIndex?: number;
+  // Form fields
   name: string;
   slug: string;
   enabled: boolean;
-  // ids for editing
-  editId?: number;
 }
 
 const emptySheet: SheetState = {
@@ -50,81 +56,98 @@ const emptySheet: SheetState = {
 };
 
 export default function CategoriesPage() {
-  const { toast } = useToast();
-  const [categories, setCategories] = useState<MockCategory[]>(mockCategories);
-  const [expandedCats, setExpandedCats] = useState<number[]>([]);
-  const [expandedSubs, setExpandedSubs] = useState<number[]>([]);
+  const { showToast: toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: categories = [], isLoading } = useAllCategories();
+
+  const [expandedCats, setExpandedCats] = useState<string[]>([]);
+  const [expandedSubs, setExpandedSubs] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [sheet, setSheet] = useState<SheetState>(emptySheet);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; name: string; onConfirm: (() => void) | null }>({ open: false, name: "", onConfirm: null });
+  const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    open: boolean;
+    name: string;
+    onConfirm: (() => void) | null;
+  }>({ open: false, name: "", onConfirm: null });
+
+  // Refresh data from API
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["categories", "all"] });
 
   // ── Expand/collapse ──
-  const toggleCat = (id: number) =>
+  const toggleCat = (id: string) =>
     setExpandedCats((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-  const toggleSub = (id: number) =>
-    setExpandedSubs((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const toggleSub = (key: string) =>
+    setExpandedSubs((p) => (p.includes(key) ? p.filter((x) => x !== key) : [...p, key]));
 
   // ── Toggle enabled ──
-  const toggleEnabled = (id: number) => {
-    setCategories((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, enabled: !c.enabled } : c))
-    );
-    const cat = categories.find((c) => c.id === id);
-    toast(cat?.enabled ? `${cat.name} désactivée.` : `${cat?.name} activée.`, "info");
+  const toggleEnabled = async (cat: any) => {
+    try {
+      await categoriesApi.update(cat._id, { enabled: !cat.enabled });
+      toast(cat.enabled ? `${cat.name} désactivée.` : `${cat.name} activée.`, "info");
+      refresh();
+    } catch {
+      toast("Erreur lors de la mise à jour.", "error");
+    }
   };
 
-  // ── Delete (with confirmation) ──
-  const askDeleteCategory = (id: number) => {
-    const cat = categories.find((c) => c.id === id);
+  // ── Delete category ──
+  const askDeleteCategory = (cat: any) => {
     setDeleteConfirm({
       open: true,
-      name: cat?.name || "",
-      onConfirm: () => {
-        setCategories((prev) => prev.filter((c) => c.id !== id));
-        toast(`${cat?.name} supprimée.`, "info");
+      name: cat.name,
+      onConfirm: async () => {
+        try {
+          await categoriesApi.delete(cat._id);
+          toast(`${cat.name} supprimée.`, "info");
+          refresh();
+        } catch {
+          toast("Erreur lors de la suppression.", "error");
+        }
         setDeleteConfirm({ open: false, name: "", onConfirm: null });
       },
     });
   };
 
-  const askDeleteSubGroup = (catId: number, subId: number, subName: string) => {
+  // ── Delete subGroup ──
+  const askDeleteSubGroup = (cat: any, subIndex: number, subName: string) => {
     setDeleteConfirm({
       open: true,
       name: subName,
-      onConfirm: () => {
-        setCategories((prev) =>
-          prev.map((c) =>
-            c.id === catId
-              ? { ...c, subGroups: c.subGroups.filter((s) => s.id !== subId) }
-              : c
-          )
-        );
-        toast("Sous-catégorie supprimée.", "info");
+      onConfirm: async () => {
+        try {
+          const newSubGroups = cat.subGroups.filter((_: any, i: number) => i !== subIndex);
+          await categoriesApi.update(cat._id, { subGroups: newSubGroups });
+          toast("Sous-catégorie supprimée.", "info");
+          refresh();
+        } catch {
+          toast("Erreur lors de la suppression.", "error");
+        }
         setDeleteConfirm({ open: false, name: "", onConfirm: null });
       },
     });
   };
 
-  const askDeleteItem = (catId: number, subId: number, itemId: number, itemName: string) => {
+  // ── Delete item ──
+  const askDeleteItem = (cat: any, subIndex: number, itemIndex: number, itemName: string) => {
     setDeleteConfirm({
       open: true,
       name: itemName,
-      onConfirm: () => {
-        setCategories((prev) =>
-          prev.map((c) =>
-            c.id === catId
-              ? {
-                  ...c,
-                  subGroups: c.subGroups.map((s) =>
-                    s.id === subId
-                      ? { ...s, items: s.items.filter((i) => i.id !== itemId) }
-                      : s
-                  ),
-                }
-              : c
-          )
-        );
-        toast("Type supprimé.", "info");
+      onConfirm: async () => {
+        try {
+          const newSubGroups = cat.subGroups.map((sg: any, si: number) => {
+            if (si !== subIndex) return sg;
+            return {
+              ...sg,
+              items: sg.items.filter((_: any, ii: number) => ii !== itemIndex),
+            };
+          });
+          await categoriesApi.update(cat._id, { subGroups: newSubGroups });
+          toast("Type supprimé.", "info");
+          refresh();
+        } catch {
+          toast("Erreur lors de la suppression.", "error");
+        }
         setDeleteConfirm({ open: false, name: "", onConfirm: null });
       },
     });
@@ -134,137 +157,112 @@ export default function CategoriesPage() {
   const openAddCategory = () =>
     setSheet({ ...emptySheet, open: true, level: "category" });
 
-  const openEditCategory = (cat: MockCategory) =>
-    setSheet({ ...emptySheet, open: true, level: "category", editing: true, editId: cat.id, name: cat.name, slug: cat.slug, enabled: cat.enabled });
+  const openEditCategory = (cat: any) =>
+    setSheet({ ...emptySheet, open: true, level: "category", editing: true, categoryDbId: cat._id, name: cat.name, slug: cat.slug, enabled: cat.enabled });
 
-  const openAddSubGroup = (catId: number) =>
-    setSheet({ ...emptySheet, open: true, level: "subGroup", parentCategoryId: catId });
+  const openAddSubGroup = (catDbId: string) =>
+    setSheet({ ...emptySheet, open: true, level: "subGroup", parentCategoryDbId: catDbId });
 
-  const openEditSubGroup = (catId: number, sub: MockSubGroup) =>
-    setSheet({ ...emptySheet, open: true, level: "subGroup", editing: true, parentCategoryId: catId, editId: sub.id, name: sub.name });
+  const openEditSubGroup = (catDbId: string, subIndex: number, subName: string) =>
+    setSheet({ ...emptySheet, open: true, level: "subGroup", editing: true, parentCategoryDbId: catDbId, subGroupIndex: subIndex, name: subName });
 
-  const openAddItem = (catId: number, subId: number) =>
-    setSheet({ ...emptySheet, open: true, level: "item", parentCategoryId: catId, parentSubGroupId: subId });
+  const openAddItem = (catDbId: string, subIndex: number) =>
+    setSheet({ ...emptySheet, open: true, level: "item", parentCategoryDbId: catDbId, parentSubGroupIndex: subIndex });
 
-  const openEditItem = (catId: number, subId: number, item: MockCategoryItem) =>
-    setSheet({ ...emptySheet, open: true, level: "item", editing: true, parentCategoryId: catId, parentSubGroupId: subId, editId: item.id, name: item.name });
+  const openEditItem = (catDbId: string, subIndex: number, itemIndex: number, itemName: string) =>
+    setSheet({ ...emptySheet, open: true, level: "item", editing: true, parentCategoryDbId: catDbId, parentSubGroupIndex: subIndex, itemIndex, name: itemName });
 
   const closeSheet = () => setSheet(emptySheet);
 
   // ── Save handler ──
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!sheet.name.trim()) {
       toast("Le nom est requis.", "error");
       return;
     }
 
-    if (sheet.level === "category") {
-      if (sheet.editing && sheet.editId) {
-        setCategories((prev) =>
-          prev.map((c) =>
-            c.id === sheet.editId
-              ? { ...c, name: sheet.name, slug: sheet.slug || sheet.name.toLowerCase().replace(/\s+/g, "-"), enabled: sheet.enabled }
-              : c
-          )
-        );
-        toast(`${sheet.name} modifiée.`, "success");
-      } else {
-        const newCat: MockCategory = {
-          id: Date.now(),
-          name: sheet.name,
-          slug: sheet.slug || sheet.name.toLowerCase().replace(/\s+/g, "-"),
-          articlesCount: 0,
-          enabled: sheet.enabled,
-          subGroups: [],
-        };
-        setCategories((prev) => [...prev, newCat]);
-        toast(`${sheet.name} ajoutée.`, "success");
+    setSaving(true);
+    try {
+      if (sheet.level === "category") {
+        if (sheet.editing && sheet.categoryDbId) {
+          await categoriesApi.update(sheet.categoryDbId, {
+            name: sheet.name,
+            slug: sheet.slug || sheet.name.toLowerCase().replace(/[^a-z0-9à-ÿ]+/g, "-").replace(/^-|-$/g, ""),
+            enabled: sheet.enabled,
+          });
+          toast(`${sheet.name} modifiée.`, "success");
+        } else {
+          await categoriesApi.create({
+            name: sheet.name,
+            slug: sheet.slug || sheet.name.toLowerCase().replace(/[^a-z0-9à-ÿ]+/g, "-").replace(/^-|-$/g, ""),
+            enabled: sheet.enabled,
+            subGroups: [],
+          });
+          toast(`${sheet.name} ajoutée.`, "success");
+        }
+      } else if (sheet.level === "subGroup" && sheet.parentCategoryDbId) {
+        const cat = categories.find((c: any) => c._id === sheet.parentCategoryDbId);
+        if (!cat) throw new Error("Catégorie introuvable");
+
+        let newSubGroups;
+        if (sheet.editing && sheet.subGroupIndex !== undefined) {
+          newSubGroups = cat.subGroups.map((sg: any, i: number) =>
+            i === sheet.subGroupIndex ? { ...sg, name: sheet.name } : sg
+          );
+        } else {
+          newSubGroups = [...cat.subGroups, { name: sheet.name, items: [] }];
+        }
+        await categoriesApi.update(cat._id, { subGroups: newSubGroups });
+        toast(`${sheet.name} ${sheet.editing ? "modifiée" : "ajoutée"}.`, "success");
+      } else if (sheet.level === "item" && sheet.parentCategoryDbId && sheet.parentSubGroupIndex !== undefined) {
+        const cat = categories.find((c: any) => c._id === sheet.parentCategoryDbId);
+        if (!cat) throw new Error("Catégorie introuvable");
+
+        const newSubGroups = cat.subGroups.map((sg: any, si: number) => {
+          if (si !== sheet.parentSubGroupIndex) return sg;
+          if (sheet.editing && sheet.itemIndex !== undefined) {
+            return {
+              ...sg,
+              items: sg.items.map((it: any, ii: number) =>
+                ii === sheet.itemIndex ? { ...it, name: sheet.name } : it
+              ),
+            };
+          } else {
+            return { ...sg, items: [...sg.items, { name: sheet.name }] };
+          }
+        });
+        await categoriesApi.update(cat._id, { subGroups: newSubGroups });
+        toast(`${sheet.name} ${sheet.editing ? "modifié" : "ajouté"}.`, "success");
       }
-    } else if (sheet.level === "subGroup") {
-      if (sheet.editing && sheet.editId) {
-        setCategories((prev) =>
-          prev.map((c) =>
-            c.id === sheet.parentCategoryId
-              ? { ...c, subGroups: c.subGroups.map((s) => (s.id === sheet.editId ? { ...s, name: sheet.name } : s)) }
-              : c
-          )
-        );
-        toast(`${sheet.name} modifiée.`, "success");
-      } else {
-        const newSub: MockSubGroup = {
-          id: Date.now(),
-          name: sheet.name,
-          articlesCount: 0,
-          items: [],
-        };
-        setCategories((prev) =>
-          prev.map((c) =>
-            c.id === sheet.parentCategoryId
-              ? { ...c, subGroups: [...c.subGroups, newSub] }
-              : c
-          )
-        );
-        toast(`${sheet.name} ajoutée.`, "success");
-      }
-    } else if (sheet.level === "item") {
-      if (sheet.editing && sheet.editId) {
-        setCategories((prev) =>
-          prev.map((c) =>
-            c.id === sheet.parentCategoryId
-              ? {
-                  ...c,
-                  subGroups: c.subGroups.map((s) =>
-                    s.id === sheet.parentSubGroupId
-                      ? { ...s, items: s.items.map((i) => (i.id === sheet.editId ? { ...i, name: sheet.name } : i)) }
-                      : s
-                  ),
-                }
-              : c
-          )
-        );
-        toast(`${sheet.name} modifié.`, "success");
-      } else {
-        const newItem: MockCategoryItem = {
-          id: Date.now(),
-          name: sheet.name,
-          articlesCount: 0,
-        };
-        setCategories((prev) =>
-          prev.map((c) =>
-            c.id === sheet.parentCategoryId
-              ? {
-                  ...c,
-                  subGroups: c.subGroups.map((s) =>
-                    s.id === sheet.parentSubGroupId
-                      ? { ...s, items: [...s.items, newItem] }
-                      : s
-                  ),
-                }
-              : c
-          )
-        );
-        toast(`${sheet.name} ajouté.`, "success");
-      }
+
+      refresh();
+      closeSheet();
+    } catch (error: any) {
+      toast(error?.message || "Erreur lors de la sauvegarde.", "error");
+    } finally {
+      setSaving(false);
     }
-    closeSheet();
   };
 
   // ── Filter ──
   const filtered = search
     ? categories.filter(
-        (c) =>
+        (c: any) =>
           c.name.toLowerCase().includes(search.toLowerCase()) ||
-          c.subGroups.some(
-            (s) =>
+          c.subGroups?.some(
+            (s: any) =>
               s.name.toLowerCase().includes(search.toLowerCase()) ||
-              s.items.some((i) => i.name.toLowerCase().includes(search.toLowerCase()))
+              s.items?.some((i: any) => i.name.toLowerCase().includes(search.toLowerCase()))
           )
       )
     : categories;
 
-  const totalArticles = categories.reduce((sum, c) => sum + c.articlesCount, 0);
-  const totalSubGroups = categories.reduce((sum, c) => sum + c.subGroups.length, 0);
-  const totalItems = categories.reduce((sum, c) => sum + c.subGroups.reduce((s2, sg) => s2 + sg.items.length, 0), 0);
+  const totalArticles = categories.reduce((sum: number, c: any) => sum + (c.articlesCount || 0), 0);
+  const totalSubGroups = categories.reduce((sum: number, c: any) => sum + (c.subGroups?.length || 0), 0);
+  const totalItems = categories.reduce(
+    (sum: number, c: any) => sum + (c.subGroups || []).reduce((s2: number, sg: any) => s2 + (sg.items?.length || 0), 0),
+    0
+  );
 
   const sheetTitle = sheet.editing
     ? sheet.level === "category"
@@ -277,6 +275,14 @@ export default function CategoriesPage() {
     : sheet.level === "subGroup"
     ? "Nouvelle sous-catégorie"
     : "Nouveau type";
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -311,14 +317,14 @@ export default function CategoriesPage() {
 
       {/* Categories Tree */}
       <div className="space-y-2">
-        {filtered.map((cat) => {
-          const isCatExpanded = expandedCats.includes(cat.id);
+        {filtered.map((cat: any) => {
+          const isCatExpanded = expandedCats.includes(cat._id);
           return (
-            <div key={cat.id} className="rounded-xl border border-border bg-card overflow-hidden">
+            <div key={cat._id} className="rounded-xl border border-border bg-card overflow-hidden">
               {/* ── Level 1: Category Row ── */}
               <div className="flex items-center gap-3 px-4 py-3">
                 <button
-                  onClick={() => toggleCat(cat.id)}
+                  onClick={() => toggleCat(cat._id)}
                   className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
                 >
                   {isCatExpanded ? (
@@ -336,20 +342,20 @@ export default function CategoriesPage() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {cat.articlesCount.toLocaleString()} articles · {cat.subGroups.length} sous-catégories
+                    {(cat.articlesCount || 0).toLocaleString()} articles · {cat.subGroups?.length || 0} sous-catégories
                   </p>
                 </div>
 
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => openAddSubGroup(cat.id)}
+                    onClick={() => openAddSubGroup(cat._id)}
                     className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
                     title="Ajouter une sous-catégorie"
                   >
                     <FiPlus className="h-4 w-4 text-primary" />
                   </button>
                   <button
-                    onClick={() => toggleEnabled(cat.id)}
+                    onClick={() => toggleEnabled(cat)}
                     className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
                     title={cat.enabled ? "Désactiver" : "Activer"}
                   >
@@ -367,7 +373,7 @@ export default function CategoriesPage() {
                     <FiEdit2 className="h-4 w-4 text-muted-foreground" />
                   </button>
                   <button
-                    onClick={() => askDeleteCategory(cat.id)}
+                    onClick={() => askDeleteCategory(cat)}
                     className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
                     title="Supprimer"
                   >
@@ -377,18 +383,19 @@ export default function CategoriesPage() {
               </div>
 
               {/* ── Level 2: SubGroups ── */}
-              {isCatExpanded && cat.subGroups.length > 0 && (
+              {isCatExpanded && cat.subGroups?.length > 0 && (
                 <div className="border-t border-border bg-muted/20">
-                  {cat.subGroups.map((sub) => {
-                    const isSubExpanded = expandedSubs.includes(sub.id);
+                  {cat.subGroups.map((sub: any, subIdx: number) => {
+                    const subKey = `${cat._id}-${subIdx}`;
+                    const isSubExpanded = expandedSubs.includes(subKey);
                     return (
-                      <div key={sub.id} className="border-b border-border last:border-b-0">
+                      <div key={subKey} className="border-b border-border last:border-b-0">
                         <div className="flex items-center gap-3 px-4 py-2.5 pl-10">
                           <button
-                            onClick={() => toggleSub(sub.id)}
+                            onClick={() => toggleSub(subKey)}
                             className="h-6 w-6 flex items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
                           >
-                            {sub.items.length > 0 ? (
+                            {sub.items?.length > 0 ? (
                               isSubExpanded ? (
                                 <FiChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                               ) : (
@@ -402,29 +409,27 @@ export default function CategoriesPage() {
                           <div className="flex-1 min-w-0">
                             <span className="text-sm font-medium text-foreground">{sub.name}</span>
                             <span className="text-xs text-muted-foreground ml-2">
-                              {sub.articlesCount} articles{sub.items.length > 0 && ` · ${sub.items.length} types`}
+                              {sub.articlesCount || 0} articles{sub.items?.length > 0 && ` · ${sub.items.length} types`}
                             </span>
                           </div>
 
                           <div className="flex items-center gap-0.5">
-                            {sub.items.length >= 0 && (
-                              <button
-                                onClick={() => openAddItem(cat.id, sub.id)}
-                                className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
-                                title="Ajouter un type"
-                              >
-                                <FiPlus className="h-3.5 w-3.5 text-primary" />
-                              </button>
-                            )}
                             <button
-                              onClick={() => openEditSubGroup(cat.id, sub)}
+                              onClick={() => openAddItem(cat._id, subIdx)}
+                              className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                              title="Ajouter un type"
+                            >
+                              <FiPlus className="h-3.5 w-3.5 text-primary" />
+                            </button>
+                            <button
+                              onClick={() => openEditSubGroup(cat._id, subIdx, sub.name)}
                               className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
                               title="Modifier"
                             >
                               <FiEdit2 className="h-3.5 w-3.5 text-muted-foreground" />
                             </button>
                             <button
-                              onClick={() => askDeleteSubGroup(cat.id, sub.id, sub.name)}
+                              onClick={() => askDeleteSubGroup(cat, subIdx, sub.name)}
                               className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
                               title="Supprimer"
                             >
@@ -434,28 +439,28 @@ export default function CategoriesPage() {
                         </div>
 
                         {/* ── Level 3: Items ── */}
-                        {isSubExpanded && sub.items.length > 0 && (
+                        {isSubExpanded && sub.items?.length > 0 && (
                           <div className="bg-muted/10">
-                            {sub.items.map((item) => (
+                            {sub.items.map((item: any, itemIdx: number) => (
                               <div
-                                key={item.id}
+                                key={`${subKey}-${itemIdx}`}
                                 className="flex items-center justify-between px-4 py-2 pl-20 border-t border-border/50"
                               >
                                 <div className="flex items-center gap-2 min-w-0">
                                   <span className="h-1.5 w-1.5 rounded-full bg-primary/50 shrink-0" />
                                   <span className="text-sm text-foreground">{item.name}</span>
-                                  <span className="text-xs text-muted-foreground">{item.articlesCount} articles</span>
+                                  <span className="text-xs text-muted-foreground">{item.articlesCount || 0} articles</span>
                                 </div>
                                 <div className="flex items-center gap-0.5">
                                   <button
-                                    onClick={() => openEditItem(cat.id, sub.id, item)}
+                                    onClick={() => openEditItem(cat._id, subIdx, itemIdx, item.name)}
                                     className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
                                     title="Modifier"
                                   >
                                     <FiEdit2 className="h-3 w-3 text-muted-foreground" />
                                   </button>
                                   <button
-                                    onClick={() => askDeleteItem(cat.id, sub.id, item.id, item.name)}
+                                    onClick={() => askDeleteItem(cat, subIdx, itemIdx, item.name)}
                                     className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
                                     title="Supprimer"
                                   >
@@ -472,11 +477,11 @@ export default function CategoriesPage() {
                 </div>
               )}
 
-              {isCatExpanded && cat.subGroups.length === 0 && (
+              {isCatExpanded && (!cat.subGroups || cat.subGroups.length === 0) && (
                 <div className="border-t border-border bg-muted/20 px-4 py-4 pl-14">
                   <p className="text-sm text-muted-foreground italic">Aucune sous-catégorie.</p>
                   <button
-                    onClick={() => openAddSubGroup(cat.id)}
+                    onClick={() => openAddSubGroup(cat._id)}
                     className="mt-2 text-sm text-primary font-medium hover:underline"
                   >
                     + Ajouter une sous-catégorie
@@ -573,22 +578,22 @@ export default function CategoriesPage() {
             )}
 
             {/* Context info */}
-            {sheet.level === "subGroup" && sheet.parentCategoryId && (
+            {sheet.level === "subGroup" && sheet.parentCategoryDbId && (
               <div className="rounded-lg bg-muted/50 px-4 py-3">
                 <p className="text-xs text-muted-foreground">
-                  Catégorie parente : <span className="font-semibold text-foreground">{categories.find((c) => c.id === sheet.parentCategoryId)?.name}</span>
+                  Catégorie parente : <span className="font-semibold text-foreground">{categories.find((c: any) => c._id === sheet.parentCategoryDbId)?.name}</span>
                 </p>
               </div>
             )}
 
-            {sheet.level === "item" && sheet.parentCategoryId && sheet.parentSubGroupId && (
+            {sheet.level === "item" && sheet.parentCategoryDbId && sheet.parentSubGroupIndex !== undefined && (
               <div className="rounded-lg bg-muted/50 px-4 py-3 space-y-1">
                 <p className="text-xs text-muted-foreground">
-                  Catégorie : <span className="font-semibold text-foreground">{categories.find((c) => c.id === sheet.parentCategoryId)?.name}</span>
+                  Catégorie : <span className="font-semibold text-foreground">{categories.find((c: any) => c._id === sheet.parentCategoryDbId)?.name}</span>
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Sous-catégorie : <span className="font-semibold text-foreground">
-                    {categories.find((c) => c.id === sheet.parentCategoryId)?.subGroups.find((s) => s.id === sheet.parentSubGroupId)?.name}
+                    {categories.find((c: any) => c._id === sheet.parentCategoryDbId)?.subGroups?.[sheet.parentSubGroupIndex]?.name}
                   </span>
                 </p>
               </div>
@@ -606,9 +611,14 @@ export default function CategoriesPage() {
             <button
               type="button"
               onClick={handleSave}
-              className="flex-1 h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors"
+              disabled={saving}
+              className="flex-1 h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60"
             >
-              {sheet.editing ? "Enregistrer" : "Ajouter"}
+              {saving ? (
+                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
+              ) : (
+                sheet.editing ? "Enregistrer" : "Ajouter"
+              )}
             </button>
           </SheetFooter>
         </SheetContent>

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useLogout } from "@/hooks/use-auth";
 import {
   FiUser,
   FiShoppingBag,
@@ -89,6 +90,8 @@ interface UserSidebarProps {
 
 export function UserSidebar({ collapsed }: UserSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const logout = useLogout();
   const [search, setSearch] = useState("");
   const [logoutOpen, setLogoutOpen] = useState(false);
   const { showToast } = useToast();
@@ -108,15 +111,23 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
       {/* User info */}
       <div className={cn("flex items-center h-16 px-4 border-b border-sidebar-border", collapsed ? "justify-center" : "gap-3")}>
         {collapsed ? (
-          <div className="w-9 h-9 rounded-full overflow-hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={avatar} alt={name} className="w-full h-full object-cover" />
+          <div className="w-9 h-9 rounded-full overflow-hidden bg-muted flex items-center justify-center">
+            {avatar ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={avatar} alt={name} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-xs font-bold text-muted-foreground">{(name || "U").charAt(0)}</span>
+            )}
           </div>
         ) : (
           <Link href="/dashboard/profil" className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={avatar} alt={name} className="w-full h-full object-cover" />
+            <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-muted flex items-center justify-center">
+              {avatar ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={avatar} alt={name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs font-bold text-muted-foreground">{(name || "U").charAt(0)}</span>
+              )}
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-sidebar-foreground truncate">{name}</p>
@@ -204,7 +215,7 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
       <LogoutDialog
         open={logoutOpen}
         onClose={() => setLogoutOpen(false)}
-        onConfirm={() => { setLogoutOpen(false); showToast("Déconnexion réussie", "success"); }}
+        onConfirm={() => { setLogoutOpen(false); logout(); showToast("Déconnexion réussie", "success"); router.push("/connexion"); }}
       />
     </aside>
   );
@@ -213,6 +224,8 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
 // Mobile sidebar overlay
 export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const logout = useLogout();
   const [search, setSearch] = useState("");
   const [logoutOpen, setLogoutOpen] = useState(false);
   const { showToast } = useToast();
@@ -231,9 +244,13 @@ export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: (
         {/* User info */}
         <div className="flex items-center h-16 px-4 border-b border-sidebar-border gap-3">
           <Link href="/dashboard/profil" className="flex items-center gap-3 min-w-0" onClick={onClose}>
-            <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={avatar} alt={name} className="w-full h-full object-cover" />
+            <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-muted flex items-center justify-center">
+              {avatar ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={avatar} alt={name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs font-bold text-muted-foreground">{(name || "U").charAt(0)}</span>
+              )}
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-sidebar-foreground truncate">{name}</p>
@@ -293,7 +310,7 @@ export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: (
         <LogoutDialog
           open={logoutOpen}
           onClose={() => setLogoutOpen(false)}
-          onConfirm={() => { setLogoutOpen(false); showToast("Déconnexion réussie", "success"); onClose(); }}
+          onConfirm={() => { setLogoutOpen(false); logout(); showToast("Déconnexion réussie", "success"); onClose(); router.push("/connexion"); }}
         />
       </aside>
     </>

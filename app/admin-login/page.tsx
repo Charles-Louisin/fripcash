@@ -5,15 +5,16 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useToast } from "@/components/ui/toast";
+import { useAdminLogin } from "@/hooks/use-auth";
 import { FiMail, FiLock, FiEye, FiEyeOff, FiShield, FiArrowRight } from "react-icons/fi";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
   const router = useRouter();
+  const adminLogin = useAdminLogin();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,13 +22,21 @@ export default function AdminLoginPage() {
       showToast("Veuillez remplir tous les champs.", "error");
       return;
     }
-    setLoading(true);
-    // Simulate login
-    setTimeout(() => {
-      setLoading(false);
-      showToast("Connexion réussie ! Bienvenue, Admin.", "success");
-      router.push("/admin");
-    }, 1500);
+    adminLogin.mutate(
+      { email, password },
+      {
+        onSuccess: () => {
+          showToast("Connexion réussie ! Bienvenue, Admin.", "success");
+          router.push("/admin");
+        },
+        onError: (error: any) => {
+          showToast(
+            error?.message || "Identifiants incorrects.",
+            "error"
+          );
+        },
+      }
+    );
   };
 
   return (
@@ -176,10 +185,10 @@ export default function AdminLoginPage() {
             {/* Submit */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={adminLogin.isPending}
               className="w-full h-12 rounded-xl bg-foreground text-background text-sm font-semibold hover:bg-foreground/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? (
+              {adminLogin.isPending ? (
                 <div className="h-4 w-4 border-2 border-background/30 border-t-background rounded-full animate-spin" />
               ) : (
                 <>

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export interface CartItem {
-  id: number;
+  id: number | string;
   image: string;
   brand: string;
   condition: string;
@@ -19,8 +19,8 @@ interface CartState {
 
   // Actions
   addItem: (item: Omit<CartItem, "quantity">) => void;
-  removeItem: (id: number) => void;
-  updateQuantity: (id: number, quantity: number) => void;
+  removeItem: (id: number | string) => void;
+  updateQuantity: (id: number | string, quantity: number) => void;
   clearCart: () => void;
   openCart: () => void;
   closeCart: () => void;
@@ -31,46 +31,10 @@ interface CartState {
   totalWithShipping: () => number;
 }
 
-const dummyItems: CartItem[] = [
-  {
-    id: 1,
-    image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&h=800&fit=crop",
-    brand: "Nike Air Max 90",
-    condition: "Neuf sans étiquette",
-    size: "M / 38",
-    price: 25000,
-    priceWithShipping: 27500,
-    href: "/article/1",
-    quantity: 1,
-  },
-  {
-    id: 102,
-    image: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=400&h=400&fit=crop",
-    brand: "H&M",
-    condition: "Neuf avec étiquette",
-    size: "S / 36",
-    price: 12000,
-    priceWithShipping: 13500,
-    href: "/article/4",
-    quantity: 1,
-  },
-  {
-    id: 104,
-    image: "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=400&h=400&fit=crop",
-    brand: "Levi's 501",
-    condition: "Très bon état",
-    size: "L / 42",
-    price: 15000,
-    priceWithShipping: 17000,
-    href: "/article/10",
-    quantity: 2,
-  },
-];
-
 export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
-      items: dummyItems,
+      items: [],
       cartOpen: false,
 
       addItem: (item) =>
@@ -116,17 +80,8 @@ export const useCartStore = create<CartState>()(
         ),
     }),
     {
-      name: "fripcash-cart-v2",
-      // Only persist items, not UI state
+      name: "fripcash-cart-v4",
       partialize: (state) => ({ items: state.items }),
-      // Keep dummy items if localStorage has nothing or empty cart
-      merge: (persisted, current) => {
-        const saved = persisted as { items?: CartItem[] } | undefined;
-        return {
-          ...current,
-          items: saved?.items && saved.items.length > 0 ? saved.items : current.items,
-        };
-      },
     }
   )
 );

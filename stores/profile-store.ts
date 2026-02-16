@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { mockCurrentUser } from "@/lib/mock-data";
 
 interface ProfileState {
   name: string;
@@ -9,16 +8,29 @@ interface ProfileState {
   city: string;
   bio: string;
   avatar: string;
-  updateProfile: (data: Partial<Omit<ProfileState, "updateProfile">>) => void;
+  updateProfile: (data: Partial<Omit<ProfileState, "updateProfile" | "hydrateFromUser">>) => void;
+  hydrateFromUser: (user: any) => void;
 }
 
 export const useProfileStore = create<ProfileState>()((set) => ({
-  name: mockCurrentUser.name,
-  pseudo: mockCurrentUser.pseudo,
-  phone: mockCurrentUser.phone,
-  email: "amina.bello@email.com",
-  city: "Conakry, Guinée",
-  bio: mockCurrentUser.bio,
-  avatar: mockCurrentUser.avatar,
+  name: "",
+  pseudo: "",
+  phone: "",
+  email: "",
+  city: "",
+  bio: "",
+  avatar: "",
   updateProfile: (data) => set((state) => ({ ...state, ...data })),
+  hydrateFromUser: (user) => {
+    if (!user) return;
+    set({
+      name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+      pseudo: user.pseudo || "",
+      phone: user.phone || "",
+      email: "",
+      city: user.city || "",
+      bio: user.bio || "",
+      avatar: user.avatar || "",
+    });
+  },
 }));

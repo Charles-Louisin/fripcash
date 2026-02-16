@@ -1,6 +1,7 @@
 "use client";
 
 import { FiRotateCcw } from "react-icons/fi";
+import { useCategories } from "@/hooks/use-categories";
 
 export interface Filters {
   categories: string[];
@@ -17,17 +18,6 @@ export const defaultFilters: Filters = {
   minPrice: "",
   maxPrice: "",
 };
-
-const CATEGORIES = [
-  "Femme",
-  "Homme",
-  "Enfant",
-  "Maison",
-  "Électronique",
-  "Loisirs",
-  "Sport",
-  "Divertissement",
-];
 
 const CONDITIONS = [
   "Neuf avec étiquette",
@@ -97,6 +87,9 @@ export function ProductFilters({
   onApply,
   showApply = false,
 }: ProductFiltersProps) {
+  const { data: categoryList = [] } = useCategories();
+  const CATEGORIES = categoryList.map((c: any) => c.name);
+
   const toggleArray = (
     arr: string[],
     value: string,

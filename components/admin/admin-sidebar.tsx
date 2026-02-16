@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useLogout } from "@/hooks/use-auth";
 import {
   FiUsers,
   FiShoppingBag,
@@ -106,6 +107,8 @@ interface AdminSidebarProps {
 
 export function AdminSidebar({ collapsed }: AdminSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const logout = useLogout();
   const [search, setSearch] = useState("");
   const [logoutOpen, setLogoutOpen] = useState(false);
   const { showToast } = useToast();
@@ -226,7 +229,9 @@ export function AdminSidebar({ collapsed }: AdminSidebarProps) {
         onClose={() => setLogoutOpen(false)}
         onConfirm={() => {
           setLogoutOpen(false);
+          logout();
           showToast("Déconnexion réussie", "success");
+          router.push("/admin-login");
         }}
       />
     </aside>
@@ -242,6 +247,8 @@ export function AdminMobileSidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const logout = useLogout();
   const [search, setSearch] = useState("");
   const [logoutOpen, setLogoutOpen] = useState(false);
   const { showToast } = useToast();
@@ -331,8 +338,10 @@ export function AdminMobileSidebar({
           onClose={() => setLogoutOpen(false)}
           onConfirm={() => {
             setLogoutOpen(false);
+            logout();
             showToast("Déconnexion réussie", "success");
             onClose();
+            router.push("/admin-login");
           }}
         />
       </aside>

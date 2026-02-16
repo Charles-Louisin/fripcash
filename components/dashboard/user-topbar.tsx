@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { FiMenu, FiBell, FiSidebar, FiSearch, FiChevronDown } from "react-icons/fi";
-import { mockConversations } from "@/lib/mock-data";
+import { useConversations } from "@/hooks/use-messages";
 import { useProfileStore } from "@/stores/profile-store";
 
 interface UserTopbarProps {
@@ -12,7 +12,8 @@ interface UserTopbarProps {
 }
 
 export function UserTopbar({ onMenuClick, collapsed, onToggleCollapse }: UserTopbarProps) {
-  const totalUnread = mockConversations.reduce((sum, c) => sum + c.unread, 0);
+  const { data: conversations = [] } = useConversations();
+  const totalUnread = conversations.reduce((sum: number, c: any) => sum + (c.unreadCount || 0), 0);
   const { avatar, name } = useProfileStore();
   const [searchMode, setSearchMode] = useState<"articles" | "membres">("articles");
   const [dropOpen, setDropOpen] = useState(false);
@@ -101,9 +102,13 @@ export function UserTopbar({ onMenuClick, collapsed, onToggleCollapse }: UserTop
 
       {/* User avatar */}
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-full overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={avatar} alt={name} className="w-full h-full object-cover" />
+        <div className="w-8 h-8 rounded-full overflow-hidden bg-muted flex items-center justify-center">
+          {avatar ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={avatar} alt={name} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-xs font-bold text-muted-foreground">{(name || "U").charAt(0)}</span>
+          )}
         </div>
         <div className="hidden sm:block">
           <p className="text-sm font-medium text-foreground leading-none">{name}</p>

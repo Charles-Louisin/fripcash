@@ -2,7 +2,13 @@
 
 import { cn } from "@/lib/utils";
 import { FiUserPlus, FiShoppingCart, FiAlertTriangle, FiPackage } from "react-icons/fi";
-import type { ActivityItem } from "@/lib/mock-data";
+
+type ActivityItem = {
+  id: number | string;
+  type: "signup" | "sale" | "dispute" | "article";
+  message: string;
+  time: string;
+};
 
 const typeConfig = {
   signup: { icon: FiUserPlus, color: "text-blue-500", bg: "bg-blue-50" },

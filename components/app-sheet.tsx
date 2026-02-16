@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -31,17 +32,18 @@ import {
   GiTennisBall,
   GiBookshelf,
 } from "react-icons/gi";
+import { useCategories } from "@/hooks/use-categories";
 
-const menuCategories = [
-  { label: "Femme", href: "/femme", icon: GiDress },
-  { label: "Homme", href: "/homme", icon: GiPoloShirt },
-  { label: "Enfant", href: "/enfant", icon: GiBabyFace },
-  { label: "Maison", href: "/maison", icon: GiSofa },
-  { label: "Électronique", href: "/electronique", icon: GiCircuitry },
-  { label: "Loisirs", href: "/loisirs", icon: GiBookshelf },
-  { label: "Sport", href: "/sport", icon: GiTennisBall },
-  { label: "Divertissement", href: "/divertissement", icon: GiGamepad },
-];
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Femme: GiDress,
+  Homme: GiPoloShirt,
+  Enfant: GiBabyFace,
+  Maison: GiSofa,
+  Électronique: GiCircuitry,
+  Loisirs: GiBookshelf,
+  Sport: GiTennisBall,
+  Divertissement: GiGamepad,
+};
 
 const accountLinks = [
   { label: "Mes paramètres", href: "/compte/parametres", icon: FiSettings },
@@ -53,6 +55,12 @@ const accountLinks = [
 export function AppSheet() {
   const { sheetOpen, sheetContent, closeSheet } = useUIStore();
   const { toast } = useToast();
+  const { data: rawCategories = [] } = useCategories();
+  const menuCategories = rawCategories.map((cat: any) => ({
+    label: cat.name,
+    href: `/produits?category=${encodeURIComponent(cat.name)}`,
+    icon: ICON_MAP[cat.name] || GiBookshelf,
+  }));
 
   return (
     <Sheet open={sheetOpen} onOpenChange={(open) => !open && closeSheet()}>

@@ -3,49 +3,28 @@
 import { useState } from "react";
 import { MdOutlineFormatQuote } from "react-icons/md";
 import { IoStarSharp, IoStarHalfSharp } from "react-icons/io5";
+import { useTopReviews } from "@/hooks/use-reviews";
 
-const testimonials = [
-  {
-    id: 1,
-    name: "Amina Nkoulou",
-    title: "Vendeuse depuis 6 mois",
-    description:
-      "\"FripCash m'a permis de vider mon placard et de gagner plus de 200 000 GNF en quelques semaines. C'est simple et rapide !\"",
-    image:
-      "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop&crop=face",
-    rating: 5.0,
-  },
-  {
-    id: 2,
-    name: "Jean-Paul Mbarga",
-    title: "Acheteur régulier",
-    description:
-      "\"Je trouve des articles de marque à des prix incroyables. Le paiement sécurisé me donne confiance pour chaque achat.\"",
-    image:
-      "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=200&h=200&fit=crop&crop=face",
-    rating: 4.8,
-  },
-  {
-    id: 3,
-    name: "Carine Fotso",
-    title: "Vendeuse professionnelle",
-    description:
-      "\"Depuis que j'utilise FripCash, mes ventes ont explosé. L'interface est intuitive et les acheteurs sont au rendez-vous.\"",
-    image:
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face",
-    rating: 5.0,
-  },
-  {
-    id: 4,
-    name: "Thierry Ngono",
-    title: "Étudiant",
-    description:
-      "\"En tant qu'étudiant, FripCash m'aide à renouveler ma garde-robe sans me ruiner. Les prix sont imbattables !\"",
-    image:
-      "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=face",
-    rating: 4.5,
-  },
-];
+type Testimonial = {
+  id: string;
+  name: string;
+  title: string;
+  description: string;
+  image: string;
+  rating: number;
+};
+
+function mapReviewToTestimonial(review: any): Testimonial {
+  const user = review.user;
+  return {
+    id: review._id,
+    name: user?.pseudo || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "Utilisateur",
+    title: "Membre FripCash",
+    description: `"${review.comment}"`,
+    image: user?.avatar || "",
+    rating: review.rating,
+  };
+}
 
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -90,7 +69,7 @@ function StarRating({ rating }: { rating: number }) {
 function TestimonialCard({
   testimonial,
 }: {
-  testimonial: (typeof testimonials)[number];
+  testimonial: Testimonial;
 }) {
   return (
     <div className="p-5 bg-muted/50 rounded-2xl relative shrink-0">
@@ -106,12 +85,18 @@ function TestimonialCard({
 
       {/* Author */}
       <div className="flex items-center gap-3">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={testimonial.image}
-          alt={testimonial.name}
-          className="w-12 h-12 rounded-full object-cover"
-        />
+        {testimonial.image ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={testimonial.image}
+            alt={testimonial.name}
+            className="w-12 h-12 rounded-full object-cover"
+          />
+        ) : (
+          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
+            {testimonial.name[0]?.toUpperCase() || "?"}
+          </div>
+        )}
         <div>
           <p className="font-semibold text-sm text-foreground">
             {testimonial.name}
@@ -132,6 +117,10 @@ function TestimonialCard({
 
 export function TestimonialsSection() {
   const [isPaused, setIsPaused] = useState(false);
+  const { data: rawReviews = [] } = useTopReviews();
+  const testimonials = rawReviews.map(mapReviewToTestimonial);
+
+  if (testimonials.length === 0) return null;
 
   return (
     <section className="container mx-auto px-4 py-16 overflow-hidden">
@@ -171,11 +160,10 @@ export function TestimonialsSection() {
               ))}
             </div>
             <p className="text-white font-semibold text-lg sm:text-xl leading-snug max-w-sm">
-              &quot;Plus de 10 000 utilisateurs nous font confiance pour
-              acheter et vendre chaque jour.&quot;
+              &quot;{testimonials[0]?.description.replace(/"/g, "") || "Nos utilisateurs nous font confiance pour acheter et vendre chaque jour."}&quot;
             </p>
             <p className="text-white/70 text-sm mt-3">
-              Communauté FripCash
+              {testimonials[0]?.name || "Communauté FripCash"}
             </p>
           </div>
         </div>

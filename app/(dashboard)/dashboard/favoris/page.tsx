@@ -2,32 +2,62 @@
 
 import { useState } from "react";
 import { FiHeart, FiX } from "react-icons/fi";
-import { mockUserFavorites, type UserFavorite } from "@/lib/mock-data";
+import { useFavorites, useToggleFavorite } from "@/hooks/use-favorites";
 import { useToast } from "@/components/ui/toast";
 import Link from "next/link";
 
 export default function FavoritesPage() {
   const { showToast } = useToast();
-  const [favorites, setFavorites] = useState<UserFavorite[]>(mockUserFavorites);
+  const { data: favorites = [], isLoading } = useFavorites();
+  const toggleFavorite = useToggleFavorite();
   const [sortBy, setSortBy] = useState<"recent" | "price-asc" | "price-desc">("recent");
 
-  const sorted = [...favorites].sort((a, b) => {
-    if (sortBy === "price-asc") return a.price - b.price;
-    if (sortBy === "price-desc") return b.price - a.price;
-    return new Date(b.addedDate).getTime() - new Date(a.addedDate).getTime();
+  // Favorites from API may be favorite records with a populated article field
+  const items = favorites.map((f: any) => {
+    const article = f.article || f;
+    return {
+      _id: article._id || f._id,
+      title: article.title || "",
+      images: article.images || [],
+      brand: article.brand || "",
+      condition: article.condition || "",
+      size: article.size || "",
+      price: article.price || 0,
+      favoritesCount: article.favoritesCount || 0,
+      createdAt: f.createdAt || article.createdAt,
+    };
   });
 
-  const handleRemove = (id: number) => {
-    setFavorites((prev) => prev.filter((f) => f.id !== id));
-    showToast("Retiré des favoris", "info");
+  const sorted = [...items].sort((a: any, b: any) => {
+    if (sortBy === "price-asc") return a.price - b.price;
+    if (sortBy === "price-desc") return b.price - a.price;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
+  const handleRemove = (articleId: string) => {
+    toggleFavorite.mutate(
+      { articleId, isFavorite: true },
+      {
+        onSuccess: () => showToast("Retiré des favoris", "info"),
+        onError: (err: any) => showToast(err.message || "Erreur", "error"),
+      }
+    );
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Mes favoris</h1>
-          <p className="text-sm text-muted-foreground mt-1">{favorites.length} article{favorites.length !== 1 ? "s" : ""} sauvegardé{favorites.length !== 1 ? "s" : ""}</p>
+          <p className="text-sm text-muted-foreground mt-1">{items.length} article{items.length !== 1 ? "s" : ""} sauvegardé{items.length !== 1 ? "s" : ""}</p>
         </div>
         <select
           value={sortBy}
@@ -51,15 +81,15 @@ export default function FavoritesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {sorted.map((item) => (
-            <div key={item.id} className="group relative">
-              <Link href={`/article/${item.id}`} className="block">
+          {sorted.map((item: any) => (
+            <div key={item._id} className="group relative">
+              <Link href={`/article/${item._id}`} className="block">
                 <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.image} alt={item.title} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                  <img src={item.images?.[0] || ""} alt={item.title} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
                   <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-white/90 backdrop-blur-sm px-2 py-1 text-xs text-muted-foreground shadow-sm">
                     <FiHeart className="h-3.5 w-3.5" />
-                    <span>{item.favorites}</span>
+                    <span>{item.favoritesCount}</span>
                   </div>
                 </div>
                 <div className="mt-2 space-y-0.5">
@@ -69,10 +99,9 @@ export default function FavoritesPage() {
                 </div>
               </Link>
 
-              {/* Remove button */}
               <button
                 type="button"
-                onClick={() => handleRemove(item.id)}
+                onClick={() => handleRemove(item._id)}
                 className="absolute top-2 left-2 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-white transition-colors shadow-sm opacity-0 group-hover:opacity-100"
                 title="Retirer des favoris"
               >

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { mockCurrentUser } from "@/lib/mock-data";
+import { useMe } from "@/hooks/use-auth";
 import { useToast } from "@/components/ui/toast";
 import { FiAlertCircle } from "react-icons/fi";
+import { newsletterApi } from "@/lib/api";
 
 const settingsTabs = [
   { id: "account", label: "Compte" },
@@ -13,10 +14,11 @@ const settingsTabs = [
 
 export default function SettingsPage() {
   const { showToast } = useToast();
+  const { data: user } = useMe();
   const [activeTab, setActiveTab] = useState("account");
 
   // Account state
-  const [phone, setPhone] = useState(mockCurrentUser.phone);
+  const [phone, setPhone] = useState(user?.phone || "");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -30,6 +32,7 @@ export default function SettingsPage() {
     newsletter: false,
     smsAlerts: true,
   });
+  const [newsletterLoading, setNewsletterLoading] = useState(false);
 
   // Privacy state
   const [privacy, setPrivacy] = useState({
@@ -47,6 +50,30 @@ export default function SettingsPage() {
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
+  };
+
+  const handleToggleNewsletter = async () => {
+    const email = user?.email || user?.phone;
+    if (!email) {
+      showToast("Aucun email associé à ton compte", "error");
+      return;
+    }
+    setNewsletterLoading(true);
+    try {
+      if (notifs.newsletter) {
+        await newsletterApi.unsubscribe(email);
+        setNotifs((prev) => ({ ...prev, newsletter: false }));
+        showToast("Tu es désinscrit de la newsletter", "info");
+      } else {
+        const res = await newsletterApi.subscribe(email);
+        setNotifs((prev) => ({ ...prev, newsletter: true }));
+        showToast(res.message || "Inscrit à la newsletter !", "success");
+      }
+    } catch (err: any) {
+      showToast(err?.message || "Une erreur est survenue", "error");
+    } finally {
+      setNewsletterLoading(false);
+    }
   };
 
   const handleSaveNotifs = () => {
@@ -156,8 +183,15 @@ export default function SettingsPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setNotifs((prev) => ({ ...prev, [item.key]: !prev[item.key] }))}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${notifs[item.key] ? "bg-primary" : "bg-muted"}`}
+                    disabled={item.key === "newsletter" && newsletterLoading}
+                    onClick={() => {
+                      if (item.key === "newsletter") {
+                        handleToggleNewsletter();
+                      } else {
+                        setNotifs((prev) => ({ ...prev, [item.key]: !prev[item.key] }));
+                      }
+                    }}
+                    className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${notifs[item.key] ? "bg-primary" : "bg-muted"}`}
                   >
                     <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${notifs[item.key] ? "translate-x-5" : "translate-x-0"}`} />
                   </button>

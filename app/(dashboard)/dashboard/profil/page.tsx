@@ -2,13 +2,15 @@
 
 import { useRef } from "react";
 import { FiCamera, FiStar, FiCalendar, FiShoppingBag, FiPackage, FiMapPin, FiMail, FiPhone, FiEdit2, FiCheck } from "react-icons/fi";
-import { mockCurrentUser } from "@/lib/mock-data";
+import { useMe, useUpdateProfile } from "@/hooks/use-auth";
 import { useToast } from "@/components/ui/toast";
 import { useProfileStore } from "@/stores/profile-store";
 
 export default function ProfilePage() {
   const { showToast } = useToast();
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const { data: user, isLoading } = useMe();
+  const updateProfileMut = useUpdateProfile();
   const { name, pseudo, phone, email, city, bio, avatar, updateProfile } = useProfileStore();
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,15 +28,31 @@ export default function ProfilePage() {
   };
 
   const handleSave = () => {
-    showToast("Profil mis à jour avec succès", "success");
+    const [firstName, ...lastParts] = name.split(" ");
+    const lastName = lastParts.join(" ");
+    updateProfileMut.mutate(
+      { firstName, lastName, pseudo, phone, city, bio, avatar },
+      {
+        onSuccess: () => showToast("Profil mis à jour avec succès", "success"),
+        onError: (err: any) => showToast(err.message || "Erreur lors de la mise à jour", "error"),
+      }
+    );
   };
 
   const stats = [
-    { label: "Ventes", value: mockCurrentUser.salesCount, icon: FiShoppingBag, color: "text-primary bg-primary/10" },
-    { label: "Achats", value: mockCurrentUser.purchasesCount, icon: FiPackage, color: "text-blue-600 bg-blue-50" },
-    { label: "Note", value: mockCurrentUser.rating, icon: FiStar, color: "text-amber-500 bg-amber-50", suffix: "/5" },
-    { label: "Avis", value: mockCurrentUser.reviewsCount, icon: FiEdit2, color: "text-purple-600 bg-purple-50" },
+    { label: "Ventes", value: user?.salesCount ?? 0, icon: FiShoppingBag, color: "text-primary bg-primary/10" },
+    { label: "Achats", value: user?.purchasesCount ?? 0, icon: FiPackage, color: "text-blue-600 bg-blue-50" },
+    { label: "Note", value: user?.rating ?? 0, icon: FiStar, color: "text-amber-500 bg-amber-50", suffix: "/5" },
+    { label: "Avis", value: user?.reviewsCount ?? 0, icon: FiEdit2, color: "text-purple-600 bg-purple-50" },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -69,9 +87,11 @@ export default function ProfilePage() {
             {/* Avatar */}
             <div className="flex items-center gap-4 mb-6">
               <div className="relative">
-                <div className="w-20 h-20 rounded-full overflow-hidden ring-2 ring-border ring-offset-2 ring-offset-background">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={avatar} alt={name} className="w-full h-full object-cover" />
+                <div className="w-20 h-20 rounded-full overflow-hidden ring-2 ring-border ring-offset-2 ring-offset-background bg-muted">
+                  {avatar && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={avatar} alt={name} className="w-full h-full object-cover" />
+                  )}
                 </div>
                 <input
                   ref={avatarInputRef}
@@ -186,10 +206,11 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={handleSave}
-              className="mt-5 h-11 px-6 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2"
+              disabled={updateProfileMut.isPending}
+              className="mt-5 h-11 px-6 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50"
             >
               <FiCheck className="h-4 w-4" />
-              Enregistrer les modifications
+              {updateProfileMut.isPending ? "Enregistrement..." : "Enregistrer les modifications"}
             </button>
           </div>
         </div>
@@ -199,12 +220,13 @@ export default function ProfilePage() {
           <div className="rounded-xl border border-border bg-card p-6">
             <h3 className="font-semibold text-foreground text-sm mb-5">Aperçu public</h3>
 
-            {/* Profile card preview */}
             <div className="rounded-xl border border-border bg-muted/30 p-5">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-primary/20 shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={avatar} alt={name} className="w-full h-full object-cover" />
+                <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-primary/20 shrink-0 bg-muted">
+                  {avatar && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={avatar} alt={name} className="w-full h-full object-cover" />
+                  )}
                 </div>
                 <div className="min-w-0">
                   <p className="font-semibold text-foreground text-base truncate">{name}</p>
@@ -213,11 +235,11 @@ export default function ProfilePage() {
                     {[...Array(5)].map((_, i) => (
                       <FiStar
                         key={i}
-                        className={`h-3.5 w-3.5 ${i < Math.floor(mockCurrentUser.rating) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`}
+                        className={`h-3.5 w-3.5 ${i < Math.floor(user?.rating ?? 0) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`}
                       />
                     ))}
-                    <span className="text-xs font-medium text-foreground ml-1">{mockCurrentUser.rating}</span>
-                    <span className="text-xs text-muted-foreground">({mockCurrentUser.reviewsCount})</span>
+                    <span className="text-xs font-medium text-foreground ml-1">{user?.rating ?? 0}</span>
+                    <span className="text-xs text-muted-foreground">({user?.reviewsCount ?? 0})</span>
                   </div>
                 </div>
               </div>
@@ -234,24 +256,23 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Details */}
             <div className="mt-5 space-y-3">
               <div className="flex items-center gap-3 text-sm">
                 <FiCalendar className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground">Membre depuis</span>
                 <span className="font-medium text-foreground ml-auto">
-                  {new Date(mockCurrentUser.joinedDate).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
+                  {user?.createdAt ? new Date(user.createdAt).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) : "—"}
                 </span>
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <FiShoppingBag className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground">Articles en vente</span>
-                <span className="font-medium text-foreground ml-auto">{mockCurrentUser.articlesCount}</span>
+                <span className="font-medium text-foreground ml-auto">{user?.articlesCount ?? 0}</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <FiPackage className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground">Ventes réalisées</span>
-                <span className="font-medium text-foreground ml-auto">{mockCurrentUser.salesCount}</span>
+                <span className="font-medium text-foreground ml-auto">{user?.salesCount ?? 0}</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <FiPhone className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -261,7 +282,6 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Tips card */}
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
             <h4 className="text-sm font-semibold text-foreground mb-2">Conseils pour ton profil</h4>
             <ul className="space-y-2 text-xs text-muted-foreground">

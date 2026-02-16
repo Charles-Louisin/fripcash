@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { AppSheet } from "@/components/app-sheet";
+import { PublicStats } from "@/components/public-stats";
 import { FiHome, FiHeart, FiShield, FiUsers, FiGlobe } from "react-icons/fi";
 
 export default function AProposPage() {
@@ -87,24 +88,7 @@ export default function AProposPage() {
           </div>
 
           {/* Stats */}
-          <div className="bg-primary/5 rounded-2xl p-8 sm:p-12">
-            <h2 className="text-2xl font-bold text-foreground text-center mb-8">
-              FripCash en chiffres
-            </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 text-center">
-              {[
-                { value: "10K+", label: "Utilisateurs actifs" },
-                { value: "50K+", label: "Articles vendus" },
-                { value: "4.8/5", label: "Note moyenne" },
-                { value: "98%", label: "Clients satisfaits" },
-              ].map((s) => (
-                <div key={s.label}>
-                  <p className="text-3xl font-bold text-primary">{s.value}</p>
-                  <p className="text-sm text-muted-foreground mt-1">{s.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <PublicStats />
         </div>
       </main>
 

@@ -12,7 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useLogout } from "@/hooks/use-auth";
 
 interface AdminTopbarProps {
   onMenuClick: () => void;
@@ -33,6 +34,8 @@ const pageLabels: Record<string, string> = {
 
 export function AdminTopbar({ onMenuClick, collapsed, onToggleCollapse }: AdminTopbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const logout = useLogout();
   const pageLabel = pageLabels[pathname] || "Dashboard";
   const [searchMode, setSearchMode] = useState<"articles" | "membres">("articles");
   const [dropOpen, setDropOpen] = useState(false);
@@ -145,11 +148,15 @@ export function AdminTopbar({ onMenuClick, collapsed, onToggleCollapse }: AdminT
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/" className="cursor-pointer text-destructive">
-                <FiLogOut className="h-4 w-4 mr-2" />
-                Déconnexion
-              </Link>
+            <DropdownMenuItem
+              className="cursor-pointer text-destructive"
+              onClick={() => {
+                logout();
+                router.push("/admin-login");
+              }}
+            >
+              <FiLogOut className="h-4 w-4 mr-2" />
+              Déconnexion
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

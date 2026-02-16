@@ -2,26 +2,29 @@
 
 import { StatCard } from "@/components/admin/stat-card";
 import { ChartAreaInteractive } from "@/components/admin/chart-area-interactive";
-import { RecentActivity } from "@/components/admin/recent-activity";
 import { Badge } from "@/components/ui/badge";
 import { FiUsers, FiShoppingBag, FiAlertTriangle, FiArrowRight } from "react-icons/fi";
 import { HiArrowTrendingUp } from "react-icons/hi2";
-import {
-  mockUsers,
-  mockArticles,
-  mockOrders,
-  mockDisputes,
-  recentActivity,
-} from "@/lib/mock-data";
+import { useAdminStats } from "@/hooks/use-admin";
 import Link from "next/link";
 
 export default function AdminDashboardPage() {
-  const totalUsers = mockUsers.length;
-  const totalArticles = mockArticles.length;
-  const totalRevenue = mockOrders.reduce((sum, o) => sum + o.commission, 0);
-  const openDisputes = mockDisputes.filter((d) => d.status === "open" || d.status === "in-review").length;
-  const pendingArticles = mockArticles.filter((a) => a.status === "pending");
-  const openDisputesList = mockDisputes.filter((d) => d.status === "open" || d.status === "in-review" || d.status === "escalated");
+  const { data: stats, isLoading } = useAdminStats();
+
+  const totalUsers = stats?.totalUsers ?? 0;
+  const totalArticles = stats?.totalArticles ?? 0;
+  const totalRevenue = stats?.totalRevenue ?? 0;
+  const openDisputes = stats?.openDisputes ?? 0;
+  const pendingArticles = stats?.pendingArticles ?? [];
+  const openDisputesList = stats?.recentDisputes ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -36,29 +39,29 @@ export default function AdminDashboardPage() {
         <StatCard
           title="Utilisateurs"
           value={totalUsers.toLocaleString("fr-FR")}
-          change="+12% ce mois"
-          changeType="positive"
+          change={stats?.usersChange ?? "—"}
+          changeType={stats?.usersChange?.startsWith("-") ? "negative" : "positive"}
           icon={FiUsers}
         />
         <StatCard
           title="Articles"
           value={totalArticles.toLocaleString("fr-FR")}
-          change="+8% ce mois"
-          changeType="positive"
+          change={stats?.articlesChange ?? "—"}
+          changeType={stats?.articlesChange?.startsWith("-") ? "negative" : "positive"}
           icon={FiShoppingBag}
         />
         <StatCard
           title="Revenus (GNF)"
           value={totalRevenue.toLocaleString("fr-FR")}
-          change="+23% ce mois"
-          changeType="positive"
+          change={stats?.revenueChange ?? "—"}
+          changeType={stats?.revenueChange?.startsWith("-") ? "negative" : "positive"}
           icon={HiArrowTrendingUp}
         />
         <StatCard
           title="Litiges ouverts"
           value={openDisputes.toString()}
-          change="2 en attente"
-          changeType="negative"
+          change={openDisputes > 0 ? "À traiter" : "Aucun"}
+          changeType={openDisputes > 0 ? "negative" : "positive"}
           icon={FiAlertTriangle}
         />
       </div>
@@ -68,12 +71,14 @@ export default function AdminDashboardPage() {
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Recent Activity */}
+        {/* Recent Activity placeholder */}
         <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-foreground">Activité récente</h3>
           </div>
-          <RecentActivity items={recentActivity} />
+          <div className="text-center py-8">
+            <p className="text-sm text-muted-foreground">L&apos;activité récente apparaîtra ici</p>
+          </div>
         </div>
 
         {/* Quick Actions */}
@@ -85,15 +90,17 @@ export default function AdminDashboardPage() {
               <Badge variant="secondary">{pendingArticles.length}</Badge>
             </div>
             <div className="space-y-2">
-              {pendingArticles.slice(0, 3).map((a) => (
-                <div key={a.id} className="flex items-center gap-3 py-1.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={a.image} alt={a.title} className="h-9 w-9 rounded object-cover" />
+              {pendingArticles.slice(0, 3).map((a: any) => (
+                <div key={a._id} className="flex items-center gap-3 py-1.5">
+                  {a.images?.[0] && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={a.images[0]} alt={a.title} className="h-9 w-9 rounded object-cover" />
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{a.title}</p>
-                    <p className="text-xs text-muted-foreground">{a.seller}</p>
+                    <p className="text-xs text-muted-foreground">{typeof a.seller === "object" ? a.seller.pseudo : "Vendeur"}</p>
                   </div>
-                  <span className="text-xs font-medium text-primary">{a.price.toLocaleString("fr-FR")} F</span>
+                  <span className="text-xs font-medium text-primary">{(a.price || 0).toLocaleString("fr-FR")} F</span>
                 </div>
               ))}
             </div>
@@ -109,11 +116,13 @@ export default function AdminDashboardPage() {
               <Badge variant="destructive">{openDisputesList.length}</Badge>
             </div>
             <div className="space-y-2">
-              {openDisputesList.slice(0, 3).map((d) => (
-                <div key={d.id} className="flex items-center justify-between py-1.5">
+              {openDisputesList.slice(0, 3).map((d: any) => (
+                <div key={d._id} className="flex items-center justify-between py-1.5">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{d.reason}</p>
-                    <p className="text-xs text-muted-foreground">{d.buyer} vs {d.seller}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {typeof d.buyer === "object" ? d.buyer.pseudo : "Acheteur"} vs {typeof d.seller === "object" ? d.seller.pseudo : "Vendeur"}
+                    </p>
                   </div>
                   <Badge
                     variant={d.status === "escalated" ? "destructive" : d.status === "open" ? "warning" : "secondary"}

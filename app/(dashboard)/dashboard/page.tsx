@@ -4,15 +4,9 @@ import * as React from "react";
 import Link from "next/link";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { FiShoppingBag, FiShoppingCart, FiCreditCard, FiTrendingUp, FiArrowRight, FiPlus, FiSearch } from "react-icons/fi";
-import {
-  mockCurrentUser,
-  mockUserListings,
-  mockUserOrders,
-  mockUserActivity,
-  mockUserSalesChartWeek,
-  mockUserSalesChartMonth,
-  mockUserSalesChartYear,
-} from "@/lib/mock-data";
+import { useMe } from "@/hooks/use-auth";
+import { useMyArticles } from "@/hooks/use-articles";
+import { useMyOrders } from "@/hooks/use-orders";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -48,41 +42,48 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+import { useUserChartData } from "@/hooks/use-admin";
+
 type ChartRange = "week" | "month" | "year";
 
-const chartDataMap: Record<ChartRange, { data: typeof mockUserSalesChartYear; description: string; selectLabel: string }> = {
-  year: { data: mockUserSalesChartYear, description: "Évolution sur les 6 derniers mois", selectLabel: "6 derniers mois" },
-  month: { data: mockUserSalesChartMonth, description: "Évolution ce mois-ci", selectLabel: "Ce mois-ci" },
-  week: { data: mockUserSalesChartWeek, description: "Évolution cette semaine", selectLabel: "Cette semaine" },
+const chartRangeConfig: Record<ChartRange, { description: string; selectLabel: string }> = {
+  year: { description: "Évolution sur les 6 derniers mois", selectLabel: "6 derniers mois" },
+  month: { description: "Évolution ce mois-ci", selectLabel: "Ce mois-ci" },
+  week: { description: "Évolution cette semaine", selectLabel: "Cette semaine" },
 };
 
 export default function DashboardOverviewPage() {
   const [chartRange, setChartRange] = React.useState<ChartRange>("year");
-  const activeListings = mockUserListings.filter((l) => l.status === "active").length;
-  const totalSales = mockUserOrders.filter((o) => o.type === "sale").length;
-  const totalPurchases = mockUserOrders.filter((o) => o.type === "purchase").length;
+  const { data: chartData = [], isLoading: chartLoading } = useUserChartData(chartRange);
+  const { data: user, isLoading: userLoading } = useMe();
+  const { data: articles } = useMyArticles();
+  const { data: orders } = useMyOrders();
+
+  const activeListings = articles?.filter((l: any) => l.status === "active").length ?? 0;
+  const totalSales = orders?.filter((o: any) => o.seller?._id === user?.id || o.seller === user?.id).length ?? 0;
+  const totalPurchases = orders?.filter((o: any) => o.buyer?._id === user?.id || o.buyer === user?.id).length ?? 0;
 
   const stats = [
     { label: "Articles en vente", value: activeListings, icon: FiShoppingBag, color: "bg-primary/10 text-primary" },
     { label: "Ventes", value: totalSales, icon: FiTrendingUp, color: "bg-green-100 text-green-600" },
     { label: "Achats", value: totalPurchases, icon: FiShoppingCart, color: "bg-blue-100 text-blue-600" },
-    { label: "Solde (GNF)", value: mockCurrentUser.walletBalance.toLocaleString("fr-FR"), icon: FiCreditCard, color: "bg-amber-100 text-amber-600" },
+    { label: "Solde (GNF)", value: (user?.walletBalance ?? 0).toLocaleString("fr-FR"), icon: FiCreditCard, color: "bg-amber-100 text-amber-600" },
   ];
 
-  const activityIcons: Record<string, string> = {
-    sale: "bg-green-100 text-green-600",
-    purchase: "bg-blue-100 text-blue-600",
-    message: "bg-purple-100 text-purple-600",
-    favorite: "bg-pink-100 text-pink-600",
-    listing: "bg-primary/10 text-primary",
-  };
+  if (userLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* Welcome */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">
-          Bonjour, {mockCurrentUser.name.split(" ")[0]} !
+          Bonjour, {user?.firstName || "Utilisateur"} !
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Bienvenue sur votre espace FripCash
@@ -127,7 +128,7 @@ export default function DashboardOverviewPage() {
         <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
           <div className="grid flex-1 gap-1">
             <CardTitle>Mes ventes & achats</CardTitle>
-            <CardDescription>{chartDataMap[chartRange].description}</CardDescription>
+            <CardDescription>{chartRangeConfig[chartRange].description}</CardDescription>
           </div>
           <Select value={chartRange} onValueChange={(v) => setChartRange(v as ChartRange)}>
             <SelectTrigger
@@ -137,9 +138,9 @@ export default function DashboardOverviewPage() {
               <SelectValue placeholder="6 derniers mois" />
             </SelectTrigger>
             <SelectContent className="rounded-xl">
-              {(Object.keys(chartDataMap) as ChartRange[]).map((range) => (
+              {(Object.keys(chartRangeConfig) as ChartRange[]).map((range) => (
                 <SelectItem key={range} value={range} className="rounded-lg">
-                  {chartDataMap[range].selectLabel}
+                  {chartRangeConfig[range].selectLabel}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -147,7 +148,7 @@ export default function DashboardOverviewPage() {
         </CardHeader>
         <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
           <ChartContainer config={chartConfig} className="aspect-auto h-[220px] w-full min-h-[220px]">
-            <AreaChart data={chartDataMap[chartRange].data}>
+            <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="fillVentes" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--color-ventes)" stopOpacity={0.8} />
@@ -191,28 +192,14 @@ export default function DashboardOverviewPage() {
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Recent Activity */}
+        {/* Recent Activity placeholder */}
         <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-foreground">Activité récente</h3>
-            <Badge variant="secondary" className="text-[10px]">{mockUserActivity.length}</Badge>
+            <Badge variant="secondary" className="text-[10px]">0</Badge>
           </div>
-          <div className="space-y-3">
-            {mockUserActivity.slice(0, 6).map((item) => (
-              <div key={item.id} className="flex items-start gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${activityIcons[item.type] || "bg-muted text-muted-foreground"}`}>
-                  {item.type === "sale" && <FiTrendingUp className="h-3.5 w-3.5" />}
-                  {item.type === "purchase" && <FiShoppingCart className="h-3.5 w-3.5" />}
-                  {item.type === "message" && <span className="text-xs">💬</span>}
-                  {item.type === "favorite" && <span className="text-xs">❤</span>}
-                  {item.type === "listing" && <FiShoppingBag className="h-3.5 w-3.5" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground">{item.message}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{item.time}</p>
-                </div>
-              </div>
-            ))}
+          <div className="text-center py-8">
+            <p className="text-sm text-muted-foreground">L&apos;activité récente apparaîtra ici</p>
           </div>
         </div>
 
@@ -221,7 +208,7 @@ export default function DashboardOverviewPage() {
           {/* Wallet */}
           <div className="rounded-xl border border-border bg-card p-5">
             <h3 className="font-semibold text-foreground text-sm mb-3">Mon porte-monnaie</h3>
-            <p className="text-3xl font-bold text-primary">{mockCurrentUser.walletBalance.toLocaleString("fr-FR")} <span className="text-base font-medium">GNF</span></p>
+            <p className="text-3xl font-bold text-primary">{(user?.walletBalance ?? 0).toLocaleString("fr-FR")} <span className="text-base font-medium">GNF</span></p>
             <Link href="/dashboard/porte-monnaie" className="flex items-center gap-1 text-xs text-primary font-medium mt-3 hover:underline">
               Voir les transactions <FiArrowRight className="h-3 w-3" />
             </Link>
@@ -231,15 +218,17 @@ export default function DashboardOverviewPage() {
           <div className="rounded-xl border border-border bg-card p-5">
             <h3 className="font-semibold text-foreground text-sm mb-3">Mon profil</h3>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full overflow-hidden shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={mockCurrentUser.avatar} alt={mockCurrentUser.name} className="w-full h-full object-cover" />
+              <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 bg-muted">
+                {user?.avatar && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={user.avatar} alt={user.firstName} className="w-full h-full object-cover" />
+                )}
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">{mockCurrentUser.name}</p>
+                <p className="text-sm font-medium text-foreground">{user?.firstName} {user?.lastName}</p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs text-amber-500">★ {mockCurrentUser.rating}</span>
-                  <span className="text-xs text-muted-foreground">({mockCurrentUser.reviewsCount} avis)</span>
+                  <span className="text-xs text-amber-500">★ {user?.rating ?? 0}</span>
+                  <span className="text-xs text-muted-foreground">({user?.reviewsCount ?? 0} avis)</span>
                 </div>
               </div>
             </div>

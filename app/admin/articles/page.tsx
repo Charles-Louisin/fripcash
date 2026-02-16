@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { DataTable } from "@/components/admin/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -11,78 +11,67 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { mockArticles, type MockArticle } from "@/lib/mock-data";
+import { useAdminArticles, useUpdateArticleStatus } from "@/hooks/use-admin";
 import { useToast } from "@/components/ui/toast";
 import { FiSearch, FiMoreHorizontal, FiCheck, FiX, FiFlag, FiEye, FiTrash2 } from "react-icons/fi";
 
-const statusConfig = {
-  pending: { label: "En attente", variant: "warning" as const },
-  approved: { label: "Approuvé", variant: "success" as const },
-  rejected: { label: "Rejeté", variant: "destructive" as const },
-  flagged: { label: "Signalé", variant: "destructive" as const },
+const statusConfig: Record<string, { label: string; variant: "warning" | "success" | "destructive" }> = {
+  pending: { label: "En attente", variant: "warning" },
+  active: { label: "Actif", variant: "success" },
+  approved: { label: "Approuvé", variant: "success" },
+  rejected: { label: "Rejeté", variant: "destructive" },
+  flagged: { label: "Signalé", variant: "destructive" },
+  sold: { label: "Vendu", variant: "warning" },
 };
 
 export default function ArticlesPage() {
-  const { toast } = useToast();
-  const [articles, setArticles] = useState(mockArticles);
+  const { showToast } = useToast();
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [tab, setTab] = useState("all");
-  const [selectedArticle, setSelectedArticle] = useState<MockArticle | null>(null);
+  const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
 
-  const filtered = useMemo(() => {
-    return articles.filter((a) => {
-      const matchSearch =
-        a.title.toLowerCase().includes(search.toLowerCase()) ||
-        a.seller.toLowerCase().includes(search.toLowerCase());
-      const matchCategory = categoryFilter === "all" || a.category === categoryFilter;
-      const matchTab =
-        tab === "all" ||
-        (tab === "pending" && a.status === "pending") ||
-        (tab === "flagged" && a.status === "flagged");
-      return matchSearch && matchCategory && matchTab;
-    });
-  }, [articles, search, categoryFilter, tab]);
+  const statusParam = tab === "all" ? undefined : tab;
+  const { data, isLoading } = useAdminArticles({ status: statusParam, q: search || undefined });
+  const updateStatus = useUpdateArticleStatus();
 
-  const handleApprove = (article: MockArticle) => {
-    setArticles((prev) =>
-      prev.map((a) => (a.id === article.id ? { ...a, status: "approved" as const } : a))
+  const articles = data?.data ?? [];
+
+  const handleApprove = (article: any) => {
+    updateStatus.mutate(
+      { id: article._id, status: "active" },
+      { onSuccess: () => showToast(`"${article.title}" a été approuvé.`, "success") }
     );
-    toast(`"${article.title}" a été approuvé.`, "success");
   };
 
-  const handleReject = (article: MockArticle) => {
-    setArticles((prev) =>
-      prev.map((a) => (a.id === article.id ? { ...a, status: "rejected" as const } : a))
+  const handleReject = (article: any) => {
+    updateStatus.mutate(
+      { id: article._id, status: "rejected" },
+      { onSuccess: () => showToast(`"${article.title}" a été rejeté.`, "warning") }
     );
-    toast(`"${article.title}" a été rejeté.`, "warning");
   };
 
-  const handleFlag = (article: MockArticle) => {
-    setArticles((prev) =>
-      prev.map((a) => (a.id === article.id ? { ...a, status: "flagged" as const } : a))
+  const handleFlag = (article: any) => {
+    updateStatus.mutate(
+      { id: article._id, status: "flagged" },
+      { onSuccess: () => showToast(`"${article.title}" a été signalé.`, "warning") }
     );
-    toast(`"${article.title}" a été signalé.`, "warning");
   };
 
-  const handleDelete = (article: MockArticle) => {
-    setArticles((prev) => prev.filter((a) => a.id !== article.id));
-    toast(`"${article.title}" a été supprimé.`, "info");
-  };
-
-  const categories = [...new Set(mockArticles.map((a) => a.category))];
+  const getSeller = (a: any) => typeof a.seller === "object" ? a.seller.pseudo : "Vendeur";
 
   const columns = [
     {
       key: "article",
       header: "Article",
-      render: (a: MockArticle) => (
+      render: (a: any) => (
         <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={a.image} alt={a.title} className="h-10 w-10 rounded object-cover" />
+          {a.images?.[0] && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={a.images[0]} alt={a.title} className="h-10 w-10 rounded object-cover" />
+          )}
           <div className="min-w-0">
             <p className="font-medium text-foreground truncate max-w-[200px]">{a.title}</p>
-            <p className="text-xs text-muted-foreground">{a.seller}</p>
+            <p className="text-xs text-muted-foreground">{getSeller(a)}</p>
           </div>
         </div>
       ),
@@ -91,26 +80,26 @@ export default function ArticlesPage() {
       key: "category",
       header: "Catégorie",
       className: "hidden md:table-cell",
-      render: (a: MockArticle) => <span className="text-muted-foreground">{a.category}</span>,
+      render: (a: any) => <span className="text-muted-foreground">{a.category}</span>,
     },
     {
       key: "price",
       header: "Prix",
-      render: (a: MockArticle) => (
-        <span className="font-medium text-foreground">{a.price.toLocaleString("fr-FR")} F</span>
+      render: (a: any) => (
+        <span className="font-medium text-foreground">{(a.price || 0).toLocaleString("fr-FR")} F</span>
       ),
     },
     {
       key: "condition",
       header: "État",
       className: "hidden lg:table-cell",
-      render: (a: MockArticle) => <span className="text-muted-foreground text-xs">{a.condition}</span>,
+      render: (a: any) => <span className="text-muted-foreground text-xs">{a.condition}</span>,
     },
     {
       key: "status",
       header: "Statut",
-      render: (a: MockArticle) => {
-        const config = statusConfig[a.status];
+      render: (a: any) => {
+        const config = statusConfig[a.status] || { label: a.status, variant: "warning" as const };
         return <Badge variant={config.variant}>{config.label}</Badge>;
       },
     },
@@ -118,9 +107,9 @@ export default function ArticlesPage() {
       key: "date",
       header: "Date",
       className: "hidden sm:table-cell",
-      render: (a: MockArticle) => (
+      render: (a: any) => (
         <span className="text-muted-foreground text-xs">
-          {new Date(a.postedDate).toLocaleDateString("fr-FR")}
+          {new Date(a.createdAt).toLocaleDateString("fr-FR")}
         </span>
       ),
     },
@@ -128,7 +117,7 @@ export default function ArticlesPage() {
       key: "actions",
       header: "",
       className: "w-10",
-      render: (a: MockArticle) => (
+      render: (a: any) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors">
@@ -140,7 +129,7 @@ export default function ArticlesPage() {
               <FiEye className="h-4 w-4 mr-2" />
               Voir détail
             </DropdownMenuItem>
-            {a.status !== "approved" && (
+            {a.status !== "active" && a.status !== "approved" && (
               <DropdownMenuItem onClick={() => handleApprove(a)} className="cursor-pointer text-green-600">
                 <FiCheck className="h-4 w-4 mr-2" />
                 Approuver
@@ -158,38 +147,35 @@ export default function ArticlesPage() {
                 Signaler
               </DropdownMenuItem>
             )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => handleDelete(a)} className="cursor-pointer text-destructive">
-              <FiTrash2 className="h-4 w-4 mr-2" />
-              Supprimer
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ),
     },
   ];
 
-  const pendingCount = articles.filter((a) => a.status === "pending").length;
-  const flaggedCount = articles.filter((a) => a.status === "flagged").length;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Articles</h1>
         <p className="text-sm text-muted-foreground mt-1">Modérer les annonces publiées</p>
       </div>
 
-      {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="all">Tous ({articles.length})</TabsTrigger>
-          <TabsTrigger value="pending">En attente ({pendingCount})</TabsTrigger>
-          <TabsTrigger value="flagged">Signalés ({flaggedCount})</TabsTrigger>
+          <TabsTrigger value="all">Tous</TabsTrigger>
+          <TabsTrigger value="pending">En attente</TabsTrigger>
+          <TabsTrigger value="flagged">Signalés</TabsTrigger>
         </TabsList>
 
         <TabsContent value={tab}>
-          {/* Toolbar */}
           <div className="flex flex-col sm:flex-row gap-3 mt-4">
             <div className="relative flex-1 max-w-sm">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -201,31 +187,18 @@ export default function ArticlesPage() {
                 className="w-full h-9 pl-9 pr-4 rounded-lg border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
               />
             </div>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="all">Toutes les catégories</option>
-              {categories.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
           </div>
 
-          {/* Count */}
           <p className="text-sm text-muted-foreground mt-4">
-            <span className="font-semibold text-primary">{filtered.length}</span> article{filtered.length !== 1 ? "s" : ""}
+            <span className="font-semibold text-primary">{articles.length}</span> article{articles.length !== 1 ? "s" : ""}
           </p>
 
-          {/* Table */}
           <div className="mt-4">
-            <DataTable columns={columns} data={filtered} emptyMessage="Aucun article trouvé" />
+            <DataTable columns={columns} data={articles} emptyMessage="Aucun article trouvé" />
           </div>
         </TabsContent>
       </Tabs>
 
-      {/* Article Detail Dialog */}
       {selectedArticle && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/50" onClick={() => setSelectedArticle(null)} />
@@ -236,20 +209,22 @@ export default function ArticlesPage() {
             >
               &times;
             </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={selectedArticle.image}
-              alt={selectedArticle.title}
-              className="w-full h-48 object-cover rounded-lg mb-4"
-            />
+            {selectedArticle.images?.[0] && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={selectedArticle.images[0]}
+                alt={selectedArticle.title}
+                className="w-full h-48 object-cover rounded-lg mb-4"
+              />
+            )}
             <h2 className="text-lg font-bold text-foreground mb-1">{selectedArticle.title}</h2>
-            <Badge variant={statusConfig[selectedArticle.status].variant} className="mb-4">
-              {statusConfig[selectedArticle.status].label}
+            <Badge variant={statusConfig[selectedArticle.status]?.variant || "warning"} className="mb-4">
+              {statusConfig[selectedArticle.status]?.label || selectedArticle.status}
             </Badge>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Vendeur</span>
-                <span className="font-medium">{selectedArticle.seller}</span>
+                <span className="font-medium">{getSeller(selectedArticle)}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Catégorie</span>
@@ -257,7 +232,7 @@ export default function ArticlesPage() {
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Prix</span>
-                <span className="font-bold text-primary">{selectedArticle.price.toLocaleString("fr-FR")} GNF</span>
+                <span className="font-bold text-primary">{(selectedArticle.price || 0).toLocaleString("fr-FR")} GNF</span>
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">État</span>
@@ -265,7 +240,7 @@ export default function ArticlesPage() {
               </div>
               <div className="flex justify-between py-2">
                 <span className="text-muted-foreground">Publié le</span>
-                <span className="font-medium">{new Date(selectedArticle.postedDate).toLocaleDateString("fr-FR")}</span>
+                <span className="font-medium">{new Date(selectedArticle.createdAt).toLocaleDateString("fr-FR")}</span>
               </div>
             </div>
             {selectedArticle.status === "pending" && (

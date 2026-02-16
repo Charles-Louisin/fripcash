@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { FiPlus, FiEdit2, FiTrash2, FiCheck, FiEye, FiHeart, FiGrid, FiList, FiCamera, FiX, FiImage, FiAlertCircle } from "react-icons/fi";
-import { mockUserListings, type UserListing } from "@/lib/mock-data";
+import { useMyArticles, useCreateArticle, useUpdateArticle, useDeleteArticle } from "@/hooks/use-articles";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -72,17 +72,21 @@ const sizes = ["XS", "S", "M", "L", "XL", "XXL", "34", "36", "38", "40", "42", "
 
 export default function MyArticlesPage() {
   const { showToast } = useToast();
+  const { data: listings = [], isLoading } = useMyArticles();
+  const createArticle = useCreateArticle();
+  const updateArticle = useUpdateArticle();
+  const deleteArticleMut = useDeleteArticle();
+
   const [activeTab, setActiveTab] = useState("active");
-  const [listings, setListings] = useState<UserListing[]>(mockUserListings);
   const [viewMode, setViewMode] = useState<"grid" | "table">("table");
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<UserListing | null>(null);
+  const [editingItem, setEditingItem] = useState<any | null>(null);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const emptyForm = { title: "", brand: "", description: "", category: categoryNames[0], subcategory: "", subItem: "", condition: conditions[0], price: "", size: "", color: "" };
   const [formData, setFormData] = useState(emptyForm);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: number | null; title: string }>({ open: false, id: null, title: "" });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string | null; title: string }>({ open: false, id: null, title: "" });
 
   const openAddSheet = () => {
     setEditingItem(null);
@@ -91,22 +95,21 @@ export default function MyArticlesPage() {
     setSheetOpen(true);
   };
 
-  const openEditSheet = (item: UserListing) => {
+  const openEditSheet = (item: any) => {
     setEditingItem(item);
-    const parts = item.title.split(" – ");
     setFormData({
-      title: parts.length > 1 ? parts.slice(1).join(" – ") : item.title,
-      brand: parts.length > 1 ? parts[0] : "",
-      description: item.description,
-      category: item.category,
+      title: item.title || "",
+      brand: item.brand || "",
+      description: item.description || "",
+      category: item.category || categoryNames[0],
       subcategory: "",
       subItem: "",
-      condition: item.condition,
-      price: String(item.price),
+      condition: item.condition || conditions[0],
+      price: String(item.price || ""),
       size: item.size || "",
-      color: "",
+      color: item.color || "",
     });
-    setImagePreviews([item.image]);
+    setImagePreviews(item.images || []);
     setSheetOpen(true);
   };
 
@@ -115,24 +118,28 @@ export default function MyArticlesPage() {
     setEditingItem(null);
   };
 
-  const filtered = listings.filter((l) => l.status === activeTab);
+  const filtered = listings.filter((l: any) => l.status === activeTab);
 
-  const askDelete = (id: number) => {
-    const item = listings.find((l) => l.id === id);
-    setDeleteConfirm({ open: true, id, title: item?.title || "cet article" });
+  const askDelete = (id: string) => {
+    const item = listings.find((l: any) => l._id === id);
+    setDeleteConfirm({ open: true, id, title: (item as any)?.title || "cet article" });
   };
 
   const confirmDelete = () => {
     if (deleteConfirm.id !== null) {
-      setListings((prev) => prev.filter((l) => l.id !== deleteConfirm.id));
-      showToast("Article supprimé", "success");
+      deleteArticleMut.mutate(deleteConfirm.id, {
+        onSuccess: () => showToast("Article supprimé", "success"),
+        onError: (err: any) => showToast(err.message || "Erreur", "error"),
+      });
     }
     setDeleteConfirm({ open: false, id: null, title: "" });
   };
 
-  const handleMarkSold = (id: number) => {
-    setListings((prev) => prev.map((l) => (l.id === id ? { ...l, status: "sold" as const } : l)));
-    showToast("Article marqué comme vendu", "success");
+  const handleMarkSold = (id: string) => {
+    updateArticle.mutate({ id, status: "sold" }, {
+      onSuccess: () => showToast("Article marqué comme vendu", "success"),
+      onError: (err: any) => showToast(err.message || "Erreur", "error"),
+    });
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,47 +171,41 @@ export default function MyArticlesPage() {
       showToast("Remplis le titre et le prix.", "error");
       return;
     }
-    if (!formData.subcategory) {
-      showToast("Sélectionne une sous-catégorie.", "error");
-      return;
-    }
     if (imagePreviews.length === 0) {
       showToast("Ajoute au moins une photo.", "error");
       return;
     }
-    const title = formData.brand ? `${formData.brand} – ${formData.title}` : formData.title;
     const fullCategory = [formData.category, formData.subcategory, formData.subItem].filter(Boolean).join(" > ");
 
+    const body = {
+      title: formData.title,
+      brand: formData.brand || "Sans marque",
+      description: formData.description,
+      images: imagePreviews,
+      category: fullCategory,
+      condition: formData.condition,
+      size: formData.size || undefined,
+      color: formData.color || undefined,
+      price: parseInt(formData.price),
+    };
+
     if (editingItem) {
-      // Update existing
-      setListings((prev) =>
-        prev.map((l) =>
-          l.id === editingItem.id
-            ? { ...l, title, image: imagePreviews[0], category: fullCategory, price: parseInt(formData.price), condition: formData.condition, size: formData.size || undefined, description: formData.description }
-            : l
-        )
-      );
-      showToast("Article modifié avec succès !", "success");
+      updateArticle.mutate({ id: editingItem._id, ...body }, {
+        onSuccess: () => {
+          showToast("Article modifié avec succès !", "success");
+          closeSheet();
+        },
+        onError: (err: any) => showToast(err.message || "Erreur", "error"),
+      });
     } else {
-      // Create new
-      const article: UserListing = {
-        id: Date.now(),
-        title,
-        image: imagePreviews[0],
-        category: fullCategory,
-        price: parseInt(formData.price),
-        condition: formData.condition,
-        size: formData.size || undefined,
-        description: formData.description,
-        status: "active",
-        views: 0,
-        favorites: 0,
-        postedDate: new Date().toISOString().split("T")[0],
-      };
-      setListings((prev) => [article, ...prev]);
-      showToast("Article publié avec succès !", "success");
+      createArticle.mutate(body, {
+        onSuccess: () => {
+          showToast("Article publié avec succès !", "success");
+          closeSheet();
+        },
+        onError: (err: any) => showToast(err.message || "Erreur", "error"),
+      });
     }
-    closeSheet();
   };
 
   const statusBadge = (status: string) => {
@@ -230,10 +231,16 @@ export default function MyArticlesPage() {
         </button>
       </div>
 
+      {isLoading && (
+        <div className="flex items-center justify-center h-32">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-border">
         {tabs.map((tab) => {
-          const count = listings.filter((l) => l.status === tab.id).length;
+          const count = listings.filter((l: any) => l.status === tab.id).length;
           return (
             <button
               key={tab.id}
@@ -301,11 +308,11 @@ export default function MyArticlesPage() {
       ) : viewMode === "grid" ? (
         /* ─── Grid View ─── */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map((item) => (
-            <div key={item.id} className="rounded-xl border border-border bg-card overflow-hidden group">
+          {filtered.map((item: any) => (
+            <div key={item._id} className="rounded-xl border border-border bg-card overflow-hidden group">
               <div className="relative aspect-square">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                <img src={item.images?.[0] || ""} alt={item.title} className="w-full h-full object-cover" />
                 <div className="absolute top-2 left-2">{statusBadge(item.status)}</div>
               </div>
               <div className="p-3">
@@ -314,8 +321,8 @@ export default function MyArticlesPage() {
                 <p className="text-sm font-bold text-primary mt-1">{item.price.toLocaleString("fr-FR")} GNF</p>
 
                 <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1"><FiEye className="h-3 w-3" /> {item.views}</span>
-                  <span className="flex items-center gap-1"><FiHeart className="h-3 w-3" /> {item.favorites}</span>
+                  <span className="flex items-center gap-1"><FiEye className="h-3 w-3" /> {item.views ?? 0}</span>
+                  <span className="flex items-center gap-1"><FiHeart className="h-3 w-3" /> {item.favoritesCount ?? 0}</span>
                 </div>
 
                 {/* Actions */}
@@ -324,10 +331,10 @@ export default function MyArticlesPage() {
                     <button type="button" onClick={() => openEditSheet(item)} className="flex-1 h-8 rounded-md text-xs font-medium border border-border hover:bg-accent transition-colors flex items-center justify-center gap-1">
                       <FiEdit2 className="h-3 w-3" /> Modifier
                     </button>
-                    <button type="button" onClick={() => handleMarkSold(item.id)} className="h-8 px-2 rounded-md text-xs font-medium text-green-600 border border-green-200 hover:bg-green-50 transition-colors flex items-center justify-center gap-1">
+                    <button type="button" onClick={() => handleMarkSold(item._id)} className="h-8 px-2 rounded-md text-xs font-medium text-green-600 border border-green-200 hover:bg-green-50 transition-colors flex items-center justify-center gap-1">
                       <FiCheck className="h-3 w-3" />
                     </button>
-                    <button type="button" onClick={() => askDelete(item.id)} className="h-8 px-2 rounded-md text-xs font-medium text-destructive border border-destructive/20 hover:bg-destructive/10 transition-colors flex items-center justify-center gap-1">
+                    <button type="button" onClick={() => askDelete(item._id)} className="h-8 px-2 rounded-md text-xs font-medium text-destructive border border-destructive/20 hover:bg-destructive/10 transition-colors flex items-center justify-center gap-1">
                       <FiTrash2 className="h-3 w-3" />
                     </button>
                   </div>
@@ -354,14 +361,14 @@ export default function MyArticlesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map((item) => (
-                  <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                {filtered.map((item: any) => (
+                  <tr key={item._id} className="hover:bg-muted/30 transition-colors">
                     {/* Article (image + title) */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="relative h-10 w-10 rounded-lg overflow-hidden bg-muted shrink-0">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={item.image} alt={item.title} className="absolute inset-0 w-full h-full object-cover" />
+                          <img src={item.images?.[0] || ""} alt={item.title} className="absolute inset-0 w-full h-full object-cover" />
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground truncate max-w-[180px]">{item.title}</p>
@@ -383,11 +390,11 @@ export default function MyArticlesPage() {
                     </td>
                     {/* Views */}
                     <td className="px-4 py-3 text-center hidden lg:table-cell">
-                      <span className="text-sm text-muted-foreground">{item.views}</span>
+                      <span className="text-sm text-muted-foreground">{item.views ?? 0}</span>
                     </td>
                     {/* Favorites */}
                     <td className="px-4 py-3 text-center hidden lg:table-cell">
-                      <span className="text-sm text-muted-foreground">{item.favorites}</span>
+                      <span className="text-sm text-muted-foreground">{item.favoritesCount ?? 0}</span>
                     </td>
                     {/* Status */}
                     <td className="px-4 py-3 text-center">
@@ -401,12 +408,12 @@ export default function MyArticlesPage() {
                             <button type="button" onClick={() => openEditSheet(item)} className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Modifier">
                               <FiEdit2 className="h-3.5 w-3.5" />
                             </button>
-                            <button type="button" onClick={() => handleMarkSold(item.id)} className="h-8 w-8 rounded-md flex items-center justify-center text-green-600 hover:bg-green-50 transition-colors" title="Marquer vendu">
+                            <button type="button" onClick={() => handleMarkSold(item._id)} className="h-8 w-8 rounded-md flex items-center justify-center text-green-600 hover:bg-green-50 transition-colors" title="Marquer vendu">
                               <FiCheck className="h-3.5 w-3.5" />
                             </button>
                           </>
                         )}
-                        <button type="button" onClick={() => askDelete(item.id)} className="h-8 w-8 rounded-md flex items-center justify-center text-destructive hover:bg-destructive/10 transition-colors" title="Supprimer">
+                        <button type="button" onClick={() => askDelete(item._id)} className="h-8 w-8 rounded-md flex items-center justify-center text-destructive hover:bg-destructive/10 transition-colors" title="Supprimer">
                           <FiTrash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>

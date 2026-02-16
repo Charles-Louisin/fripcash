@@ -66,7 +66,7 @@ const ChartContainer = React.forwardRef<
       >
         <ChartStyle id={chartId} config={config} />
         {mounted ? (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minHeight={0}>
             {children}
           </ResponsiveContainer>
         ) : null}
@@ -143,7 +143,7 @@ const ChartTooltipContent = React.forwardRef<
       labelClassName: _labelClassName, // eslint-disable-line @typescript-eslint/no-unused-vars
       // Strip Recharts internal props that shouldn't reach the DOM
       // @ts-expect-error - Recharts passes these internally
-      itemSorter: _a, itemStyle: _b, labelStyle: _c, reverseDirection: _d, useTranslate3d: _e, wrapperStyle: _f, activeIndex: _g, accessibilityLayer: _h, // eslint-disable-line @typescript-eslint/no-unused-vars
+      itemSorter: _a, itemStyle: _b, labelStyle: _c, reverseDirection: _d, useTranslate3d: _e, wrapperStyle: _f, activeIndex: _g, accessibilityLayer: _h, cursor: _i, allowEscapeViewBox: _j, animationDuration: _k, animationEasing: _l, axisId: _m, contentStyle: _n, filterNull: _o, includeHidden: _p, isAnimationActive: _q, offset: _r, position: _s, // eslint-disable-line @typescript-eslint/no-unused-vars
       ...props
     },
     ref

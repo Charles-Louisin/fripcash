@@ -3,19 +3,29 @@
 import { useState } from "react";
 import { FiSend, FiCheck } from "react-icons/fi";
 import { useToast } from "@/components/ui/toast";
+import { newsletterApi } from "@/lib/api";
 
 export function NewsletterSection() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
-    setSubmitted(true);
-    setEmail("");
-    toast("Merci ! Tu es inscrit à la newsletter.");
+    if (!email || loading) return;
+    setLoading(true);
+    try {
+      const res = await newsletterApi.subscribe(email);
+      setSubmitted(true);
+      setEmail("");
+      toast(res.message || "Merci ! Tu es inscrit à la newsletter.");
+    } catch (err: any) {
+      toast(err?.message || "Une erreur est survenue. Réessaie.", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -69,10 +79,15 @@ export function NewsletterSection() {
                 />
                 <button
                   type="submit"
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center h-9 w-9 rounded-full bg-primary hover:bg-primary/90 text-white transition-colors"
+                  disabled={loading}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center h-9 w-9 rounded-full bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50"
                   aria-label="S'inscrire"
                 >
-                  <FiSend className="h-4 w-4" />
+                  {loading ? (
+                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <FiSend className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </form>
