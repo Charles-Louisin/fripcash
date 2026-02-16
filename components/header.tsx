@@ -15,7 +15,7 @@ import {
   FiMenu,
   FiChevronDown,
   FiChevronRight,
-  FiGlobe,
+  // FiGlobe, // translate button commented
   FiBell,
   FiHeart,
   FiShoppingBag,
@@ -322,6 +322,7 @@ export function Header() {
               </>
             )}
 
+            {/* Translate button - commented for now
             <Button
               variant="ghost"
               size="sm"
@@ -331,6 +332,7 @@ export function Header() {
               FR
               <FiChevronDown className="h-3 w-3" />
             </Button>
+            */}
           </div>
         </div>
       </div>
