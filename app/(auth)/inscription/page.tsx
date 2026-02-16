@@ -1,16 +1,62 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { FiUser, FiPhone, FiAtSign, FiArrowRight } from "react-icons/fi";
+import { FiUser, FiPhone, FiAtSign, FiArrowRight, FiRefreshCw } from "react-icons/fi";
+
+function generatePseudos(firstName: string, lastName: string): string[] {
+  const f = firstName.toLowerCase().trim().replace(/\s+/g, "");
+  const l = lastName.toLowerCase().trim().replace(/\s+/g, "");
+  if (!f && !l) return [];
+
+  const rand2 = () => Math.floor(Math.random() * 90 + 10);
+  const rand3 = () => Math.floor(Math.random() * 900 + 100);
+  const rand4 = () => Math.floor(Math.random() * 9000 + 1000);
+
+  const suggestions: string[] = [];
+
+  if (f && l) {
+    suggestions.push(
+      `${f}.${l}`,
+      `${f}_${l}`,
+      `${f}${l}${rand2()}`,
+      `${f}.${l[0]}${rand2()}`,
+      `${f[0]}${l}${rand3()}`,
+      `${f}_${l}${rand2()}`,
+      `${f}${rand4()}`,
+      `${l}.${f}${rand2()}`,
+    );
+  } else {
+    const name = f || l;
+    suggestions.push(
+      `${name}${rand3()}`,
+      `${name}_${rand2()}`,
+      `${name}.shop${rand2()}`,
+      `${name}frip${rand2()}`,
+    );
+  }
+
+  const unique = [...new Set(suggestions)];
+  return unique.slice(0, 4);
+}
 
 export default function InscriptionPage() {
   const [step, setStep] = useState<"form" | "verify">("form");
+  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [pseudo, setPseudo] = useState("");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState(["", "", "", "", "", ""]);
+  const [suggestionKey, setSuggestionKey] = useState(0);
+
+  const suggestions = useMemo(
+    () => generatePseudos(firstName, lastName),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [firstName, lastName, suggestionKey]
+  );
 
   const handleCodeChange = (index: number, value: string) => {
     if (value.length > 1) return;
@@ -18,7 +64,6 @@ export default function InscriptionPage() {
     newCode[index] = value;
     setCode(newCode);
 
-    // Auto-focus next input
     if (value && index < 5) {
       const next = document.getElementById(`code-${index + 1}`);
       next?.focus();
@@ -36,6 +81,10 @@ export default function InscriptionPage() {
 
   const handleSubmitForm = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!lastName.trim() || !firstName.trim() || !pseudo.trim() || !phone.trim()) {
+      toast("Remplis tous les champs.", "error");
+      return;
+    }
     setStep("verify");
     toast("Un code de vérification a été envoyé à ton numéro.", "info");
   };
@@ -71,6 +120,8 @@ export default function InscriptionPage() {
                     type="text"
                     placeholder="Ton nom"
                     required
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
                     className="pl-9 h-11"
                   />
                 </div>
@@ -86,6 +137,8 @@ export default function InscriptionPage() {
                     type="text"
                     placeholder="Ton prénom"
                     required
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
                     className="pl-9 h-11"
                   />
                 </div>
@@ -103,9 +156,44 @@ export default function InscriptionPage() {
                   type="text"
                   placeholder="Choisis un pseudo"
                   required
+                  value={pseudo}
+                  onChange={(e) => setPseudo(e.target.value)}
                   className="pl-9 h-11"
                 />
               </div>
+
+              {/* Pseudo suggestions */}
+              {(firstName.trim() || lastName.trim()) && suggestions.length > 0 && (
+                <div className="mt-2">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <p className="text-xs text-muted-foreground">Suggestions :</p>
+                    <button
+                      type="button"
+                      onClick={() => setSuggestionKey((k) => k + 1)}
+                      className="text-muted-foreground hover:text-primary transition-colors"
+                      title="Nouvelles suggestions"
+                    >
+                      <FiRefreshCw className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {suggestions.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setPseudo(s)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-150 ${
+                          pseudo === s
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground border border-border hover:border-primary/40 hover:text-foreground"
+                        }`}
+                      >
+                        @{s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Numéro de téléphone */}
