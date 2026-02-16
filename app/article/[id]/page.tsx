@@ -162,7 +162,7 @@ export default function ArticleDetailPage() {
   const handlePostReview = () => {
     if (!isLoggedIn) {
       toast("Connecte-toi pour laisser un avis.", "info");
-      router.push("/login");
+      router.push("/connexion");
       return;
     }
     if (!reviewText.trim() || reviewRating === 0) return;
@@ -367,7 +367,7 @@ export default function ArticleDetailPage() {
                   onClick={() => {
                     if (!isLoggedIn) {
                       toast("Connecte-toi pour ajouter aux favoris.", "info");
-                      router.push("/login");
+                      router.push("/connexion");
                       return;
                     }
                     toggleFavorite.mutate(
@@ -546,7 +546,7 @@ export default function ArticleDetailPage() {
               {!isLoggedIn ? (
                 <div className="text-center py-4">
                   <p className="text-sm text-muted-foreground mb-2">Connecte-toi pour laisser un avis</p>
-                  <Link href="/login" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">
+                  <Link href="/connexion" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">
                     Se connecter
                   </Link>
                 </div>
@@ -700,7 +700,7 @@ export default function ArticleDetailPage() {
         <button
           disabled={toggleFavorite.isPending || favLoading}
           onClick={() => {
-            if (!isLoggedIn) { toast("Connecte-toi pour ajouter aux favoris.", "info"); router.push("/login"); return; }
+            if (!isLoggedIn) { toast("Connecte-toi pour ajouter aux favoris.", "info"); router.push("/connexion"); return; }
             toggleFavorite.mutate(
               { articleId: id, isFavorite: !!isFavorite },
               {

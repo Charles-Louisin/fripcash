@@ -37,7 +37,7 @@ export function ProductCard({ product }: { product: Product }) {
     e.stopPropagation();
     if (!isLoggedIn) {
       toast("Connecte-toi pour ajouter aux favoris.", "info");
-      router.push("/login");
+      router.push("/connexion");
       return;
     }
     toggleFavorite.mutate(
