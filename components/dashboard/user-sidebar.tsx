@@ -10,6 +10,7 @@ import {
   FiShoppingCart,
   FiHeart,
   FiMessageSquare,
+  FiBell,
   FiSettings,
   FiSearch,
   FiLogOut,
@@ -30,6 +31,7 @@ const navItems = [
   { href: "/dashboard/porte-monnaie", icon: IoWalletOutline, label: "Porte-monnaie" },
   { href: "/dashboard/favoris", icon: FiHeart, label: "Mes favoris" },
   { href: "/dashboard/messages", icon: FiMessageSquare, label: "Messages" },
+  { href: "/dashboard/notifications", icon: FiBell, label: "Notifications" },
   { href: "/dashboard/parametres", icon: FiSettings, label: "Paramètres" },
 ];
 

@@ -105,8 +105,20 @@ export function Header() {
   const markAsRead = useMarkNotificationAsRead();
   const markAllAsRead = useMarkAllNotificationsAsRead();
   const [notifOpen, setNotifOpen] = useState(false);
+  const notifHoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const notifRefMobile = useRef<HTMLDivElement>(null);
+
+  const handleNotifMouseEnter = () => {
+    if (notifHoverTimeout.current) {
+      clearTimeout(notifHoverTimeout.current);
+      notifHoverTimeout.current = null;
+    }
+    setNotifOpen(true);
+  };
+  const handleNotifMouseLeave = () => {
+    notifHoverTimeout.current = setTimeout(() => setNotifOpen(false), 150);
+  };
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [activeSubGroup, setActiveSubGroup] = useState<string | null>(null);
   const closeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -249,12 +261,17 @@ export function Header() {
                   <Link href="/dashboard/articles">Vends tes articles</Link>
                 </Button>
 
-                <div className="relative" ref={notifRef}>
+                <div
+                  className="relative"
+                  ref={notifRef}
+                  onMouseEnter={handleNotifMouseEnter}
+                  onMouseLeave={handleNotifMouseLeave}
+                >
                   <Button
                     variant="ghost"
                     size="icon-sm"
                     className="relative"
-                    onClick={() => setNotifOpen(!notifOpen)}
+                    onClick={() => setNotifOpen((o) => !o)}
                   >
                     <FiBell className="h-5 w-5" />
                     {unreadCount > 0 && (
@@ -564,11 +581,11 @@ export function Header() {
                       )}
                     </div>
                     <Link
-                      href="/dashboard/messages"
+                      href="/dashboard/notifications"
                       onClick={() => setNotifOpen(false)}
-                      className="px-4 py-2 text-center text-sm text-primary border-t border-border hover:bg-muted/50"
+                      className="px-4 py-2 text-center text-sm text-primary font-medium border-t border-border hover:bg-muted/50"
                     >
-                      Voir les messages
+                      Voir toutes les notifications
                     </Link>
                   </div>
                 )}
