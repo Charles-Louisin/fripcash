@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -10,6 +10,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/stores/ui-store";
 import { useToast } from "@/components/ui/toast";
@@ -21,6 +29,7 @@ import {
   FiShoppingBag,
   FiUser,
   FiLogOut,
+  FiAlertCircle,
 } from "react-icons/fi";
 import {
   GiDress,
@@ -58,6 +67,7 @@ export function AppSheet() {
   const { toast } = useToast();
   const { data: user, isFetched } = useMe();
   const logout = useLogout();
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const hasToken = typeof window !== "undefined" && !!localStorage.getItem("fripcash-token");
   const isLoggedIn = !!user || (hasToken && !isFetched);
   const { data: rawCategories = [] } = useCategories();
@@ -224,6 +234,38 @@ export function AppSheet() {
           </>
         )}
       </SheetContent>
+
+      <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <DialogContent showCloseButton={false} className="sm:max-w-sm">
+          <DialogHeader>
+            <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+              <FiAlertCircle className="h-6 w-6 text-destructive" />
+            </div>
+            <DialogTitle className="text-center">Confirmer la déconnexion</DialogTitle>
+            <DialogDescription className="text-center">
+              Êtes-vous sûr de vouloir vous déconnecter ?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row gap-3 sm:justify-center mt-4">
+            <Button variant="outline" onClick={() => setLogoutOpen(false)} className="flex-1">
+              Annuler
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setLogoutOpen(false);
+                closeSheet();
+                logout();
+                toast("Tu es déconnecté.", "info");
+                window.location.href = "/";
+              }}
+              className="flex-1"
+            >
+              Se déconnecter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }
