@@ -1,6 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { favoritesApi } from "@/lib/api";
 
+function hasToken(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!localStorage.getItem("fripcash-token");
+}
+
 export function useFavorites() {
   return useQuery({
     queryKey: ["favorites"],
@@ -8,6 +13,7 @@ export function useFavorites() {
       const res = await favoritesApi.getAll();
       return res.data;
     },
+    enabled: hasToken(),
   });
 }
 
@@ -18,7 +24,7 @@ export function useCheckFavorite(articleId: string) {
       const res = await favoritesApi.check(articleId);
       return res.isFavorite;
     },
-    enabled: !!articleId,
+    enabled: !!articleId && hasToken(),
   });
 }
 
@@ -39,8 +45,9 @@ export function useToggleFavorite() {
         return favoritesApi.add(articleId);
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
+      queryClient.invalidateQueries({ queryKey: ["articles", variables.articleId] });
     },
   });
 }

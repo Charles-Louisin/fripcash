@@ -35,6 +35,7 @@ import { useArticle, useArticles } from "@/hooks/use-articles";
 import { useArticleReviews, usePostReview } from "@/hooks/use-reviews";
 import { useCreateOffer } from "@/hooks/use-offers";
 import { useStartConversation } from "@/hooks/use-messages";
+import { useCheckFavorite, useToggleFavorite } from "@/hooks/use-favorites";
 import { useMe } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
 
@@ -73,6 +74,8 @@ export default function ArticleDetailPage() {
   const postReview = usePostReview();
   const createOffer = useCreateOffer();
   const startConversation = useStartConversation();
+  const { data: isFavorite, isLoading: favLoading } = useCheckFavorite(id);
+  const toggleFavorite = useToggleFavorite();
 
   const reviews = reviewsData?.data || [];
   const avgRating = reviewsData?.avgRating || 0;
@@ -103,7 +106,6 @@ export default function ArticleDetailPage() {
   };
 
   const [selectedImage, setSelectedImage] = useState(0);
-  const [liked, setLiked] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
   const [offerPrice, setOfferPrice] = useState("");
   const [offerSent, setOfferSent] = useState(false);
@@ -158,6 +160,11 @@ export default function ArticleDetailPage() {
   };
 
   const handlePostReview = () => {
+    if (!isLoggedIn) {
+      toast("Connecte-toi pour laisser un avis.", "info");
+      router.push("/login");
+      return;
+    }
     if (!reviewText.trim() || reviewRating === 0) return;
     postReview.mutate(
       {
@@ -356,14 +363,32 @@ export default function ArticleDetailPage() {
 
               <div className="flex items-center justify-between mt-4">
                 <button
+                  disabled={toggleFavorite.isPending || favLoading}
                   onClick={() => {
-                    setLiked(!liked);
-                    toast(!liked ? "Article ajouté aux favoris." : "Article retiré des favoris.", !liked ? "success" : "info");
+                    if (!isLoggedIn) {
+                      toast("Connecte-toi pour ajouter aux favoris.", "info");
+                      router.push("/login");
+                      return;
+                    }
+                    toggleFavorite.mutate(
+                      { articleId: id, isFavorite: !!isFavorite },
+                      {
+                        onSuccess: () => {
+                          toast(
+                            isFavorite ? "Article retiré des favoris." : "Article ajouté aux favoris.",
+                            isFavorite ? "info" : "success"
+                          );
+                        },
+                        onError: () => {
+                          toast("Erreur lors de la mise à jour des favoris.", "error");
+                        },
+                      }
+                    );
                   }}
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
                 >
-                  <FiHeart className={`h-5 w-5 ${liked ? "fill-primary text-primary" : ""}`} />
-                  <span>{(article.favoritesCount || 0) + (liked ? 1 : 0)} favori{(article.favoritesCount || 0) + (liked ? 1 : 0) !== 1 ? "s" : ""}</span>
+                  <FiHeart className={`h-5 w-5 ${isFavorite ? "fill-primary text-primary" : ""}`} />
+                  <span>{article.favoritesCount || 0} favori{(article.favoritesCount || 0) !== 1 ? "s" : ""}</span>
                 </button>
                 <button
                   onClick={() => { navigator.clipboard.writeText(window.location.href); toast("Lien copié !", "info"); }}
@@ -518,6 +543,15 @@ export default function ArticleDetailPage() {
             {/* Write a review */}
             <div className="border border-border rounded-xl p-4 mb-6">
               <h3 className="text-sm font-semibold text-foreground mb-3">Laisser un avis</h3>
+              {!isLoggedIn ? (
+                <div className="text-center py-4">
+                  <p className="text-sm text-muted-foreground mb-2">Connecte-toi pour laisser un avis</p>
+                  <Link href="/login" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">
+                    Se connecter
+                  </Link>
+                </div>
+              ) : (
+              <>
               <div className="flex items-center gap-1 mb-3">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button key={star} type="button" onMouseEnter={() => setHoverRating(star)} onMouseLeave={() => setHoverRating(0)} onClick={() => setReviewRating(star)} className="transition-transform hover:scale-110">
@@ -558,6 +592,8 @@ export default function ArticleDetailPage() {
               </div>
               {reviewRating === 0 && reviewText.trim() && (
                 <p className="text-xs text-muted-foreground mt-1.5">Sélectionne une note pour publier ton avis</p>
+              )}
+              </>
               )}
             </div>
 
@@ -660,6 +696,22 @@ export default function ArticleDetailPage() {
         </button>
         <button onClick={handleAddToCart} className="flex-1 h-12 rounded-full bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors">
           Ajouter au panier
+        </button>
+        <button
+          disabled={toggleFavorite.isPending || favLoading}
+          onClick={() => {
+            if (!isLoggedIn) { toast("Connecte-toi pour ajouter aux favoris.", "info"); router.push("/login"); return; }
+            toggleFavorite.mutate(
+              { articleId: id, isFavorite: !!isFavorite },
+              {
+                onSuccess: () => toast(isFavorite ? "Retiré des favoris." : "Ajouté aux favoris.", isFavorite ? "info" : "success"),
+                onError: () => toast("Erreur.", "error"),
+              }
+            );
+          }}
+          className="h-12 w-12 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-colors shrink-0 disabled:opacity-50"
+        >
+          <FiHeart className={`h-5 w-5 ${isFavorite ? "fill-primary text-primary" : ""}`} />
         </button>
         <button onClick={handleOpenMessage} className="h-12 w-12 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-colors shrink-0">
           <FiMessageCircle className="h-5 w-5" />
