@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCartStore } from "@/stores/cart-store";
 import { useToast } from "@/components/ui/toast";
+import { useCreateOrder } from "@/hooks/use-orders";
+import { useWalletBalance } from "@/hooks/use-wallet";
 import {
   FiHome,
   FiShield,
@@ -57,6 +59,9 @@ export default function CheckoutPage() {
   const { toast } = useToast();
   const { items, removeItem, subtotal, totalWithShipping, clearCart, itemCount } =
     useCartStore();
+  const createOrder = useCreateOrder();
+  const { data: walletData } = useWalletBalance();
+  const walletBalance = walletData?.balance ?? 0;
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -118,17 +123,46 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Wallet: check balance before creating orders
+    const orderTotal = mounted ? totalWithShipping() : 0;
+    if (paymentMethod === "wallet" && walletBalance < orderTotal) {
+      toast("Solde insuffisant dans ton porte-monnaie.", "error");
+      return;
+    }
+
     setIsProcessing(true);
 
-    // Simulate payment processing
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      const createdIds: string[] = [];
 
-    const num = `FC-${Date.now().toString().slice(-8)}`;
-    setOrderNumber(num);
-    setIsProcessing(false);
-    setOrderPlaced(true);
-    clearCart();
-    toast("Paiement sécurisé en attente de livraison", "success");
+      for (const item of displayItems) {
+        const res = await createOrder.mutateAsync({
+          articleId: String(item.id),
+          deliveryMode,
+          paymentMethod,
+          fullName: form.fullName.trim(),
+          phone: form.phone.trim(),
+          address: form.address.trim() || undefined,
+          city: form.city.trim(),
+        });
+        if (res?.data?._id) {
+          createdIds.push(res.data._id);
+        }
+      }
+
+      clearCart();
+      setOrderNumber(createdIds.length === 1 ? createdIds[0] : `${createdIds.length} commandes`);
+      setOrderPlaced(true);
+      toast("Paiement sécurisé en attente de livraison", "success");
+    } catch (err: any) {
+      const msg = err?.message || "Erreur lors de la commande.";
+      toast(msg, "error");
+      if (err?.status === 401) {
+        router.push(`/connexion?redirect=${encodeURIComponent("/checkout")}`);
+      }
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   /* ─── Order confirmed screen (Escrow) ─── */
@@ -542,7 +576,7 @@ export default function CheckoutPage() {
                     <FiShield className="h-4 w-4 text-primary shrink-0" />
                     <div>
                       <p className="text-sm font-medium text-foreground">
-                        Solde FripCash : 0 GNF
+                        Solde FripCash : {walletBalance.toLocaleString("fr-FR")} GNF
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Le montant sera débité de ton porte-monnaie FripCash.

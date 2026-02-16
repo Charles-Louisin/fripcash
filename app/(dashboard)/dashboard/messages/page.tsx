@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { FiSend, FiArrowLeft } from "react-icons/fi";
 import { useConversations, useMessages, useSendMessage } from "@/hooks/use-messages";
 import { useMe } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 
 export default function MessagesPage() {
+  const searchParams = useSearchParams();
   const { data: user } = useMe();
   const { data: conversations = [], isLoading } = useConversations();
   const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
@@ -17,6 +19,14 @@ export default function MessagesPage() {
   const { data: messages = [] } = useMessages(activeConvoId || "");
 
   const activeConvo = conversations.find((c: any) => c._id === activeConvoId);
+
+  // Open conversation from URL when redirected from article page
+  useEffect(() => {
+    const convId = searchParams.get("conversation");
+    if (convId && conversations.some((c: any) => c._id === convId)) {
+      setActiveConvoId(convId);
+    }
+  }, [searchParams, conversations]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
