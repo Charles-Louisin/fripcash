@@ -45,17 +45,20 @@ async function request<T>(
     headers,
   });
 
-  const data = await res.json();
-
-  if (!res.ok) {
-    throw new ApiError(
-      data.message || 'Une erreur est survenue',
-      res.status,
-      data
-    );
+  let data: Record<string, unknown> = {};
+  try {
+    const text = await res.text();
+    if (text) data = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    // Response was not JSON
   }
 
-  return data;
+  if (!res.ok) {
+    const message = (data?.message as string) || 'Une erreur est survenue';
+    throw new ApiError(message, res.status, data);
+  }
+
+  return data as T;
 }
 
 // ─── Auth ───

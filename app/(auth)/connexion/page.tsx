@@ -44,7 +44,8 @@ export default function ConnexionPage() {
       toast("Connexion réussie ! Bienvenue.");
       router.push("/");
     } catch (err: any) {
-      toast(err?.message || "Identifiants incorrects.", "error");
+      const msg = err?.message || err?.data?.message || "Identifiants incorrects.";
+      toast(msg, "error");
     } finally {
       setLoading(false);
     }
