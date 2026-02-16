@@ -55,7 +55,7 @@ export function useToggleFavorite() {
       });
       return { prev };
     },
-    onError: (_err, _vars, context: { prev?: unknown }) => {
+    onError: (_err, _vars, context) => {
       if (context?.prev !== undefined) {
         queryClient.setQueryData(["favorites"], context.prev);
       }
