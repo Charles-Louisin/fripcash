@@ -85,13 +85,15 @@ function CategoryCard({ cat }: { cat: { label: string; href: string; area: strin
   return (
     <Link
       href={cat.href}
-      className="relative flex items-end overflow-hidden p-4 bg-cover bg-center group"
-      style={{
-        gridArea: cat.area,
-        backgroundImage: `url(${cat.image})`,
-      }}
+      className="relative flex items-end overflow-hidden p-4 group"
+      style={{ gridArea: cat.area }}
     >
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+      <div
+        className="absolute inset-0 bg-cover bg-center transition-transform duration-500 ease-out group-hover:scale-110"
+        style={{ backgroundImage: `url(${cat.image})` }}
+      />
+      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-500" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
       <span className="relative z-10 text-white font-semibold text-sm sm:text-base md:text-lg drop-shadow-md">
         {cat.label}
       </span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { Suspense, useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Header } from "@/components/header";
@@ -62,6 +62,22 @@ const SORT_MAP: Record<SortOption, string> = {
 };
 
 export default function ProduitsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex flex-col">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </main>
+        <Footer />
+      </div>
+    }>
+      <ProduitsContent />
+    </Suspense>
+  );
+}
+
+function ProduitsContent() {
   const searchParams = useSearchParams();
   const urlCategory = searchParams.get("category") || "";
   const urlSubCategory = searchParams.get("subCategory") || "";
