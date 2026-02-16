@@ -85,7 +85,7 @@ export function useDeleteArticle() {
       );
       return { prev };
     },
-    onError: (_err, _id, context: { prev?: [unknown, unknown][] }) => {
+    onError: (_err, _id, context) => {
       if (context?.prev) {
         context.prev.forEach(([key, data]) =>
           queryClient.setQueryData(key as string[], data)
