@@ -74,7 +74,6 @@ export default function InscriptionPage() {
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [suggestionKey, setSuggestionKey] = useState(0);
-  const [receivedCode, setReceivedCode] = useState<string | null>(null);
 
   const fullPhone = `${COUNTRY.code}${localPhone.replace(/\s/g, "")}`;
 
@@ -128,14 +127,13 @@ export default function InscriptionPage() {
 
     setLoading(true);
     try {
-      const res = await authApi.register({
+      await authApi.register({
         phone: fullPhone,
         password,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         pseudo: pseudo.trim(),
       });
-      setReceivedCode(res.verificationCode ?? null);
       setStep("verify");
       toast("Un code de vérification a été envoyé à ton numéro.", "info");
     } catch (err: any) {
@@ -169,8 +167,7 @@ export default function InscriptionPage() {
   const handleResendCode = async () => {
     setLoading(true);
     try {
-      const res = await authApi.resendCode({ phone: fullPhone });
-      if (res.verificationCode) setReceivedCode(res.verificationCode);
+      await authApi.resendCode({ phone: fullPhone });
       toast("Code renvoyé ! Vérifie tes SMS.", "info");
     } catch (err: any) {
       toast(err?.message || "Erreur lors du renvoi.", "error");
@@ -410,21 +407,6 @@ export default function InscriptionPage() {
               Un code à 6 chiffres a été envoyé au{" "}
               <span className="font-semibold text-foreground">{fullPhone}</span>
             </p>
-            {receivedCode && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Tu n&apos;as pas reçu le SMS ?{" "}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const digits = receivedCode.split("");
-                    setCode(digits.length === 6 ? digits : [...digits, ...Array(6 - digits.length).fill("")].slice(0, 6));
-                  }}
-                  className="font-semibold text-primary hover:underline"
-                >
-                  Utilise ce code : {receivedCode}
-                </button>
-              </p>
-            )}
           </div>
 
           <form onSubmit={handleVerify} className="space-y-6">
