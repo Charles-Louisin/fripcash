@@ -361,56 +361,58 @@ export default function ArticleDetailPage() {
                 </div>
               )}
 
-              <div className="flex items-center gap-3 mt-4">
-                <button
-                  disabled={toggleFavorite.isPending || favLoading}
-                  onClick={() => {
-                    if (!isLoggedIn) {
-                      toast("Connecte-toi pour ajouter aux favoris.", "info");
-                      router.push("/connexion");
-                      return;
-                    }
-                    toggleFavorite.mutate(
-                      { articleId: id, isFavorite: !!isFavorite },
-                      {
-                        onSuccess: () => {
-                          toast(
-                            isFavorite ? "Article retiré des favoris." : "Article ajouté aux favoris.",
-                            isFavorite ? "info" : "success"
-                          );
-                        },
-                        onError: () => {
-                          toast("Erreur lors de la mise à jour des favoris.", "error");
-                        },
-                      }
-                    );
-                  }}
-                  className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200 disabled:opacity-50 ${
-                    isFavorite
-                      ? "bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20"
-                      : "bg-muted hover:bg-muted/80 text-foreground border border-border hover:border-primary/30"
-                  }`}
-                >
-                  <FiHeart className={`h-[18px] w-[18px] transition-all duration-200 ${isFavorite ? "fill-primary text-primary scale-110" : ""}`} />
-                  <span>{article.favoritesCount || 0} favori{(article.favoritesCount || 0) !== 1 ? "s" : ""}</span>
-                </button>
-                <button
-                  onClick={() => { navigator.clipboard.writeText(window.location.href); toast("Lien copié !", "info"); }}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium bg-muted hover:bg-muted/80 text-foreground border border-border hover:border-primary/30 transition-all duration-200"
-                >
-                  <FiShare2 className="h-[18px] w-[18px]" />
-                  Partager
-                </button>
-              </div>
             </div>
 
             {/* Product Info */}
             <div>
-              <div className="mb-4">
-                <p className="text-3xl font-bold text-foreground">{(article.price || 0).toLocaleString("fr-FR")} GNF</p>
-                <p className="text-sm text-primary font-medium mt-0.5">
-                  {((article.price || 0) + (article.shippingCost || 0)).toLocaleString("fr-FR")} GNF frais de port inclus
-                </p>
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <p className="text-3xl font-bold text-foreground">{(article.price || 0).toLocaleString("fr-FR")} GNF</p>
+                  <p className="text-sm text-primary font-medium mt-0.5">
+                    {((article.price || 0) + (article.shippingCost || 0)).toLocaleString("fr-FR")} GNF frais de port inclus
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 pt-1">
+                  <button
+                    disabled={toggleFavorite.isPending || favLoading}
+                    onClick={() => {
+                      if (!isLoggedIn) {
+                        toast("Connecte-toi pour ajouter aux favoris.", "info");
+                        router.push("/connexion");
+                        return;
+                      }
+                      toggleFavorite.mutate(
+                        { articleId: id, isFavorite: !!isFavorite },
+                        {
+                          onSuccess: () => {
+                            toast(
+                              isFavorite ? "Article retiré des favoris." : "Article ajouté aux favoris.",
+                              isFavorite ? "info" : "success"
+                            );
+                          },
+                          onError: () => {
+                            toast("Erreur lors de la mise à jour des favoris.", "error");
+                          },
+                        }
+                      );
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium transition-all duration-200 disabled:opacity-50 ${
+                      isFavorite
+                        ? "bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20"
+                        : "bg-muted hover:bg-muted/80 text-foreground border border-border hover:border-primary/30"
+                    }`}
+                  >
+                    <FiHeart className={`h-4 w-4 transition-all duration-200 ${isFavorite ? "fill-primary text-primary scale-110" : ""}`} />
+                    <span>{article.favoritesCount || 0}</span>
+                  </button>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(window.location.href); toast("Lien copié !", "info"); }}
+                    className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-muted hover:bg-muted/80 text-foreground border border-border hover:border-primary/30 transition-all duration-200"
+                    title="Partager"
+                  >
+                    <FiShare2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="border-t border-border pt-4 mb-4 space-y-3">
