@@ -97,14 +97,19 @@ export default function CategoriesPage() {
       open: true,
       name: cat.name,
       onConfirm: async () => {
+        const prev = queryClient.getQueryData(["categories", "all"]);
+        queryClient.setQueryData(["categories", "all"], (old: any) =>
+          Array.isArray(old) ? old.filter((c: any) => c._id !== cat._id) : old
+        );
+        setDeleteConfirm({ open: false, name: "", onConfirm: null });
         try {
           await categoriesApi.delete(cat._id);
           toast(`${cat.name} supprimée.`, "info");
           refresh();
         } catch {
+          queryClient.setQueryData(["categories", "all"], prev);
           toast("Erreur lors de la suppression.", "error");
         }
-        setDeleteConfirm({ open: false, name: "", onConfirm: null });
       },
     });
   };
@@ -115,15 +120,24 @@ export default function CategoriesPage() {
       open: true,
       name: subName,
       onConfirm: async () => {
+        const newSubGroups = cat.subGroups.filter((_: any, i: number) => i !== subIndex);
+        const prev = queryClient.getQueryData(["categories", "all"]);
+        queryClient.setQueryData(["categories", "all"], (old: any) =>
+          Array.isArray(old)
+            ? old.map((c: any) =>
+                c._id === cat._id ? { ...c, subGroups: newSubGroups } : c
+              )
+            : old
+        );
+        setDeleteConfirm({ open: false, name: "", onConfirm: null });
         try {
-          const newSubGroups = cat.subGroups.filter((_: any, i: number) => i !== subIndex);
           await categoriesApi.update(cat._id, { subGroups: newSubGroups });
           toast("Sous-catégorie supprimée.", "info");
           refresh();
         } catch {
+          queryClient.setQueryData(["categories", "all"], prev);
           toast("Erreur lors de la suppression.", "error");
         }
-        setDeleteConfirm({ open: false, name: "", onConfirm: null });
       },
     });
   };
@@ -134,21 +148,30 @@ export default function CategoriesPage() {
       open: true,
       name: itemName,
       onConfirm: async () => {
+        const newSubGroups = cat.subGroups.map((sg: any, si: number) => {
+          if (si !== subIndex) return sg;
+          return {
+            ...sg,
+            items: sg.items.filter((_: any, ii: number) => ii !== itemIndex),
+          };
+        });
+        const prev = queryClient.getQueryData(["categories", "all"]);
+        queryClient.setQueryData(["categories", "all"], (old: any) =>
+          Array.isArray(old)
+            ? old.map((c: any) =>
+                c._id === cat._id ? { ...c, subGroups: newSubGroups } : c
+              )
+            : old
+        );
+        setDeleteConfirm({ open: false, name: "", onConfirm: null });
         try {
-          const newSubGroups = cat.subGroups.map((sg: any, si: number) => {
-            if (si !== subIndex) return sg;
-            return {
-              ...sg,
-              items: sg.items.filter((_: any, ii: number) => ii !== itemIndex),
-            };
-          });
           await categoriesApi.update(cat._id, { subGroups: newSubGroups });
           toast("Type supprimé.", "info");
           refresh();
         } catch {
+          queryClient.setQueryData(["categories", "all"], prev);
           toast("Erreur lors de la suppression.", "error");
         }
-        setDeleteConfirm({ open: false, name: "", onConfirm: null });
       },
     });
   };

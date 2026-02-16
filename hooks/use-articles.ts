@@ -73,7 +73,26 @@ export function useDeleteArticle() {
 
   return useMutation({
     mutationFn: (id: string) => articlesApi.delete(id),
-    onSuccess: () => {
+    onMutate: async (deletedId) => {
+      await queryClient.cancelQueries({ queryKey: ["my-articles"] });
+      const prev = queryClient.getQueriesData({ queryKey: ["my-articles"] });
+      queryClient.setQueriesData(
+        { queryKey: ["my-articles"] },
+        (old: unknown) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.filter((a: { _id?: string }) => a._id !== deletedId);
+        }
+      );
+      return { prev };
+    },
+    onError: (_err, _id, context: { prev?: [unknown, unknown][] }) => {
+      if (context?.prev) {
+        context.prev.forEach(([key, data]) =>
+          queryClient.setQueryData(key as string[], data)
+        );
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["articles"] });
       queryClient.invalidateQueries({ queryKey: ["my-articles"] });
     },

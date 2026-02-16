@@ -45,7 +45,22 @@ export function useToggleFavorite() {
         return favoritesApi.add(articleId);
       }
     },
-    onSuccess: (_data, variables) => {
+    onMutate: async ({ articleId, isFavorite }) => {
+      if (!isFavorite) return {};
+      await queryClient.cancelQueries({ queryKey: ["favorites"] });
+      const prev = queryClient.getQueryData(["favorites"]);
+      queryClient.setQueryData(["favorites"], (old: unknown) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old.filter((f: any) => (f.article?._id || f._id) !== articleId);
+      });
+      return { prev };
+    },
+    onError: (_err, _vars, context: { prev?: unknown }) => {
+      if (context?.prev !== undefined) {
+        queryClient.setQueryData(["favorites"], context.prev);
+      }
+    },
+    onSettled: (_data, _err, variables) => {
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
       queryClient.invalidateQueries({ queryKey: ["articles", variables.articleId] });
     },
