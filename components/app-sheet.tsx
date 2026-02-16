@@ -56,9 +56,10 @@ const accountLinks = [
 export function AppSheet() {
   const { sheetOpen, sheetContent, closeSheet } = useUIStore();
   const { toast } = useToast();
-  const { data: user } = useMe();
+  const { data: user, isFetched } = useMe();
   const logout = useLogout();
-  const isLoggedIn = !!user;
+  const hasToken = typeof window !== "undefined" && !!localStorage.getItem("fripcash-token");
+  const isLoggedIn = !!user || (hasToken && !isFetched);
   const { data: rawCategories = [] } = useCategories();
   const menuCategories = rawCategories.map((cat: any) => ({
     label: cat.name,
