@@ -3,6 +3,7 @@
 import { Suspense, useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { EmptyStateLottie } from "@/components/empty-state-lottie";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { AppSheet } from "@/components/app-sheet";
@@ -300,10 +301,13 @@ function ProduitsContent() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <p className="text-lg font-semibold text-foreground mb-1">
+                  <div className="w-64 h-64 mb-4">
+                    <EmptyStateLottie />
+                  </div>
+                  <p className="text-lg font-semibold text-primary mb-1">
                     Aucun article trouvé
                   </p>
-                  <p className="text-sm text-muted-foreground mb-4">
+                  <p className="text-sm text-primary mb-4">
                     Essaie de modifier tes filtres pour trouver ce que tu
                     cherches.
                   </p>

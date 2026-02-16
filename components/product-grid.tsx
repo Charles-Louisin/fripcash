@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { EmptyStateLottie } from "@/components/empty-state-lottie";
 import {
   ProductCard,
   ProductCardSkeleton,
@@ -48,8 +49,11 @@ export function ProductGrid() {
               <ProductCardSkeleton key={i} />
             ))
           : products.length === 0 ? (
-              <div className="col-span-full text-center py-12">
-                <p className="text-sm text-muted-foreground">Aucun article disponible pour le moment</p>
+              <div className="col-span-full flex flex-col items-center justify-center py-12">
+                <div className="w-48 h-48 mb-4">
+                  <EmptyStateLottie />
+                </div>
+                <p className="text-sm text-primary">Aucun article disponible pour le moment</p>
               </div>
             )
           : products.map((product) => (

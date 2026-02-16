@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { EmptyStateLottie } from "@/components/empty-state-lottie";
 import { ProductCard, ProductCardSkeleton, type Product } from "@/components/product-card";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { useArticles } from "@/hooks/use-articles";
@@ -91,9 +92,12 @@ export function NewProductsSlider() {
                 </div>
               ))
             : (
-              <p className="text-sm text-muted-foreground py-8 w-full text-center">
-                Aucun nouvel article pour le moment.
-              </p>
+              <div className="flex flex-col items-center justify-center py-8 w-full">
+                <div className="w-40 h-40 mb-4">
+                  <EmptyStateLottie />
+                </div>
+                <p className="text-sm text-primary">Aucun nouvel article pour le moment.</p>
+              </div>
             )
         }
       </div>

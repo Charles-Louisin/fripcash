@@ -13,6 +13,7 @@ import { useCartStore } from "@/stores/cart-store";
 import { useToast } from "@/components/ui/toast";
 import { useCreateOrder } from "@/hooks/use-orders";
 import { useWalletBalance } from "@/hooks/use-wallet";
+import { EmptyStateLottie } from "@/components/empty-state-lottie";
 import {
   FiHome,
   FiShield,
@@ -251,10 +252,13 @@ export default function CheckoutPage() {
               </div>
             ) : (
               <>
-                <h1 className="text-2xl font-bold text-foreground mb-2">
+                <div className="w-56 h-56 mx-auto mb-4">
+                  <EmptyStateLottie />
+                </div>
+                <h1 className="text-2xl font-bold text-primary mb-2">
                   Ton panier est vide
                 </h1>
-                <p className="text-muted-foreground mb-6">
+                <p className="text-primary mb-6">
                   Ajoute des articles à ton panier pour passer commande.
                 </p>
                 <Button asChild className="rounded-full px-6">
