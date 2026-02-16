@@ -274,6 +274,26 @@ export const newsletterApi = {
     request<{ success: boolean; message: string }>('/newsletter/unsubscribe', { method: 'POST', body: JSON.stringify({ email }) }),
 };
 
+// ─── Notifications ───
+
+export const notificationsApi = {
+  getAll: (params?: { page?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return request<{ success: boolean; data: any[]; unreadCount: number; pagination: any }>(`/notifications?${q.toString()}`);
+  },
+
+  getUnreadCount: () =>
+    request<{ success: boolean; unreadCount: number }>('/notifications/unread-count'),
+
+  markAsRead: (id: string) =>
+    request<{ success: boolean; data: any }>(`/notifications/${id}/read`, { method: 'PUT' }),
+
+  markAllAsRead: () =>
+    request<{ success: boolean; message: string }>('/notifications/read-all', { method: 'PUT' }),
+};
+
 // ─── Disputes ───
 
 export const disputesApi = {

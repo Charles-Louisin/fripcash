@@ -33,6 +33,12 @@ import {
 } from "react-icons/gi";
 import { useCategories } from "@/hooks/use-categories";
 import { useFavorites } from "@/hooks/use-favorites";
+import {
+  useNotifications,
+  useUnreadNotificationsCount,
+  useMarkNotificationAsRead,
+  useMarkAllNotificationsAsRead,
+} from "@/hooks/use-notifications";
 
 /* ─── Category types ─── */
 
@@ -94,6 +100,13 @@ export function Header() {
   const cartCount = mounted ? itemCount() : 0;
   const { data: favorites = [] } = useFavorites();
   const favoritesCount = mounted && isLoggedIn ? favorites.length : 0;
+  const { data: notificationsData } = useNotifications(1, 10);
+  const { data: unreadCount = 0 } = useUnreadNotificationsCount();
+  const markAsRead = useMarkNotificationAsRead();
+  const markAllAsRead = useMarkAllNotificationsAsRead();
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const notifRefMobile = useRef<HTMLDivElement>(null);
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [activeSubGroup, setActiveSubGroup] = useState<string | null>(null);
   const closeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -121,6 +134,17 @@ export function Header() {
       if (searchDropRef.current && !searchDropRef.current.contains(e.target as Node)) {
         setSearchDropOpen(false);
       }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Close notifications dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const inside = (notifRef.current?.contains(target) || notifRefMobile.current?.contains(target));
+      if (!inside) setNotifOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -225,12 +249,67 @@ export function Header() {
                   <Link href="/dashboard/articles">Vends tes articles</Link>
                 </Button>
 
-                <Button variant="ghost" size="icon-sm" asChild>
-                  <Link href="/dashboard/messages">
+                <div className="relative" ref={notifRef}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="relative"
+                    onClick={() => setNotifOpen(!notifOpen)}
+                  >
                     <FiBell className="h-5 w-5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 flex items-center justify-center h-4.5 w-4.5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
                     <span className="sr-only">Notifications</span>
-                  </Link>
-                </Button>
+                  </Button>
+                  {notifOpen && (
+                    <div className="absolute right-0 top-full mt-1 w-80 max-h-[360px] overflow-hidden rounded-lg border border-border bg-background shadow-lg z-50 flex flex-col">
+                      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+                        <span className="font-semibold text-sm">Notifications</span>
+                        {unreadCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => markAllAsRead.mutate()}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Tout marquer comme lu
+                          </button>
+                        )}
+                      </div>
+                      <div className="overflow-y-auto max-h-[300px]">
+                        {notificationsData?.data?.length ? (
+                          notificationsData.data.map((n: any) => (
+                            <Link
+                              key={n._id}
+                              href={n.link || "/dashboard"}
+                              onClick={() => {
+                                if (!n.read) markAsRead.mutate(n._id);
+                                setNotifOpen(false);
+                              }}
+                              className={`block px-4 py-3 text-left hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0 ${!n.read ? "bg-primary/5" : ""}`}
+                            >
+                              <p className="text-sm font-medium text-foreground">{n.title}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
+                            </Link>
+                          ))
+                        ) : (
+                          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                            Aucune notification
+                          </div>
+                        )}
+                      </div>
+                      <Link
+                        href="/dashboard/messages"
+                        onClick={() => setNotifOpen(false)}
+                        className="px-4 py-2 text-center text-sm text-primary border-t border-border hover:bg-muted/50"
+                      >
+                        Voir les messages
+                      </Link>
+                    </div>
+                  )}
+                </div>
 
                 <Button variant="ghost" size="icon-sm" className="relative" asChild>
                   <Link href="/dashboard/favoris">
@@ -432,10 +511,69 @@ export function Header() {
           </Link>
 
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon">
-              <FiBell className="h-5 w-5" />
-              <span className="sr-only">Notifications</span>
-            </Button>
+            {isLoggedIn && (
+              <div className="relative" ref={notifRefMobile}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="relative"
+                  onClick={() => setNotifOpen(!notifOpen)}
+                >
+                  <FiBell className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4.5 w-4.5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                  <span className="sr-only">Notifications</span>
+                </Button>
+                {notifOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-80 max-h-[360px] overflow-hidden rounded-lg border border-border bg-background shadow-lg z-50 flex flex-col">
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+                      <span className="font-semibold text-sm">Notifications</span>
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => markAllAsRead.mutate()}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Tout marquer comme lu
+                        </button>
+                      )}
+                    </div>
+                    <div className="overflow-y-auto max-h-[300px]">
+                      {notificationsData?.data?.length ? (
+                        notificationsData.data.map((n: any) => (
+                          <Link
+                            key={n._id}
+                            href={n.link || "/dashboard"}
+                            onClick={() => {
+                              if (!n.read) markAsRead.mutate(n._id);
+                              setNotifOpen(false);
+                            }}
+                            className={`block px-4 py-3 text-left hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0 ${!n.read ? "bg-primary/5" : ""}`}
+                          >
+                            <p className="text-sm font-medium text-foreground">{n.title}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
+                          </Link>
+                        ))
+                      ) : (
+                        <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                          Aucune notification
+                        </div>
+                      )}
+                    </div>
+                    <Link
+                      href="/dashboard/messages"
+                      onClick={() => setNotifOpen(false)}
+                      className="px-4 py-2 text-center text-sm text-primary border-t border-border hover:bg-muted/50"
+                    >
+                      Voir les messages
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
 
             <Button variant="ghost" size="icon" className="relative" asChild>
               <Link href="/dashboard/favoris">
@@ -464,7 +602,15 @@ export function Header() {
               <span className="sr-only">Panier</span>
             </Button>
 
-            {isLoggedIn ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => openSheet("menu")}
+            >
+              <FiMenu className="h-6 w-6" />
+              <span className="sr-only">Menu</span>
+            </Button>
+            {isLoggedIn && (
               <Link
                 href="/dashboard"
                 className="flex items-center justify-center h-9 w-9 rounded-full bg-primary text-primary-foreground overflow-hidden"
@@ -479,15 +625,6 @@ export function Header() {
                   <FiUser className="h-4 w-4" />
                 )}
               </Link>
-            ) : (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => openSheet("menu")}
-              >
-                <FiMenu className="h-6 w-6" />
-                <span className="sr-only">Menu</span>
-              </Button>
             )}
           </div>
         </div>
