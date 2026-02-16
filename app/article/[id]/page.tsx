@@ -361,7 +361,7 @@ export default function ArticleDetailPage() {
                 </div>
               )}
 
-              <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center gap-3 mt-4">
                 <button
                   disabled={toggleFavorite.isPending || favLoading}
                   onClick={() => {
@@ -385,16 +385,20 @@ export default function ArticleDetailPage() {
                       }
                     );
                   }}
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+                  className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200 disabled:opacity-50 ${
+                    isFavorite
+                      ? "bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20"
+                      : "bg-muted hover:bg-muted/80 text-foreground border border-border hover:border-primary/30"
+                  }`}
                 >
-                  <FiHeart className={`h-5 w-5 ${isFavorite ? "fill-primary text-primary" : ""}`} />
+                  <FiHeart className={`h-[18px] w-[18px] transition-all duration-200 ${isFavorite ? "fill-primary text-primary scale-110" : ""}`} />
                   <span>{article.favoritesCount || 0} favori{(article.favoritesCount || 0) !== 1 ? "s" : ""}</span>
                 </button>
                 <button
                   onClick={() => { navigator.clipboard.writeText(window.location.href); toast("Lien copié !", "info"); }}
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium bg-muted hover:bg-muted/80 text-foreground border border-border hover:border-primary/30 transition-all duration-200"
                 >
-                  <FiShare2 className="h-4.5 w-4.5" />
+                  <FiShare2 className="h-[18px] w-[18px]" />
                   Partager
                 </button>
               </div>
