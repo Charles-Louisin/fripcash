@@ -167,6 +167,7 @@ export default function MyArticlesPage() {
   };
 
   const handleSubmit = () => {
+    if (createArticle.isPending || updateArticle.isPending) return;
     if (!formData.title || !formData.price) {
       showToast("Remplis le titre et le prix.", "error");
       return;
@@ -674,9 +675,15 @@ export default function MyArticlesPage() {
             <button
               type="button"
               onClick={handleSubmit}
-              className="flex-1 h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+              disabled={createArticle.isPending || updateArticle.isPending}
+              className="flex-1 h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-primary"
             >
-              {editingItem ? (
+              {createArticle.isPending || updateArticle.isPending ? (
+                <>
+                  <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  {editingItem ? "Enregistrement..." : "Publication..."}
+                </>
+              ) : editingItem ? (
                 <>
                   <FiCheck className="h-4 w-4" />
                   Enregistrer
