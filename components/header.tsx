@@ -32,6 +32,7 @@ import {
   GiGamepad,
 } from "react-icons/gi";
 import { useCategories } from "@/hooks/use-categories";
+import { useFavorites } from "@/hooks/use-favorites";
 
 /* ─── Category types ─── */
 
@@ -91,6 +92,8 @@ export function Header() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const cartCount = mounted ? itemCount() : 0;
+  const { data: favorites = [] } = useFavorites();
+  const favoritesCount = mounted && isLoggedIn ? favorites.length : 0;
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [activeSubGroup, setActiveSubGroup] = useState<string | null>(null);
   const closeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -229,9 +232,14 @@ export function Header() {
                   </Link>
                 </Button>
 
-                <Button variant="ghost" size="icon-sm" asChild>
+                <Button variant="ghost" size="icon-sm" className="relative" asChild>
                   <Link href="/dashboard/favoris">
                     <FiHeart className="h-5 w-5" />
+                    {favoritesCount > 0 && (
+                      <span className="absolute -top-1 -right-1 flex items-center justify-center h-4.5 w-4.5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                        {favoritesCount > 99 ? "99+" : favoritesCount}
+                      </span>
+                    )}
                     <span className="sr-only">Favoris</span>
                   </Link>
                 </Button>
@@ -285,9 +293,14 @@ export function Header() {
                   <Link href="/inscription">Vends tes articles</Link>
                 </Button>
 
-                <Button variant="ghost" size="icon-sm" asChild>
+                <Button variant="ghost" size="icon-sm" className="relative" asChild>
                   <Link href="/dashboard/favoris">
                     <FiHeart className="h-5 w-5" />
+                    {favoritesCount > 0 && (
+                      <span className="absolute -top-1 -right-1 flex items-center justify-center h-4.5 w-4.5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                        {favoritesCount > 99 ? "99+" : favoritesCount}
+                      </span>
+                    )}
                     <span className="sr-only">Favoris</span>
                   </Link>
                 </Button>
@@ -422,9 +435,14 @@ export function Header() {
               <span className="sr-only">Notifications</span>
             </Button>
 
-            <Button variant="ghost" size="icon" asChild>
+            <Button variant="ghost" size="icon" className="relative" asChild>
               <Link href="/dashboard/favoris">
                 <FiHeart className="h-5 w-5" />
+                {favoritesCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4.5 w-4.5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    {favoritesCount > 99 ? "99+" : favoritesCount}
+                  </span>
+                )}
                 <span className="sr-only">Favoris</span>
               </Link>
             </Button>
