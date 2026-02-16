@@ -9,6 +9,10 @@ import { useToast } from "@/components/ui/toast";
 import { authApi, setToken } from "@/lib/api";
 import { FiPhone, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
 
+// ─── Country config: uncomment Guinea and comment Cameroon for production ───
+// const COUNTRY = { code: "+224", flag: "🇬🇳", label: "+224", placeholder: "6XX XXX XXX" };
+const COUNTRY = { code: "+237", flag: "🇨🇲", label: "+237", placeholder: "6XX XXX XXX" };
+
 export default function ConnexionPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -18,7 +22,7 @@ export default function ConnexionPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const fullPhone = `+224${localPhone.replace(/\s/g, "")}`;
+  const fullPhone = `${COUNTRY.code}${localPhone.replace(/\s/g, "")}`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,21 +65,21 @@ export default function ConnexionPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Numéro de téléphone with +224 prefix */}
+        {/* Numéro de téléphone with country prefix */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-1.5">
             Numéro de téléphone
           </label>
           <div className="relative flex">
             <div className="flex items-center gap-1.5 px-3 h-11 rounded-l-md border border-r-0 border-input bg-muted text-sm font-medium text-foreground shrink-0 select-none">
-              <span className="text-base leading-none">🇬🇳</span>
-              <span>+224</span>
+              <span className="text-base leading-none">{COUNTRY.flag}</span>
+              <span>{COUNTRY.label}</span>
             </div>
             <div className="relative flex-1">
               <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="tel"
-                placeholder="6XX XXX XXX"
+                placeholder={COUNTRY.placeholder}
                 required
                 value={localPhone}
                 onChange={(e) => setLocalPhone(e.target.value.replace(/[^0-9\s]/g, ""))}
