@@ -67,7 +67,7 @@ export const authApi = {
     firstName: string;
     lastName: string;
     pseudo: string;
-  }) => request<{ success: boolean; message: string; user: any; verificationCode?: string }>('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
+  }) => request<{ success: boolean; message: string; user?: any; token?: string }>('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
 
   verifySms: (body: { phone: string; code: string }) =>
     request<{ success: boolean; token: string; user: any }>('/auth/verify-sms', { method: 'POST', body: JSON.stringify(body) }),

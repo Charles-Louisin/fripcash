@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
-import { FiShoppingBag, FiShoppingCart, FiCreditCard, FiTrendingUp, FiArrowRight, FiPlus, FiSearch } from "react-icons/fi";
+import { FiShoppingBag, FiShoppingCart, FiCreditCard, FiTrendingUp, FiArrowRight, FiPlus, FiSearch, FiPackage } from "react-icons/fi";
 import { useMe } from "@/hooks/use-auth";
 import { useMyArticles } from "@/hooks/use-articles";
 import { useMyOrders } from "@/hooks/use-orders";
@@ -62,6 +62,36 @@ export default function DashboardOverviewPage() {
   const activeListings = articles?.filter((l: any) => l.status === "active").length ?? 0;
   const totalSales = orders?.filter((o: any) => o.seller?._id === user?.id || o.seller === user?.id).length ?? 0;
   const totalPurchases = orders?.filter((o: any) => o.buyer?._id === user?.id || o.buyer === user?.id).length ?? 0;
+
+  const userId = user?.id || user?._id || "";
+  const recentActivity = React.useMemo(() => {
+    const items: { id: string; type: "sale" | "purchase" | "listing"; label: string; date: string; link: string }[] = [];
+    (orders || []).forEach((o: any) => {
+      const isSale = (o.seller?._id || o.seller) === userId;
+      const title = typeof o.article === "object" ? o.article?.title : "Article";
+      items.push({
+        id: o._id,
+        type: isSale ? "sale" : "purchase",
+        label: isSale ? `Vente: ${title}` : `Achat: ${title}`,
+        date: o.createdAt,
+        link: "/dashboard/commandes",
+      });
+    });
+    (articles || [])
+      .filter((a: any) => a.status === "active")
+      .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+      .slice(0, 3)
+      .forEach((a: any) => {
+        items.push({
+          id: `art-${a._id}`,
+          type: "listing",
+          label: `Article mis en vente: ${a.title || "Sans titre"}`,
+          date: a.createdAt,
+          link: "/dashboard/articles",
+        });
+      });
+    return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 8);
+  }, [orders, articles, userId]);
 
   const stats = [
     { label: "Articles en vente", value: activeListings, icon: FiShoppingBag, color: "bg-primary/10 text-primary" },
@@ -192,15 +222,51 @@ export default function DashboardOverviewPage() {
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Recent Activity placeholder */}
+        {/* Recent Activity - real data from orders & articles */}
         <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-foreground">Activité récente</h3>
-            <Badge variant="secondary" className="text-[10px]">0</Badge>
+            <Badge variant="secondary" className="text-[10px]">{recentActivity.length}</Badge>
           </div>
-          <div className="text-center py-8">
-            <p className="text-sm text-muted-foreground">L&apos;activité récente apparaîtra ici</p>
-          </div>
+          {recentActivity.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-muted-foreground">Aucune activité récente. Vends un article ou fais un achat pour commencer.</p>
+              <Link href="/dashboard/articles" className="inline-flex items-center gap-2 mt-3 text-sm font-medium text-primary hover:underline">
+                <FiPlus className="h-4 w-4" />
+                Vendre un article
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[240px] overflow-y-auto">
+              {recentActivity.map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.link}
+                  className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/50 transition-colors"
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    item.type === "sale" ? "bg-green-100 text-green-600" :
+                    item.type === "purchase" ? "bg-blue-100 text-blue-600" : "bg-primary/10 text-primary"
+                  }`}>
+                    {item.type === "listing" ? (
+                      <FiShoppingBag className="h-4 w-4" />
+                    ) : item.type === "sale" ? (
+                      <FiTrendingUp className="h-4 w-4" />
+                    ) : (
+                      <FiShoppingCart className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(item.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <FiArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Quick Stats Panel */}

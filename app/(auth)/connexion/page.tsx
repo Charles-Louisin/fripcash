@@ -44,11 +44,6 @@ export default function ConnexionPage() {
       toast("Connexion réussie ! Bienvenue.");
       router.push("/");
     } catch (err: any) {
-      if (err?.data?.requiresPhoneVerification) {
-        toast("Vérifie ton numéro de téléphone d'abord.", "error");
-        router.push("/inscription");
-        return;
-      }
       toast(err?.message || "Identifiants incorrects.", "error");
     } finally {
       setLoading(false);
