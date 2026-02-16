@@ -138,20 +138,55 @@ export default function ArticleDetailPage() {
   const paginatedReviews = filteredReviews.slice(0, reviewsToShow);
   const hasMoreReviews = filteredReviews.length > reviewsToShow;
 
-  const handleReviewImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const maxW = 800;
+        const maxH = 800;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxW || h > maxH) {
+          const r = Math.min(maxW / w, maxH / h);
+          w = Math.round(w * r);
+          h = Math.round(h * r);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas not supported")); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Failed to load image"));
+      };
+      img.src = url;
+    });
+  };
+
+  const handleReviewImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
     const remaining = 4 - reviewImages.length;
     const toProcess = Array.from(files).slice(0, remaining);
-    toProcess.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) {
-          setReviewImages((prev) => [...prev, ev.target!.result as string]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    const results: string[] = [];
+    for (const file of toProcess) {
+      if (!file.type.startsWith("image/")) continue;
+      try {
+        const dataUrl = await compressImage(file);
+        results.push(dataUrl);
+      } catch {
+        toast("Erreur lors du chargement de l'image.", "error");
+      }
+    }
+    if (results.length > 0) {
+      setReviewImages((prev) => [...prev, ...results].slice(0, 4));
+    }
     e.target.value = "";
   };
 
