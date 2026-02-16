@@ -2,10 +2,21 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { FiUser, FiPhone, FiAtSign, FiArrowRight, FiRefreshCw } from "react-icons/fi";
+import { authApi, setToken } from "@/lib/api";
+import {
+  FiUser,
+  FiPhone,
+  FiAtSign,
+  FiArrowRight,
+  FiRefreshCw,
+  FiLock,
+  FiEye,
+  FiEyeOff,
+} from "react-icons/fi";
 
 function generatePseudos(firstName: string, lastName: string): string[] {
   const f = firstName.toLowerCase().trim().replace(/\s+/g, "");
@@ -27,7 +38,7 @@ function generatePseudos(firstName: string, lastName: string): string[] {
       `${f[0]}${l}${rand3()}`,
       `${f}_${l}${rand2()}`,
       `${f}${rand4()}`,
-      `${l}.${f}${rand2()}`,
+      `${l}.${f}${rand2()}`
     );
   } else {
     const name = f || l;
@@ -35,7 +46,7 @@ function generatePseudos(firstName: string, lastName: string): string[] {
       `${name}${rand3()}`,
       `${name}_${rand2()}`,
       `${name}.shop${rand2()}`,
-      `${name}frip${rand2()}`,
+      `${name}frip${rand2()}`
     );
   }
 
@@ -44,13 +55,23 @@ function generatePseudos(firstName: string, lastName: string): string[] {
 }
 
 export default function InscriptionPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+
   const [step, setStep] = useState<"form" | "verify">("form");
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [pseudo, setPseudo] = useState("");
-  const [phone, setPhone] = useState("");
+  const [localPhone, setLocalPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [code, setCode] = useState(["", "", "", "", "", ""]);
+  const [loading, setLoading] = useState(false);
   const [suggestionKey, setSuggestionKey] = useState(0);
+
+  const fullPhone = `+224${localPhone.replace(/\s/g, "")}`;
 
   const suggestions = useMemo(
     () => generatePseudos(firstName, lastName),
@@ -77,21 +98,78 @@ export default function InscriptionPage() {
     }
   };
 
-  const { toast } = useToast();
-
-  const handleSubmitForm = (e: React.FormEvent) => {
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!lastName.trim() || !firstName.trim() || !pseudo.trim() || !phone.trim()) {
+
+    if (!lastName.trim() || !firstName.trim() || !pseudo.trim() || !localPhone.trim() || !password) {
       toast("Remplis tous les champs.", "error");
       return;
     }
-    setStep("verify");
-    toast("Un code de vérification a été envoyé à ton numéro.", "info");
+
+    if (localPhone.replace(/\s/g, "").length < 9) {
+      toast("Numéro de téléphone invalide (9 chiffres requis).", "error");
+      return;
+    }
+
+    if (password.length < 6) {
+      toast("Le mot de passe doit contenir au moins 6 caractères.", "error");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast("Les mots de passe ne correspondent pas.", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await authApi.register({
+        phone: fullPhone,
+        password,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        pseudo: pseudo.trim(),
+      });
+      setStep("verify");
+      toast("Un code de vérification a été envoyé à ton numéro.", "info");
+    } catch (err: any) {
+      toast(err?.message || "Erreur lors de l'inscription.", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleVerify = (e: React.FormEvent) => {
+  const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast("Compte créé ! Bienvenue sur FripCash.");
+    const fullCode = code.join("");
+    if (fullCode.length !== 6) {
+      toast("Entre le code à 6 chiffres.", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await authApi.verifySms({ phone: fullPhone, code: fullCode });
+      setToken(res.token);
+      toast("Compte créé ! Bienvenue sur FripCash.");
+      router.push("/");
+    } catch (err: any) {
+      toast(err?.message || "Code invalide ou expiré.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setLoading(true);
+    try {
+      await authApi.resendCode({ phone: fullPhone });
+      toast("Code renvoyé ! Vérifie tes SMS.", "info");
+    } catch (err: any) {
+      toast(err?.message || "Erreur lors du renvoi.", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -166,7 +244,9 @@ export default function InscriptionPage() {
               {(firstName.trim() || lastName.trim()) && suggestions.length > 0 && (
                 <div className="mt-2">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <p className="text-xs text-muted-foreground">Suggestions :</p>
+                    <p className="text-xs text-muted-foreground">
+                      Suggestions :
+                    </p>
                     <button
                       type="button"
                       onClick={() => setSuggestionKey((k) => k + 1)}
@@ -196,30 +276,110 @@ export default function InscriptionPage() {
               )}
             </div>
 
-            {/* Numéro de téléphone */}
+            {/* Numéro de téléphone with +224 prefix */}
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">
                 Numéro de téléphone
               </label>
-              <div className="relative">
-                <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="tel"
-                  placeholder="+224 6XX XXX XXX"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="pl-9 h-11"
-                />
+              <div className="relative flex">
+                <div className="flex items-center gap-1.5 px-3 h-11 rounded-l-md border border-r-0 border-input bg-muted text-sm font-medium text-foreground shrink-0 select-none">
+                  <span className="text-base leading-none">🇬🇳</span>
+                  <span>+224</span>
+                </div>
+                <div className="relative flex-1">
+                  <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="tel"
+                    placeholder="6XX XXX XXX"
+                    required
+                    value={localPhone}
+                    onChange={(e) => setLocalPhone(e.target.value.replace(/[^0-9\s]/g, ""))}
+                    maxLength={12}
+                    className="pl-9 h-11 rounded-l-none"
+                  />
+                </div>
               </div>
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Mot de passe
+              </label>
+              <div className="relative">
+                <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Minimum 6 caractères"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-9 pr-10 h-11"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? (
+                    <FiEyeOff className="h-4 w-4" />
+                  ) : (
+                    <FiEye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm Password */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Confirmer le mot de passe
+              </label>
+              <div className="relative">
+                <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type={showConfirm ? "text" : "password"}
+                  placeholder="Confirme ton mot de passe"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="pl-9 pr-10 h-11"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showConfirm ? (
+                    <FiEyeOff className="h-4 w-4" />
+                  ) : (
+                    <FiEye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {confirmPassword && password !== confirmPassword && (
+                <p className="text-xs text-destructive mt-1.5">
+                  Les mots de passe ne correspondent pas
+                </p>
+              )}
             </div>
 
             <Button
               type="submit"
+              disabled={loading}
               className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md gap-2"
             >
-              Continuer
-              <FiArrowRight className="h-4 w-4" />
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  Inscription...
+                </span>
+              ) : (
+                <>
+                  Continuer
+                  <FiArrowRight className="h-4 w-4" />
+                </>
+              )}
             </Button>
           </form>
 
@@ -241,7 +401,7 @@ export default function InscriptionPage() {
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Un code à 6 chiffres a été envoyé au{" "}
-              <span className="font-semibold text-foreground">{phone}</span>
+              <span className="font-semibold text-foreground">{fullPhone}</span>
             </p>
           </div>
 
@@ -265,16 +425,25 @@ export default function InscriptionPage() {
 
             <Button
               type="submit"
+              disabled={loading}
               className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md"
             >
-              Vérifier
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  Vérification...
+                </span>
+              ) : (
+                "Vérifier"
+              )}
             </Button>
 
             <div className="text-center">
               <button
                 type="button"
-                onClick={() => toast("Code renvoyé ! Vérifie tes SMS.", "info")}
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                onClick={handleResendCode}
+                disabled={loading}
+                className="text-sm text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
               >
                 Renvoyer le code
               </button>
@@ -285,7 +454,7 @@ export default function InscriptionPage() {
               onClick={() => setStep("form")}
               className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              ← Modifier le numéro
+              ← Modifier les informations
             </button>
           </form>
         </>

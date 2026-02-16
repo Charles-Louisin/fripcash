@@ -2,18 +2,53 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { authApi, setToken } from "@/lib/api";
 import { FiPhone, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
 
 export default function ConnexionPage() {
-  const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [localPhone, setLocalPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const fullPhone = `+224${localPhone.replace(/\s/g, "")}`;
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast("Connexion réussie ! Bienvenue.");
+
+    if (!localPhone.trim() || !password) {
+      toast("Remplis tous les champs.", "error");
+      return;
+    }
+
+    if (localPhone.replace(/\s/g, "").length < 9) {
+      toast("Numéro de téléphone invalide.", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await authApi.login({ phone: fullPhone, password });
+      setToken(res.token);
+      toast("Connexion réussie ! Bienvenue.");
+      router.push("/");
+    } catch (err: any) {
+      if (err?.data?.requiresPhoneVerification) {
+        toast("Vérifie ton numéro de téléphone d'abord.", "error");
+        router.push("/inscription");
+        return;
+      }
+      toast(err?.message || "Identifiants incorrects.", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -26,19 +61,28 @@ export default function ConnexionPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Numéro de téléphone */}
+        {/* Numéro de téléphone with +224 prefix */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-1.5">
             Numéro de téléphone
           </label>
-          <div className="relative">
-            <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="tel"
-              placeholder="+224 6XX XXX XXX"
-              required
-              className="pl-9 h-11"
-            />
+          <div className="relative flex">
+            <div className="flex items-center gap-1.5 px-3 h-11 rounded-l-md border border-r-0 border-input bg-muted text-sm font-medium text-foreground shrink-0 select-none">
+              <span className="text-base leading-none">🇬🇳</span>
+              <span>+224</span>
+            </div>
+            <div className="relative flex-1">
+              <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="tel"
+                placeholder="6XX XXX XXX"
+                required
+                value={localPhone}
+                onChange={(e) => setLocalPhone(e.target.value.replace(/[^0-9\s]/g, ""))}
+                maxLength={12}
+                className="pl-9 h-11 rounded-l-none"
+              />
+            </div>
           </div>
         </div>
 
@@ -61,6 +105,8 @@ export default function ConnexionPage() {
               type={showPassword ? "text" : "password"}
               placeholder="Ton mot de passe"
               required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="pl-9 pr-10 h-11"
             />
             <button
@@ -79,9 +125,17 @@ export default function ConnexionPage() {
 
         <Button
           type="submit"
+          disabled={loading}
           className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md"
         >
-          Se connecter
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+              Connexion...
+            </span>
+          ) : (
+            "Se connecter"
+          )}
         </Button>
       </form>
 
