@@ -545,7 +545,7 @@ export function Header() {
                   <span className="sr-only">Notifications</span>
                 </Button>
                 {notifOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-80 max-h-[360px] overflow-hidden rounded-lg border border-border bg-background shadow-lg z-50 flex flex-col">
+                  <div className="fixed left-4 right-4 top-20 max-w-md mx-auto max-h-[360px] overflow-hidden rounded-lg border border-border bg-background shadow-lg z-[100] flex flex-col sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-1 sm:w-80 sm:max-w-none sm:mx-0">
                     <div className="flex items-center justify-between px-4 py-2 border-b border-border">
                       <span className="font-semibold text-sm">Notifications</span>
                       {unreadCount > 0 && (
