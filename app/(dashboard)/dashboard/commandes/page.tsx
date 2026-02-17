@@ -187,34 +187,36 @@ export default function MyOrdersPage() {
         })}
       </div>
 
-      {/* Status filter */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-sm text-muted-foreground">Statut :</span>
-        <button
-          type="button"
-          onClick={() => setStatusFilter("all")}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-            statusFilter === "all"
-              ? "bg-primary text-white"
-              : "bg-muted text-muted-foreground hover:bg-accent"
-          }`}
-        >
-          Tous
-        </button>
-        {statusFilters.map((s) => (
+      {/* Status filter - horizontal scroll on mobile */}
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 -mx-1">
+        <span className="text-sm text-muted-foreground shrink-0">Statut :</span>
+        <div className="flex items-center gap-2 shrink-0">
           <button
-            key={s}
             type="button"
-            onClick={() => setStatusFilter(s)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              statusFilter === s
+            onClick={() => setStatusFilter("all")}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
+              statusFilter === "all"
                 ? "bg-primary text-white"
                 : "bg-muted text-muted-foreground hover:bg-accent"
             }`}
           >
-            {statusConfig[s]?.label || s}
+            Tous
           </button>
-        ))}
+          {statusFilters.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
+                statusFilter === s
+                  ? "bg-primary text-white"
+                  : "bg-muted text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              {statusConfig[s]?.label || s}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Orders List */}
@@ -232,7 +234,7 @@ export default function MyOrdersPage() {
             return (
               <div
                 key={order._id}
-                className="rounded-xl border border-border bg-card p-4 hover:bg-accent/30 transition-colors cursor-pointer"
+                className="rounded-xl border border-border bg-card p-4 sm:p-4 hover:bg-accent/30 transition-colors cursor-pointer"
                 onClick={() => {
                   setSelectedOrder(order);
                   setConfirmCode(["", "", "", "", "", ""]);
@@ -245,10 +247,10 @@ export default function MyOrdersPage() {
                       <img src={order.articleImage} alt={order.articleTitle} className="w-full h-full object-cover" />
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 space-y-2">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{order.articleTitle}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{order.articleTitle}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {order.type === "purchase" ? "Acheté à" : "Vendu à"}{" "}
                           <span className="font-medium text-foreground">{order.otherParty}</span>
@@ -262,26 +264,26 @@ export default function MyOrdersPage() {
                         {config?.label || order.status}
                       </Badge>
                     </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-bold text-foreground">{(order.amount || 0).toLocaleString("fr-FR")} GNF</p>
                         {order.escrowStatus === "blocked" && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-                            <FiLock className="h-2.5 w-2.5" /> Séquestre
+                            <FiLock className="h-2.5 w-2.5 shrink-0" /> Séquestre
                           </span>
                         )}
                         {order.escrowStatus === "released" && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
-                            <FiUnlock className="h-2.5 w-2.5" /> Libéré
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                            <FiUnlock className="h-2.5 w-2.5 shrink-0" /> Libéré
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                          <DeliveryIcon className="h-3 w-3" />
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <DeliveryIcon className="h-3 w-3 shrink-0" />
                           {deliveryInfo?.label}
                         </span>
-                        <p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleDateString("fr-FR")}</p>
+                        <span>{new Date(order.createdAt).toLocaleDateString("fr-FR")}</span>
                       </div>
                     </div>
                   </div>
