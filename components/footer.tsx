@@ -196,7 +196,7 @@ export function Footer() {
           {/* Copyright */}
           <div className="border-t border-border mt-4 pt-4 flex flex-col items-center justify-center gap-4">
             <span className="text-muted-foreground text-base font-semibold">
-              © 2025 FripCash. Tous droits réservés.
+              © {new Date().getFullYear()} FripCash. Tous droits réservés.
             </span>
           </div>
         </div>
