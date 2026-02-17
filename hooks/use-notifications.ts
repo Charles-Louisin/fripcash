@@ -29,7 +29,21 @@ export function useMarkNotificationAsRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => notificationsApi.markAsRead(id),
-    onSuccess: () => {
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ["notifications", "unreadCount"] });
+      const prev = queryClient.getQueryData<number>(["notifications", "unreadCount"]);
+      queryClient.setQueryData(
+        ["notifications", "unreadCount"],
+        (old: number | undefined) => Math.max(0, (old ?? 0) - 1)
+      );
+      return { prev };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.prev !== undefined) {
+        queryClient.setQueryData(["notifications", "unreadCount"], context.prev);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
@@ -39,7 +53,18 @@ export function useMarkAllNotificationsAsRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => notificationsApi.markAllAsRead(),
-    onSuccess: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["notifications", "unreadCount"] });
+      const prev = queryClient.getQueryData<number>(["notifications", "unreadCount"]);
+      queryClient.setQueryData(["notifications", "unreadCount"], 0);
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev !== undefined) {
+        queryClient.setQueryData(["notifications", "unreadCount"], context.prev);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
