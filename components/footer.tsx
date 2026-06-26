@@ -193,6 +193,7 @@ export function Footer() {
             </div>
           </div>
 
+
           {/* Copyright */}
           <div className="border-t border-border mt-4 pt-4 flex flex-col items-center justify-center gap-4">
             <span className="text-muted-foreground text-base font-semibold">
