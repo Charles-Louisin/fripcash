@@ -186,7 +186,7 @@ export const ordersApi = {
 
 export const walletApi = {
   getBalance: () =>
-    request<{ success: boolean; data: { balance: number; totalIn: number; totalOut: number } }>('/wallet/balance'),
+    request<{ success: boolean; data: { balance: number; reservedBalance?: number; availableBalance?: number; totalIn: number; totalOut: number } }>('/wallet/balance'),
 
   getTransactions: (type?: string) => {
     const q = type ? `?type=${type}` : '';

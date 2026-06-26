@@ -29,7 +29,7 @@ import {
 import { LuHandshake } from "react-icons/lu";
 type DeliveryMode = "main-propre" | "buyer-delivery" | "seller-delivery";
 
-type PaymentMethod = "mobile-money" | "card" | "wallet";
+type PaymentMethod = "mobile-money" | "card" | "wallet" | "wallet_on_delivery";
 
 const deliveryModes: { id: DeliveryMode; icon: React.ElementType; label: string; description: string; detail: string }[] = [
   {
@@ -63,6 +63,7 @@ export default function CheckoutPage() {
   const createOrder = useCreateOrder();
   const { data: walletData } = useWalletBalance();
   const walletBalance = walletData?.balance ?? 0;
+  const availableBalance = (walletData?.availableBalance ?? walletData?.balance ?? 0);
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -124,10 +125,15 @@ export default function CheckoutPage() {
       return;
     }
 
-    // Wallet: check balance before creating orders
+    // Wallet / Pay on delivery: check available balance before creating orders
     const orderTotal = mounted ? totalWithShipping() : 0;
-    if (paymentMethod === "wallet" && walletBalance < orderTotal) {
-      toast("Solde insuffisant dans ton porte-monnaie.", "error");
+    if ((paymentMethod === "wallet" || paymentMethod === "wallet_on_delivery") && availableBalance < orderTotal) {
+      toast(
+        paymentMethod === "wallet_on_delivery"
+          ? "Solde disponible insuffisant. Top up ton porte-monnaie pour réserver le montant jusqu'à la livraison."
+          : "Solde insuffisant dans ton porte-monnaie.",
+        "error"
+      );
       return;
     }
 
@@ -466,11 +472,12 @@ export default function CheckoutPage() {
                   Mode de paiement
                 </h2>
 
-                <div className="grid grid-cols-3 gap-2 mb-5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
                   {([
                     { id: "mobile-money" as PaymentMethod, icon: FiSmartphone, label: "Mobile Money" },
                     { id: "card" as PaymentMethod, icon: FiCreditCard, label: "Carte" },
-                    { id: "wallet" as PaymentMethod, icon: FiShield, label: "Porte-monnaie" },
+                    { id: "wallet" as PaymentMethod, icon: FiShield, label: "Payer maintenant" },
+                    { id: "wallet_on_delivery" as PaymentMethod, icon: FiPackage, label: "Payer à la livraison" },
                   ]).map((pm) => (
                     <button
                       key={pm.id}
@@ -584,6 +591,25 @@ export default function CheckoutPage() {
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Le montant sera débité de ton porte-monnaie FripCash.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {paymentMethod === "wallet_on_delivery" && (
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                    <FiPackage className="h-4 w-4 text-primary shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        Disponible : {availableBalance.toLocaleString("fr-FR")} GNF
+                        {((walletData?.reservedBalance ?? 0) > 0) && (
+                          <span className="text-muted-foreground font-normal">
+                            {" "}(réservé : {(walletData?.reservedBalance ?? 0).toLocaleString("fr-FR")} GNF)
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Le montant sera réservé jusqu&apos;à ce que tu confirmes la réception avec le code à 6 chiffres. Tu ne peux pas le retirer en attendant.
                       </p>
                     </div>
                   </div>

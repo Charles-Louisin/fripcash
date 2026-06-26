@@ -42,6 +42,8 @@ export default function WalletPage() {
   const withdrawMut = useWithdraw();
 
   const walletBalance = balanceData?.balance ?? 0;
+  const availableBalance = balanceData?.availableBalance ?? balanceData?.balance ?? 0;
+  const reservedBalance = balanceData?.reservedBalance ?? 0;
 
   const [activeCard, setActiveCard] = useState(0);
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -88,8 +90,8 @@ export default function WalletPage() {
       showToast("Veuillez entrer un montant valide", "error");
       return;
     }
-    if (amount > walletBalance) {
-      showToast("Solde insuffisant", "error");
+    if (amount > availableBalance) {
+      showToast(reservedBalance > 0 ? "Solde disponible insuffisant (une partie est réservée pour tes commandes)" : "Solde insuffisant", "error");
       return;
     }
     withdrawMut.mutate(
