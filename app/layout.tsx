@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Quicksand } from "next/font/google";
 import { QueryProvider } from "@/providers/query-provider";
 import "./globals.css";
@@ -12,6 +12,12 @@ const quicksand = Quicksand({
 export const metadata: Metadata = {
   title: "FripCash",
   description: "FripCash Application",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

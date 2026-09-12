@@ -1,38 +1,88 @@
 "use client";
 
+import Link from "next/link";
+import type { IconType } from "react-icons";
+import { FiArrowUpRight } from "react-icons/fi";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { type IconType } from "react-icons";
 
-interface StatCardProps {
-  title: string;
+type StatCardProps = {
+  /** @deprecated use `label` */
+  title?: string;
+  label?: string;
   value: string;
+  description?: string;
+  /** @deprecated use `description` — kept for older call sites */
   change?: string;
   changeType?: "positive" | "negative" | "neutral";
+  href?: string;
+  actionLabel?: string;
   icon: IconType;
-}
+  className?: string;
+};
 
-export function StatCard({ title, value, change, changeType = "neutral", icon: Icon }: StatCardProps) {
+/**
+ * ThriftCash-style dashboard KPI card: label, value, description, footer link.
+ */
+export function StatCard({
+  title,
+  label,
+  value,
+  description,
+  change,
+  href,
+  actionLabel = "Voir",
+  icon: Icon,
+  className,
+}: StatCardProps) {
+  const resolvedLabel = label ?? title ?? "";
+  const resolvedDescription = description ?? change;
+
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
-          <Icon className="h-4.5 w-4.5 text-primary" />
-        </div>
-      </div>
-      <p className="text-2xl font-bold text-foreground">{value}</p>
-      {change && (
-        <p
-          className={cn(
-            "text-xs mt-1 font-medium",
-            changeType === "positive" && "text-green-600",
-            changeType === "negative" && "text-red-500",
-            changeType === "neutral" && "text-muted-foreground"
-          )}
-        >
-          {change}
-        </p>
+    <Card
+      className={cn(
+        "h-full gap-0 py-0 shadow-sm transition-colors hover:border-primary/35",
+        className,
       )}
-    </div>
+    >
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 px-5 pt-5 pb-2">
+        <div className="min-w-0 space-y-1">
+          <CardDescription className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+            {resolvedLabel}
+          </CardDescription>
+          <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-foreground">
+            {value}
+          </CardTitle>
+        </div>
+        <Icon className="size-5 shrink-0 text-muted-foreground" />
+      </CardHeader>
+      <CardContent className="px-5 pt-0 pb-3">
+        {resolvedDescription ? (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {resolvedDescription}
+          </p>
+        ) : (
+          <span className="block h-4" aria-hidden />
+        )}
+      </CardContent>
+      {href ? (
+        <CardFooter className="mt-auto border-t border-border px-5 pt-3 pb-4">
+          <Link
+            href={href}
+            className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-colors hover:underline"
+          >
+            {actionLabel}
+            <FiArrowUpRight className="size-3.5" />
+          </Link>
+        </CardFooter>
+      ) : null}
+    </Card>
   );
 }

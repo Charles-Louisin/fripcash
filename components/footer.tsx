@@ -4,6 +4,7 @@ import { FaFacebookF, FaInstagram, FaTwitter, FaLinkedinIn } from "react-icons/f
 import { TfiEmail } from "react-icons/tfi";
 import { LuPhoneCall } from "react-icons/lu";
 import { MdLocationOn } from "react-icons/md";
+import { AppStoreBadges } from "@/components/app-store-badges";
 
 export function Footer() {
   return (
@@ -23,18 +24,22 @@ export function Footer() {
             <div>
               <Link href="/" className="inline-block mb-3 -my-12">
                 <Image
-                  src="/images/logo.png"
+                  src="/images/fripcash-logo.png"
                   alt="FripCash"
                   width={300}
                   height={300}
                   className="h-36 w-auto"
                 />
               </Link>
-              <p className="mb-6 text-muted-foreground text-sm leading-relaxed">
+              <p className="mb-5 text-muted-foreground text-sm leading-relaxed">
                 Ta plateforme de confiance pour acheter et vendre des articles de
                 seconde main. Donne une seconde vie à tes vêtements et gagne de
                 l&apos;argent facilement.
               </p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Télécharge l&apos;app
+              </p>
+              <AppStoreBadges size="sm" className="mb-6" />
               <div className="flex gap-3 mb-6">
                 <a
                   href="#"

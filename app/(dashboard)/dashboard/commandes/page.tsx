@@ -17,6 +17,7 @@ import {
   FiCopy,
 } from "react-icons/fi";
 import { LuHandshake } from "react-icons/lu";
+import { GetAppBanner } from "@/components/dashboard/get-app-banner";
 
 type OrderStatus = "pending" | "paid_escrow" | "in_delivery" | "awaiting_confirmation" | "delivered" | "disputed" | "refunded";
 type DeliveryMode = "main-propre" | "buyer-delivery" | "seller-delivery";
@@ -163,8 +164,16 @@ export default function MyOrdersPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Mes commandes</h1>
-        <p className="text-sm text-muted-foreground mt-1">Suivez vos achats et ventes — le paiement est sécurisé par séquestre</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Achats et ventes web — suivi livreur et missions dans l&apos;app
+        </p>
       </div>
+
+      <GetAppBanner
+        compact
+        title="Tu es livreur ?"
+        description="Missions, gains et disponibilité se gèrent uniquement dans l’application mobile."
+      />
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-border">

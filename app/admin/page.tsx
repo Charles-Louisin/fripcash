@@ -1,144 +1,280 @@
 "use client";
 
-import { StatCard } from "@/components/admin/stat-card";
-import { ChartAreaInteractive } from "@/components/admin/chart-area-interactive";
-import { Badge } from "@/components/ui/badge";
-import { FiUsers, FiShoppingBag, FiAlertTriangle, FiArrowRight } from "react-icons/fi";
-import { HiArrowTrendingUp } from "react-icons/hi2";
-import { useAdminStats } from "@/hooks/use-admin";
+import { useMemo } from "react";
 import Link from "next/link";
+import { StatCard } from "@/components/admin/stat-card";
+import { StatsCarousel } from "@/components/admin/stats-carousel";
+import { ChartAreaInteractive } from "@/components/admin/chart-area-interactive";
+import { ChartBarInteractive } from "@/components/admin/charts/chart-bar-interactive";
+import { ChartPieDonutText } from "@/components/admin/charts/chart-pie-donut-text";
+import { ChartRadialStacked } from "@/components/admin/charts/chart-radial-stacked";
+import { RecentActivity } from "@/components/admin/recent-activity";
+import { ActiveSessionsPanel } from "@/components/admin/active-sessions-panel";
+import { Badge } from "@/components/ui/badge";
+import {
+  FiUsers,
+  FiShoppingBag,
+  FiArrowRight,
+  FiTruck,
+} from "react-icons/fi";
+import { FaShieldHalved } from "react-icons/fa6";
+import { BsShieldFillCheck } from "react-icons/bs";
+import { HiArrowTrendingUp, HiOutlineScale } from "react-icons/hi2";
+import { useAdminStats } from "@/hooks/use-admin";
+import { useAdminPlatformStore } from "@/stores/admin-platform-store";
+import { useAdminDisputesStore } from "@/stores/admin-disputes-store";
+import { formatGnf, dashboardMock } from "@/lib/admin-platform";
+import { useAdminDateRange } from "@/stores/admin-date-filter-store";
+import { mockAdminOrders, pendingShopValidations } from "@/lib/admin-mock-data";
 
 export default function AdminDashboardPage() {
-  const { data: stats, isLoading } = useAdminStats();
+  const range = useAdminDateRange();
+  const { data: stats, isLoading, isError } = useAdminStats();
+  const platform = useAdminPlatformStore();
+  const disputes = useAdminDisputesStore((s) => s.disputes);
 
-  const totalUsers = stats?.totalUsers ?? 0;
-  const totalArticles = stats?.totalArticles ?? 0;
-  const totalRevenue = stats?.totalRevenue ?? 0;
-  const openDisputes = stats?.openDisputes ?? 0;
-  const pendingArticles = stats?.pendingArticles ?? [];
-  const openDisputesList = stats?.recentDisputes ?? [];
+  const totalUsers = stats?.totalUsers ?? 1284;
+  const totalArticles = stats?.totalArticles ?? 3562;
+  const totalRevenue = stats?.totalRevenue ?? 48_500_000;
+  const pendingArticles =
+    stats?.pendingArticles && stats.pendingArticles.length > 0
+      ? stats.pendingArticles
+      : dashboardMock.pendingArticles;
+  const pendingShopCount = pendingShopValidations().length;
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
+  const openDisputes = useMemo(
+    () => disputes.filter((d) => d.status !== "resolved"),
+    [disputes],
+  );
+  const lockedGmv = useMemo(
+    () => openDisputes.reduce((sum, d) => sum + d.amount, 0),
+    [openDisputes],
+  );
+  const escrowHolds = useMemo(
+    () =>
+      mockAdminOrders.filter((o) =>
+        ["paid", "delivered", "disputed", "inTransit", "readyForPickup"].includes(
+          o.status
+        )
+      ),
+    [],
+  );
+  const escrowGmv = useMemo(
+    () => escrowHolds.reduce((sum, o) => sum + (o.amount || 0), 0),
+    [escrowHolds],
+  );
+  const activeDeliveries = platform.stuckOrders.length;
+
+  const openDisputesList = openDisputes.slice(0, 3).map((d) => ({
+    _id: d.id,
+    reason: d.reason,
+    status: d.status,
+    buyer: { pseudo: d.buyerName },
+    seller: { pseudo: d.sellerName },
+  }));
+
+  const showApiFallback = isError && !stats;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Vue d&apos;ensemble de la plateforme FripCash</p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          Vue d&apos;ensemble
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Paiements, litiges et confiance vendeurs · {range.label}
+        </p>
+        {showApiFallback && (
+          <p className="mt-2 text-xs text-amber-600">
+            API hors ligne — KPIs complétés avec données de démonstration.
+          </p>
+        )}
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Utilisateurs"
-          value={totalUsers.toLocaleString("fr-FR")}
-          change={stats?.usersChange ?? "—"}
-          changeType={stats?.usersChange?.startsWith("-") ? "negative" : "positive"}
-          icon={FiUsers}
-        />
-        <StatCard
-          title="Articles"
-          value={totalArticles.toLocaleString("fr-FR")}
-          change={stats?.articlesChange ?? "—"}
-          changeType={stats?.articlesChange?.startsWith("-") ? "negative" : "positive"}
-          icon={FiShoppingBag}
-        />
-        <StatCard
-          title="Revenus (GNF)"
-          value={totalRevenue.toLocaleString("fr-FR")}
-          change={stats?.revenueChange ?? "—"}
-          changeType={stats?.revenueChange?.startsWith("-") ? "negative" : "positive"}
-          icon={HiArrowTrendingUp}
-        />
-        <StatCard
-          title="Litiges ouverts"
-          value={openDisputes.toString()}
-          change={openDisputes > 0 ? "À traiter" : "Aucun"}
-          changeType={openDisputes > 0 ? "negative" : "positive"}
-          icon={FiAlertTriangle}
-        />
-      </div>
-
-      {/* Area Chart */}
-      <ChartAreaInteractive />
-
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Recent Activity placeholder */}
-        <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-foreground">Activité récente</h3>
-          </div>
-          <div className="text-center py-8">
-            <p className="text-sm text-muted-foreground">L&apos;activité récente apparaîtra ici</p>
-          </div>
+      {isLoading && !showApiFallback ? (
+        <div className="flex h-64 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
         </div>
+      ) : (
+        <>
+          <StatsCarousel gridClassName="sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              label="Litiges ouverts"
+              value={`${openDisputes.length}`}
+              description="À examiner ou résoudre"
+              href="/admin/litiges"
+              actionLabel="Voir les litiges"
+              icon={HiOutlineScale}
+            />
+            <StatCard
+              label="Paiement bloqué"
+              value={formatGnf(escrowGmv + lockedGmv)}
+              description={`${escrowHolds.length + openDisputes.length} séquestres actives`}
+              href="/admin/porte-monnaies"
+              actionLabel="Voir les paiements"
+              icon={FaShieldHalved}
+            />
+            <StatCard
+              label="Validations boutique"
+              value={`${pendingShopCount}`}
+              description="Commerce local & enseignes"
+              href="/admin/validations"
+              actionLabel="Valider"
+              icon={BsShieldFillCheck}
+            />
+            <StatCard
+              label="Utilisateurs"
+              value={totalUsers.toLocaleString("fr-FR")}
+              description={`${activeDeliveries} livraisons actives`}
+              href="/admin/utilisateurs"
+              actionLabel="Voir les utilisateurs"
+              icon={FiUsers}
+            />
+          </StatsCarousel>
 
-        {/* Quick Actions */}
-        <div className="space-y-4">
-          {/* Pending Articles */}
-          <div className="rounded-xl border border-border bg-card p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-foreground text-sm">Articles en attente</h3>
-              <Badge variant="secondary">{pendingArticles.length}</Badge>
-            </div>
-            <div className="space-y-2">
-              {pendingArticles.slice(0, 3).map((a: any) => (
-                <div key={a._id} className="flex items-center gap-3 py-1.5">
-                  {a.images?.[0] && (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={a.images[0]} alt={a.title} className="h-9 w-9 rounded object-cover" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{a.title}</p>
-                    <p className="text-xs text-muted-foreground">{typeof a.seller === "object" ? a.seller.pseudo : "Vendeur"}</p>
-                  </div>
-                  <span className="text-xs font-medium text-primary">{(a.price || 0).toLocaleString("fr-FR")} F</span>
-                </div>
-              ))}
-            </div>
-            <Link href="/admin/articles" className="flex items-center gap-1 text-xs text-primary font-medium mt-3 hover:underline">
-              Voir tout <FiArrowRight className="h-3 w-3" />
-            </Link>
+          <StatsCarousel gridClassName="sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              label="Articles"
+              value={totalArticles.toLocaleString("fr-FR")}
+              description={stats?.articlesChange ?? "Catalogue live + mock"}
+              href="/admin/articles"
+              actionLabel="Voir les articles"
+              icon={FiShoppingBag}
+            />
+            <StatCard
+              label="Revenus cumulés"
+              value={formatGnf(totalRevenue)}
+              description={stats?.revenueChange ?? "Commission plateforme"}
+              href="/admin/rapports"
+              actionLabel="Voir les rapports"
+              icon={HiArrowTrendingUp}
+            />
+            <StatCard
+              label="Livraisons actives"
+              value={activeDeliveries.toString()}
+              description={
+                activeDeliveries > 0 ? "Missions en cours" : "Aucune en attente"
+              }
+              href="/admin/livreurs"
+              actionLabel="Voir livreurs"
+              icon={FiTruck}
+            />
+            <StatCard
+              label="Commission"
+              value={`${platform.commissionRate} %`}
+              description="Taux plateforme actuel"
+              href="/admin/parametres"
+              actionLabel="Paramètres"
+              icon={HiArrowTrendingUp}
+            />
+          </StatsCarousel>
+
+          <ChartAreaInteractive />
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <ChartBarInteractive />
+            <ChartRadialStacked />
+            <ChartPieDonutText />
           </div>
 
-          {/* Open Disputes */}
-          <div className="rounded-xl border border-border bg-card p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-foreground text-sm">Litiges à traiter</h3>
-              <Badge variant="destructive">{openDisputesList.length}</Badge>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <div className="rounded-xl border border-border bg-card p-5 xl:col-span-2">
+              <h3 className="mb-4 font-semibold text-foreground">
+                Activité en direct
+              </h3>
+              <RecentActivity items={platform.activity} />
             </div>
-            <div className="space-y-2">
-              {openDisputesList.slice(0, 3).map((d: any) => (
-                <div key={d._id} className="flex items-center justify-between py-1.5">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{d.reason}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {typeof d.buyer === "object" ? d.buyer.pseudo : "Acheteur"} vs {typeof d.seller === "object" ? d.seller.pseudo : "Vendeur"}
+
+            <div className="space-y-4">
+              <ActiveSessionsPanel />
+
+              <div className="rounded-xl border border-border bg-card p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Articles en attente
+                  </h3>
+                  <Badge variant="secondary">{pendingArticles.length}</Badge>
+                </div>
+                <div className="space-y-2">
+                  {pendingArticles
+                    .slice(0, 3)
+                    .map(
+                      (a: {
+                        _id: string;
+                        title: string;
+                        price?: number;
+                        images?: string[];
+                        seller?: { pseudo?: string } | string;
+                      }) => (
+                        <div key={a._id} className="flex items-center gap-3 py-1.5">
+                          {a.images?.[0] && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={a.images[0]}
+                              alt={a.title}
+                              className="h-9 w-9 rounded object-cover"
+                            />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">
+                              {a.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {typeof a.seller === "object"
+                                ? a.seller.pseudo
+                                : "Vendeur"}
+                            </p>
+                          </div>
+                        </div>
+                      ),
+                    )}
+                  {pendingArticles.length === 0 && (
+                    <p className="py-4 text-center text-sm text-muted-foreground">
+                      Aucun article en attente
                     </p>
-                  </div>
-                  <Badge
-                    variant={d.status === "escalated" ? "destructive" : d.status === "open" ? "warning" : "secondary"}
-                    className="text-[10px] shrink-0"
-                  >
-                    {d.status === "open" ? "Ouvert" : d.status === "in-review" ? "En cours" : "Escaladé"}
-                  </Badge>
+                  )}
                 </div>
-              ))}
+                <Link
+                  href="/admin/articles"
+                  className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  Voir tout <FiArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Litiges à traiter
+                  </h3>
+                  <Badge variant="destructive">{openDisputes.length}</Badge>
+                </div>
+                <div className="space-y-2">
+                  {openDisputesList.map((d) => (
+                    <div key={d._id} className="py-1.5">
+                      <p className="truncate text-sm font-medium">{d.reason}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {d.buyer.pseudo} vs {d.seller.pseudo}
+                      </p>
+                    </div>
+                  ))}
+                  {openDisputesList.length === 0 && (
+                    <p className="py-4 text-center text-sm text-muted-foreground">
+                      Aucun litige ouvert
+                    </p>
+                  )}
+                </div>
+                <Link
+                  href="/admin/litiges"
+                  className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  Voir tout <FiArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
             </div>
-            <Link href="/admin/litiges" className="flex items-center gap-1 text-xs text-primary font-medium mt-3 hover:underline">
-              Voir tout <FiArrowRight className="h-3 w-3" />
-            </Link>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

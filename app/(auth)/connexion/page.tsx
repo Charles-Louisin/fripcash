@@ -6,8 +6,11 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { authApi, setToken } from "@/lib/api";
+import { setToken } from "@/lib/api";
 import { FiPhone, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
+import { useQueryClient } from "@tanstack/react-query";
+import { mockMe, mockMeExtras } from "@/lib/consumer-mock-data";
+import { recordLoginSession } from "@/lib/admin-session-tracker";
 
 // ─── Country config: uncomment Guinea and comment Cameroon for production ───
 // const COUNTRY = { code: "+224", flag: "🇬🇳", label: "+224", placeholder: "6XX XXX XXX" };
@@ -16,6 +19,7 @@ const COUNTRY = { code: "+237", flag: "🇨🇲", label: "+237", placeholder: "6
 export default function ConnexionPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [localPhone, setLocalPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -38,17 +42,21 @@ export default function ConnexionPage() {
     }
 
     setLoading(true);
-    try {
-      const res = await authApi.login({ phone: fullPhone, password });
-      setToken(res.token);
-      toast("Connexion réussie ! Bienvenue.");
-      router.push("/");
-    } catch (err: any) {
-      const msg = err?.message || err?.data?.message || "Identifiants incorrects.";
-      toast(msg, "error");
-    } finally {
-      setLoading(false);
-    }
+    await new Promise((r) => setTimeout(r, 400));
+    setToken("mock-token");
+    queryClient.setQueryData(["me"], {
+      ...mockMe,
+      ...mockMeExtras,
+      phone: fullPhone,
+    });
+    recordLoginSession({
+      email: mockMe.email ?? fullPhone,
+      displayName: mockMe.pseudo,
+      role: "particulier",
+    });
+    toast("Connexion réussie ! Bienvenue (démo).");
+    router.push("/");
+    setLoading(false);
   };
 
   return (

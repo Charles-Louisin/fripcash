@@ -18,7 +18,11 @@ function mapReviewToTestimonial(review: any): Testimonial {
   const user = review.user;
   return {
     id: review._id,
-    name: user?.pseudo || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "Utilisateur",
+    name:
+      user?.pseudo ||
+      `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+      review.author ||
+      "Utilisateur",
     title: "Membre FripCash",
     description: `"${review.comment}"`,
     image: user?.avatar || "",

@@ -2,73 +2,51 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
-import { FiShoppingBag, FiShoppingCart, FiCreditCard, FiTrendingUp, FiArrowRight, FiPlus, FiSearch, FiPackage } from "react-icons/fi";
+import {
+  FiShoppingBag,
+  FiShoppingCart,
+  FiCreditCard,
+  FiTrendingUp,
+  FiArrowRight,
+  FiPlus,
+  FiSearch,
+} from "react-icons/fi";
 import { useMe } from "@/hooks/use-auth";
 import { useMyArticles } from "@/hooks/use-articles";
 import { useMyOrders } from "@/hooks/use-orders";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-const chartConfig = {
-  ventes: {
-    label: "Ventes",
-    color: "var(--chart-1)",
-  },
-  achats: {
-    label: "Achats",
-    color: "var(--chart-2)",
-  },
-} satisfies ChartConfig;
-
-import { useUserChartData } from "@/hooks/use-admin";
-
-type ChartRange = "week" | "month" | "year";
-
-const chartRangeConfig: Record<ChartRange, { description: string; selectLabel: string }> = {
-  year: { description: "Évolution sur les 6 derniers mois", selectLabel: "6 derniers mois" },
-  month: { description: "Évolution ce mois-ci", selectLabel: "Ce mois-ci" },
-  week: { description: "Évolution cette semaine", selectLabel: "Cette semaine" },
-};
+import { GetAppBanner } from "@/components/dashboard/get-app-banner";
 
 export default function DashboardOverviewPage() {
-  const [chartRange, setChartRange] = React.useState<ChartRange>("year");
-  const { data: chartData = [], isLoading: chartLoading } = useUserChartData(chartRange);
   const { data: user, isLoading: userLoading } = useMe();
   const { data: articles } = useMyArticles();
   const { data: orders } = useMyOrders();
 
-  const activeListings = articles?.filter((l: any) => l.status === "active").length ?? 0;
-  const totalSales = orders?.filter((o: any) => o.seller?._id === user?.id || o.seller === user?.id).length ?? 0;
-  const totalPurchases = orders?.filter((o: any) => o.buyer?._id === user?.id || o.buyer === user?.id).length ?? 0;
-
+  const activeListings =
+    articles?.filter((l: any) => l.status === "active").length ?? 0;
   const userId = user?.id || user?._id || "";
+  const totalSales =
+    orders?.filter(
+      (o: any) => o.seller?._id === userId || o.seller === userId || o.role === "seller"
+    ).length ?? 0;
+  const totalPurchases =
+    orders?.filter(
+      (o: any) => o.buyer?._id === userId || o.buyer === userId || o.role === "buyer"
+    ).length ?? 0;
+
   const recentActivity = React.useMemo(() => {
-    const items: { id: string; type: "sale" | "purchase" | "listing"; label: string; date: string; link: string }[] = [];
+    const items: {
+      id: string;
+      type: "sale" | "purchase" | "listing";
+      label: string;
+      date: string;
+      link: string;
+    }[] = [];
     (orders || []).forEach((o: any) => {
-      const isSale = (o.seller?._id || o.seller) === userId;
-      const title = typeof o.article === "object" ? o.article?.title : "Article";
+      const isSale =
+        (o.seller?._id || o.seller) === userId || o.role === "seller";
+      const title =
+        typeof o.article === "object" ? o.article?.title : "Article";
       items.push({
         id: o._id,
         type: isSale ? "sale" : "purchase",
@@ -79,175 +57,146 @@ export default function DashboardOverviewPage() {
     });
     (articles || [])
       .filter((a: any) => a.status === "active")
-      .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.createdAt || 0).getTime() -
+          new Date(a.createdAt || 0).getTime()
+      )
       .slice(0, 3)
       .forEach((a: any) => {
         items.push({
           id: `art-${a._id}`,
           type: "listing",
-          label: `Article mis en vente: ${a.title || "Sans titre"}`,
+          label: `Annonce: ${a.title || "Sans titre"}`,
           date: a.createdAt,
           link: "/dashboard/articles",
         });
       });
-    return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 8);
+    return items
+      .sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      )
+      .slice(0, 6);
   }, [orders, articles, userId]);
 
   const stats = [
-    { label: "Articles en vente", value: activeListings, icon: FiShoppingBag, color: "bg-primary/10 text-primary" },
-    { label: "Ventes", value: totalSales, icon: FiTrendingUp, color: "bg-green-100 text-green-600" },
-    { label: "Achats", value: totalPurchases, icon: FiShoppingCart, color: "bg-blue-100 text-blue-600" },
-    { label: "Solde (GNF)", value: (user?.walletBalance ?? 0).toLocaleString("fr-FR"), icon: FiCreditCard, color: "bg-amber-100 text-amber-600" },
+    {
+      label: "Annonces actives",
+      value: activeListings,
+      icon: FiShoppingBag,
+      color: "bg-primary/10 text-primary",
+      href: "/dashboard/articles",
+    },
+    {
+      label: "Achats",
+      value: totalPurchases,
+      icon: FiShoppingCart,
+      color: "bg-blue-100 text-blue-600",
+      href: "/dashboard/commandes",
+    },
+    {
+      label: "Ventes",
+      value: totalSales,
+      icon: FiTrendingUp,
+      color: "bg-emerald-100 text-emerald-700",
+      href: "/dashboard/commandes",
+    },
+    {
+      label: "Solde (GNF)",
+      value: (user?.walletBalance ?? 0).toLocaleString("fr-FR"),
+      icon: FiCreditCard,
+      color: "bg-amber-100 text-amber-700",
+      href: "/dashboard/porte-monnaie",
+    },
   ];
 
   if (userLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Welcome */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">
           Bonjour, {user?.firstName || "Utilisateur"} !
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Bienvenue sur votre espace FripCash
+        <p className="mt-1 text-sm text-muted-foreground">
+          Ton compte web — achats, annonces simples et messages. Les rôles
+          avancés sont dans l&apos;app.
         </p>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map((stat) => (
-          <div key={stat.label} className="rounded-xl border border-border bg-card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${stat.color}`}>
-                <stat.icon className="h-5 w-5" />
-              </div>
+          <Link
+            key={stat.label}
+            href={stat.href}
+            className="rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30"
+          >
+            <div
+              className={`mb-3 flex h-10 w-10 items-center justify-center rounded-lg ${stat.color}`}
+            >
+              <stat.icon className="h-5 w-5" />
             </div>
             <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-            <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
-          </div>
+            <p className="mt-1 text-xs text-muted-foreground">{stat.label}</p>
+          </Link>
         ))}
       </div>
 
-      {/* Quick Actions */}
-      <div className="flex flex-wrap gap-3 justify-end">
+      <div className="flex flex-wrap justify-end gap-3">
         <Link
           href="/dashboard/articles"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary text-primary-foreground text-sm font-medium shadow-sm hover:bg-primary/90 transition-colors"
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
         >
           <FiPlus className="h-4 w-4" />
-          Vendre un article
+          Publier une annonce
         </Link>
         <Link
           href="/produits"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-border bg-card text-sm font-medium text-foreground shadow-sm hover:bg-accent transition-colors"
+          className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-accent"
         >
           <FiSearch className="h-4 w-4 text-muted-foreground" />
-          Parcourir les articles
+          Parcourir le catalogue
         </Link>
       </div>
 
-      {/* Sales/Purchases Chart */}
-      <Card className="pt-0">
-        <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
-          <div className="grid flex-1 gap-1">
-            <CardTitle>Mes ventes & achats</CardTitle>
-            <CardDescription>{chartRangeConfig[chartRange].description}</CardDescription>
-          </div>
-          <Select value={chartRange} onValueChange={(v) => setChartRange(v as ChartRange)}>
-            <SelectTrigger
-              className="hidden w-[160px] rounded-lg sm:ml-auto sm:flex"
-              aria-label="Sélectionner une période"
-            >
-              <SelectValue placeholder="6 derniers mois" />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-              {(Object.keys(chartRangeConfig) as ChartRange[]).map((range) => (
-                <SelectItem key={range} value={range} className="rounded-lg">
-                  {chartRangeConfig[range].selectLabel}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardHeader>
-        <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-          <ChartContainer config={chartConfig} className="aspect-auto h-[220px] w-full min-h-[220px]">
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="fillVentes" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--color-ventes)" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="var(--color-ventes)" stopOpacity={0.1} />
-                </linearGradient>
-                <linearGradient id="fillAchats" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--color-achats)" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="var(--color-achats)" stopOpacity={0.1} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="label"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-              />
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent indicator="dot" />}
-              />
-              <Area
-                dataKey="achats"
-                type="natural"
-                fill="url(#fillAchats)"
-                stroke="var(--color-achats)"
-                stackId="a"
-              />
-              <Area
-                dataKey="ventes"
-                type="natural"
-                fill="url(#fillVentes)"
-                stroke="var(--color-ventes)"
-                stackId="a"
-              />
-              <ChartLegend content={<ChartLegendContent />} />
-            </AreaChart>
-          </ChartContainer>
-        </CardContent>
-      </Card>
-
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Recent Activity - real data from orders & articles */}
-        <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5">
-          <div className="flex items-center justify-between mb-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="rounded-xl border border-border bg-card p-5 lg:col-span-2">
+          <div className="mb-4 flex items-center justify-between">
             <h3 className="font-semibold text-foreground">Activité récente</h3>
-            <Badge variant="secondary" className="text-[10px]">{recentActivity.length}</Badge>
+            <Badge variant="secondary" className="text-[10px]">
+              {recentActivity.length}
+            </Badge>
           </div>
           {recentActivity.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-sm text-muted-foreground">Aucune activité récente. Vends un article ou fais un achat pour commencer.</p>
-              <Link href="/dashboard/articles" className="inline-flex items-center gap-2 mt-3 text-sm font-medium text-primary hover:underline">
-                <FiPlus className="h-4 w-4" />
-                Vendre un article
-              </Link>
+            <div className="py-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                Aucune activité pour l&apos;instant. Achète ou publie une
+                annonce pour commencer.
+              </p>
             </div>
           ) : (
-            <div className="space-y-2 max-h-[240px] overflow-y-auto">
+            <div className="max-h-[280px] space-y-2 overflow-y-auto">
               {recentActivity.map((item) => (
                 <Link
                   key={item.id}
                   href={item.link}
-                  className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/50 transition-colors"
+                  className="flex items-center gap-3 rounded-lg p-2.5 transition-colors hover:bg-accent/50"
                 >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                    item.type === "sale" ? "bg-green-100 text-green-600" :
-                    item.type === "purchase" ? "bg-blue-100 text-blue-600" : "bg-primary/10 text-primary"
-                  }`}>
+                  <div
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                      item.type === "sale"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : item.type === "purchase"
+                          ? "bg-blue-100 text-blue-600"
+                          : "bg-primary/10 text-primary"
+                    }`}
+                  >
                     {item.type === "listing" ? (
                       <FiShoppingBag className="h-4 w-4" />
                     ) : item.type === "sale" ? (
@@ -256,54 +205,78 @@ export default function DashboardOverviewPage() {
                       <FiShoppingCart className="h-4 w-4" />
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{item.label}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {item.label}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(item.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      {new Date(item.date).toLocaleDateString("fr-FR", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </p>
                   </div>
-                  <FiArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <FiArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                 </Link>
               ))}
             </div>
           )}
         </div>
 
-        {/* Quick Stats Panel */}
         <div className="space-y-4">
-          {/* Wallet */}
           <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="font-semibold text-foreground text-sm mb-3">Mon porte-monnaie</h3>
-            <p className="text-3xl font-bold text-primary">{(user?.walletBalance ?? 0).toLocaleString("fr-FR")} <span className="text-base font-medium">GNF</span></p>
-            <Link href="/dashboard/porte-monnaie" className="flex items-center gap-1 text-xs text-primary font-medium mt-3 hover:underline">
+            <h3 className="mb-3 text-sm font-semibold text-foreground">
+              Mon porte-monnaie
+            </h3>
+            <p className="text-3xl font-bold text-foreground">
+              {(user?.walletBalance ?? 0).toLocaleString("fr-FR")}{" "}
+              <span className="text-base font-medium text-muted-foreground">
+                GNF
+              </span>
+            </p>
+            <Link
+              href="/dashboard/porte-monnaie"
+              className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
               Voir les transactions <FiArrowRight className="h-3 w-3" />
             </Link>
           </div>
 
-          {/* Profile summary */}
           <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="font-semibold text-foreground text-sm mb-3">Mon profil</h3>
+            <h3 className="mb-3 text-sm font-semibold text-foreground">
+              Mon profil
+            </h3>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 bg-muted">
+              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-muted">
                 {user?.avatar && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={user.avatar} alt={user.firstName} className="w-full h-full object-cover" />
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={user.avatar}
+                    alt={user.firstName}
+                    className="h-full w-full object-cover"
+                  />
                 )}
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">{user?.firstName} {user?.lastName}</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs text-amber-500">★ {user?.rating ?? 0}</span>
-                  <span className="text-xs text-muted-foreground">({user?.reviewsCount ?? 0} avis)</span>
-                </div>
+                <p className="text-sm font-medium text-foreground">
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p className="text-xs text-muted-foreground">@{user?.pseudo}</p>
               </div>
             </div>
-            <Link href="/dashboard/profil" className="flex items-center gap-1 text-xs text-primary font-medium mt-3 hover:underline">
+            <Link
+              href="/dashboard/profil"
+              className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
               Modifier le profil <FiArrowRight className="h-3 w-3" />
             </Link>
           </div>
         </div>
       </div>
+
+      <GetAppBanner />
     </div>
   );
 }

@@ -6,6 +6,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { useToast } from "@/components/ui/toast";
 import { useAdminLogin } from "@/hooks/use-auth";
+import { enableAdminDemoSession } from "@/lib/admin-session";
+import { recordLoginSession } from "@/lib/admin-session-tracker";
 import { FiMail, FiLock, FiEye, FiEyeOff, FiShield, FiArrowRight } from "react-icons/fi";
 
 export default function AdminLoginPage() {
@@ -40,26 +42,26 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="admin-shell min-h-screen flex bg-background text-foreground">
       {/* Left side - Branding panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-foreground relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-zinc-900 relative overflow-hidden">
         {/* Decorative elements */}
         <div className="absolute inset-0">
-          <div className="absolute top-0 left-0 w-96 h-96 bg-primary/20 rounded-full -translate-x-1/2 -translate-y-1/2" />
-          <div className="absolute bottom-0 right-0 w-80 h-80 bg-primary/10 rounded-full translate-x-1/3 translate-y-1/3" />
-          <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-primary/5 rounded-full -translate-x-1/2 -translate-y-1/2" />
+          <div className="absolute top-0 left-0 w-96 h-96 bg-primary/25 rounded-full -translate-x-1/2 -translate-y-1/2" />
+          <div className="absolute bottom-0 right-0 w-80 h-80 bg-primary/15 rounded-full translate-x-1/3 translate-y-1/3" />
+          <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-white/5 rounded-full -translate-x-1/2 -translate-y-1/2" />
         </div>
 
-        <div className="relative z-10 flex flex-col justify-between p-12 text-background w-full">
+        <div className="relative z-10 flex flex-col justify-between p-12 text-white w-full">
           {/* Logo */}
           <div className="overflow-hidden">
             <Link href="/" className="inline-block -my-6">
               <Image
-                src="/images/logo.png"
+                src="/images/fripcash-logo.png"
                 alt="FripCash"
                 width={500}
                 height={500}
-                className="h-28 w-auto brightness-0 invert"
+                className="h-28 w-auto"
               />
             </Link>
           </div>
@@ -75,13 +77,13 @@ export default function AdminLoginPage() {
               plateforme<br />
               <span className="text-primary">en toute sécurité.</span>
             </h1>
-            <p className="text-background/60 text-lg max-w-md">
+            <p className="text-white/60 text-lg max-w-md">
               Accédez au tableau de bord d&apos;administration pour gérer les utilisateurs, les articles, les commandes et bien plus.
             </p>
           </div>
 
           {/* Bottom */}
-          <p className="text-background/40 text-sm">
+          <p className="text-white/40 text-sm">
             © {new Date().getFullYear()} FripCash. Tous droits réservés.
           </p>
         </div>
@@ -94,7 +96,7 @@ export default function AdminLoginPage() {
           <div className="lg:hidden mb-2 text-center overflow-hidden">
             <Link href="/" className="inline-block -my-6">
               <Image
-                src="/images/logo.png"
+                src="/images/fripcash-logo.png"
                 alt="FripCash"
                 width={500}
                 height={500}
@@ -198,6 +200,26 @@ export default function AdminLoginPage() {
               )}
             </button>
           </form>
+
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => {
+                enableAdminDemoSession();
+                recordLoginSession({
+                  email: "admin@fripcash.com",
+                  displayName: "Super Admin",
+                  role: "admin",
+                  userId: "admin_1",
+                });
+                showToast("Mode démo admin activé", "success");
+                router.push("/admin");
+              }}
+              className="w-full h-11 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
+            >
+              Accès démo (sans API)
+            </button>
+          </div>
 
           {/* Footer */}
           <div className="mt-8 pt-6 border-t border-border">

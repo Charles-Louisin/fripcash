@@ -1,11 +1,11 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { FiUserPlus, FiShoppingCart, FiAlertTriangle, FiPackage } from "react-icons/fi";
+import { FiUserPlus, FiShoppingCart, FiAlertTriangle, FiPackage, FiTruck } from "react-icons/fi";
 
 type ActivityItem = {
   id: number | string;
-  type: "signup" | "sale" | "dispute" | "article";
+  type: "signup" | "sale" | "dispute" | "article" | "delivery";
   message: string;
   time: string;
 };
@@ -15,6 +15,7 @@ const typeConfig = {
   sale: { icon: FiShoppingCart, color: "text-primary", bg: "bg-primary/10" },
   dispute: { icon: FiAlertTriangle, color: "text-orange-500", bg: "bg-orange-50" },
   article: { icon: FiPackage, color: "text-purple-500", bg: "bg-purple-50" },
+  delivery: { icon: FiTruck, color: "text-emerald-600", bg: "bg-emerald-50" },
 };
 
 export function RecentActivity({ items }: { items: ActivityItem[] }) {

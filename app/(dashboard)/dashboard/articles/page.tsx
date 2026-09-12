@@ -13,6 +13,9 @@ import {
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
+import { GetAppBanner } from "@/components/dashboard/get-app-banner";
+import { useMe } from "@/hooks/use-auth";
+import Link from "next/link";
 
 const tabs = [
   { id: "active", label: "En vente" },
@@ -72,6 +75,8 @@ const sizes = ["XS", "S", "M", "L", "XL", "XXL", "34", "36", "38", "40", "42", "
 
 export default function MyArticlesPage() {
   const { showToast } = useToast();
+  const { data: user } = useMe();
+  const canCreateListing = user?.seller?.capabilities?.createListing === true;
   const { data: listings = [], isLoading } = useMyArticles();
   const createArticle = useCreateArticle();
   const updateArticle = useUpdateArticle();
@@ -89,6 +94,13 @@ export default function MyArticlesPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string | null; title: string }>({ open: false, id: null, title: "" });
 
   const openAddSheet = () => {
+    if (!canCreateListing) {
+      showToast(
+        "Active d'abord un profil vendeur dans Paramètres → Vendre",
+        "info"
+      );
+      return;
+    }
     setEditingItem(null);
     setFormData(emptyForm);
     setImagePreviews([]);
@@ -219,8 +231,10 @@ export default function MyArticlesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Mes articles</h1>
-          <p className="text-sm text-muted-foreground mt-1">Gérez vos annonces</p>
+          <h1 className="text-2xl font-bold text-foreground">Mes annonces</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Vente simple sur le web — pour boutique, proximité ou enseigne, utilise l&apos;app
+          </p>
         </div>
         <button
           type="button"
@@ -228,9 +242,29 @@ export default function MyArticlesPage() {
           className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
         >
           <FiPlus className="h-4 w-4" />
-          <span className="hidden sm:inline">Ajouter un article</span>
+          <span className="hidden sm:inline">Ajouter une annonce</span>
         </button>
       </div>
+
+      {!canCreateListing && (
+        <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Active un profil vendeur particulier pour publier en seconde main.
+          </p>
+          <Link
+            href="/dashboard/parametres"
+            className="h-9 px-4 inline-flex items-center justify-center rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90"
+          >
+            Paramètres → Vendre
+          </Link>
+        </div>
+      )}
+
+      <GetAppBanner
+        compact
+        title="Vendeur pro ? C’est dans l’app"
+        description="Import Excel, bibliothèque produits, commerce local et enseignes partenaires."
+      />
 
       {isLoading && (
         <div className="flex items-center justify-center h-32">

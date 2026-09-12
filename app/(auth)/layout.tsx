@@ -27,7 +27,7 @@ export default function AuthLayout({
           {/* Logo */}
           <Link href="/">
             <Image
-              src="/images/logo.png"
+              src="/images/fripcash-logo.png"
               alt="FripCash"
               width={120}
               height={120}
@@ -53,7 +53,7 @@ export default function AuthLayout({
         <div className="md:hidden mb-8">
           <Link href="/">
             <Image
-              src="/images/logo.png"
+              src="/images/fripcash-logo.png"
               alt="FripCash"
               width={100}
               height={100}

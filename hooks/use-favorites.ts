@@ -1,5 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { favoritesApi } from "@/lib/api";
+import {
+  delay,
+  getFavoriteIds,
+  mockArticles,
+  toggleFavoriteId,
+} from "@/lib/consumer-mock-data";
 
 function hasToken(): boolean {
   if (typeof window === "undefined") return false;
@@ -10,8 +15,11 @@ export function useFavorites() {
   return useQuery({
     queryKey: ["favorites"],
     queryFn: async () => {
-      const res = await favoritesApi.getAll();
-      return res.data;
+      const ids = getFavoriteIds();
+      const data = mockArticles
+        .filter((a) => ids.has(a._id))
+        .map((a) => ({ _id: a._id, article: a }));
+      return delay(data);
     },
     enabled: hasToken(),
   });
@@ -20,10 +28,7 @@ export function useFavorites() {
 export function useCheckFavorite(articleId: string) {
   return useQuery({
     queryKey: ["favorites", "check", articleId],
-    queryFn: async () => {
-      const res = await favoritesApi.check(articleId);
-      return res.isFavorite;
-    },
+    queryFn: () => delay(getFavoriteIds().has(articleId)),
     enabled: !!articleId && hasToken(),
   });
 }
@@ -39,11 +44,8 @@ export function useToggleFavorite() {
       articleId: string;
       isFavorite: boolean;
     }) => {
-      if (isFavorite) {
-        return favoritesApi.remove(articleId);
-      } else {
-        return favoritesApi.add(articleId);
-      }
+      const nowFavorite = toggleFavoriteId(articleId);
+      return delay({ success: true, isFavorite: nowFavorite, was: isFavorite });
     },
     onMutate: async ({ articleId, isFavorite }) => {
       if (!isFavorite) return {};
@@ -62,7 +64,9 @@ export function useToggleFavorite() {
     },
     onSettled: (_data, _err, variables) => {
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
-      queryClient.invalidateQueries({ queryKey: ["articles", variables.articleId] });
+      queryClient.invalidateQueries({
+        queryKey: ["favorites", "check", variables.articleId],
+      });
     },
   });
 }

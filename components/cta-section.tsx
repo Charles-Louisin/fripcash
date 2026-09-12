@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FiArrowRight } from "react-icons/fi";
+import { AppStoreBadges } from "@/components/app-store-badges";
 
 export function CtaSection() {
   return (
@@ -19,7 +20,7 @@ export function CtaSection() {
 
           <p className="mt-4 text-white/80 text-base sm:text-lg max-w-lg leading-relaxed">
             Rejoins des milliers de vendeurs sur FripCash. C&apos;est gratuit,
-            rapide et sécurisé.
+            rapide et sécurisé — sur le web ou dans l&apos;app.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 mt-8">
@@ -33,6 +34,13 @@ export function CtaSection() {
             <Link href="/eco-responsabilite" className="text-white/90 hover:text-white text-sm font-medium underline underline-offset-4 transition-colors">
               En savoir plus
             </Link>
+          </div>
+
+          <div className="mt-10 flex flex-col items-center gap-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-white/70">
+              Ou télécharge l&apos;application
+            </p>
+            <AppStoreBadges variant="light" />
           </div>
         </div>
       </div>

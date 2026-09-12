@@ -454,7 +454,12 @@ export default function ArticleDetailPage() {
                 <DetailRow label="Marque" value={article.brand || "—"} />
                 <DetailRow label="État" value={article.condition || "—"} />
                 {article.size && <DetailRow label="Taille" value={article.size} />}
-                {article.color && <DetailRow label="Couleur" value={article.color} />}
+                {(article.color || article.colors?.[0]) && (
+                  <DetailRow
+                    label="Couleur"
+                    value={(article.color || article.colors?.[0]) as string}
+                  />
+                )}
                 {article.category && <DetailRow label="Catégorie" value={article.category} />}
               </div>
 
@@ -484,11 +489,15 @@ export default function ArticleDetailPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-foreground">{seller.pseudo || seller.firstName}</p>
+                      <p className="font-semibold text-sm text-foreground">
+                        {seller.pseudo || seller.firstName || "Vendeur"}
+                      </p>
                       <div className="flex items-center gap-1 mt-0.5">
                         <FiStar className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
                         <span className="text-xs font-medium text-foreground">{seller.rating || 0}</span>
-                        <span className="text-xs text-muted-foreground">({seller.reviewsCount || 0} avis)</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({seller.reviewsCount ?? seller.reviewCount ?? 0} avis)
+                        </span>
                       </div>
                     </div>
                     <Link href="#" className="text-xs font-medium text-primary hover:underline shrink-0">Voir le profil</Link>

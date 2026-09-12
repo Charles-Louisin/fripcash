@@ -3,6 +3,9 @@
 import * as React from "react"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 import { useAdminChartData } from "@/hooks/use-admin"
+import { filterTransactionChartByRange } from "@/lib/admin-chart-mock"
+import { filterByDateRange } from "@/lib/admin-date-filter"
+import { useAdminDateRange } from "@/stores/admin-date-filter-store"
 
 import {
   Card,
@@ -19,13 +22,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 
 const chartConfig = {
   transactions: {
@@ -41,39 +37,27 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-const RANGE_MAP: Record<string, { days: number; label: string; description: string }> = {
-  "90d": { days: 90, label: "3 derniers mois", description: "Aperçu des transactions des 3 derniers mois" },
-  "30d": { days: 30, label: "30 derniers jours", description: "Aperçu des transactions des 30 derniers jours" },
-  "7d": { days: 7, label: "7 derniers jours", description: "Aperçu des transactions des 7 derniers jours" },
-}
-
 export function ChartAreaInteractive() {
-  const [timeRange, setTimeRange] = React.useState("90d")
-  const { days, description } = RANGE_MAP[timeRange]
-  const { data: chartData = [], isLoading } = useAdminChartData(days)
+  const range = useAdminDateRange()
+  const { data: apiData, isLoading } = useAdminChartData(range.days)
+
+  const chartData = React.useMemo(() => {
+    const source =
+      apiData && apiData.length > 0
+        ? apiData
+        : filterTransactionChartByRange(range.from, range.to)
+    return filterByDateRange(source, (item) => item.date, range.from, range.to)
+  }, [apiData, range.from, range.to])
 
   return (
     <Card className="pt-0">
       <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
         <div className="grid flex-1 gap-1">
           <CardTitle>Transactions & Commissions</CardTitle>
-          <CardDescription>{description}</CardDescription>
+          <CardDescription>
+            Aperçu pour la période : {range.label}
+          </CardDescription>
         </div>
-        <Select value={timeRange} onValueChange={setTimeRange}>
-          <SelectTrigger
-            className="hidden w-[160px] rounded-lg sm:ml-auto sm:flex"
-            aria-label="Sélectionner une période"
-          >
-            <SelectValue placeholder="3 derniers mois" />
-          </SelectTrigger>
-          <SelectContent className="rounded-xl">
-            {Object.entries(RANGE_MAP).map(([key, { label }]) => (
-              <SelectItem key={key} value={key} className="rounded-lg">
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         {isLoading ? (

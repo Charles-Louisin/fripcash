@@ -47,73 +47,131 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+/*
+ * Marketplace (consumer) — « Direction terre cuite » (Flutter AppColors).
+ * Admin overrides these under `.admin-shell` so the console stays neutral.
+ */
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* background #FBF5F1 · text #2E211C · primary #C0603C */
+  --background: oklch(0.974 0.008 56.315);
+  --foreground: oklch(0.262 0.022 42.016);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.262 0.022 42.016);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.723 0.219 149.579);
+  --popover-foreground: oklch(0.262 0.022 42.016);
+  --primary: oklch(0.597 0.133 40.643);
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.962 0.044 156.643);
-  --secondary-foreground: oklch(0.273 0.072 152.535);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.962 0.044 156.643);
-  --accent-foreground: oklch(0.273 0.072 152.535);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.723 0.219 149.579);
-  --chart-1: oklch(0.723 0.219 149.579);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.723 0.219 149.579);
+  /* rose poudré #FAEAE2 */
+  --secondary: oklch(0.948 0.021 48.495);
+  --secondary-foreground: oklch(0.482 0.118 38.037);
+  --muted: oklch(0.948 0.021 48.495);
+  --muted-foreground: oklch(0.574 0.036 42.108);
+  --accent: oklch(0.948 0.021 48.495);
+  --accent-foreground: oklch(0.482 0.118 38.037);
+  /* error #A32E28 */
+  --destructive: oklch(0.481 0.154 27.498);
+  /* border #E9D5C8 */
+  --border: oklch(0.886 0.028 55.293);
+  --input: oklch(0.886 0.028 55.293);
+  --ring: oklch(0.597 0.133 40.643);
+  --chart-1: oklch(0.597 0.133 40.643);
+  /* sage #6E8A72 */
+  --chart-2: oklch(0.605 0.048 148.933);
+  --chart-3: oklch(0.482 0.118 38.037);
+  /* gold #C6985A */
+  --chart-4: oklch(0.710 0.097 73.432);
+  --chart-5: oklch(0.846 0.048 42.689);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.262 0.022 42.016);
+  --sidebar-primary: oklch(0.597 0.133 40.643);
   --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.962 0.044 156.643);
-  --sidebar-accent-foreground: oklch(0.273 0.072 152.535);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.723 0.219 149.579);
+  --sidebar-accent: oklch(0.948 0.021 48.495);
+  --sidebar-accent-foreground: oklch(0.482 0.118 38.037);
+  --sidebar-border: oklch(0.886 0.028 55.293);
+  --sidebar-ring: oklch(0.597 0.133 40.643);
+}
+
+/*
+ * Admin console — cool neutrals + terracotta accent only.
+ * Avoids the all-brown / cream marketplace look on ops screens.
+ */
+.admin-shell {
+  --background: oklch(0.985 0.002 247);
+  --foreground: oklch(0.21 0.006 285.885);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.006 285.885);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.006 285.885);
+  /* keep brand CTA */
+  --primary: oklch(0.597 0.133 40.643);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.967 0.003 264.542);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.003 264.542);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.003 264.542);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0.004 264.531);
+  --input: oklch(0.922 0.004 264.531);
+  --ring: oklch(0.597 0.133 40.643);
+  --chart-1: oklch(0.597 0.133 40.643);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.546 0.245 262.881);
+  --chart-4: oklch(0.769 0.188 70.08);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.995 0 0);
+  --sidebar-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-primary: oklch(0.597 0.133 40.643);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.967 0.003 264.542);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.922 0.004 264.531);
+  --sidebar-ring: oklch(0.597 0.133 40.643);
+  color-scheme: light;
+}
+
+.admin-shell ::-webkit-scrollbar-thumb {
+  background: oklch(0.78 0.01 264);
+}
+
+.admin-shell {
+  scrollbar-color: oklch(0.78 0.01 264) transparent;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.792 0.209 151.711);
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.145 0.004 285.823);
+  --foreground: oklch(0.985 0.002 247);
+  --card: oklch(0.205 0.006 285.885);
+  --card-foreground: oklch(0.985 0.002 247);
+  --popover: oklch(0.205 0.006 285.885);
+  --popover-foreground: oklch(0.985 0.002 247);
+  --primary: oklch(0.68 0.12 42);
+  --primary-foreground: oklch(0.145 0.004 285.823);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0.002 247);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0.002 247);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.792 0.209 151.711);
-  --chart-1: oklch(0.792 0.209 151.711);
+  --ring: oklch(0.68 0.12 42);
+  --chart-1: oklch(0.68 0.12 42);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.792 0.209 151.711);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar: oklch(0.205 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0.002 247);
+  --sidebar-primary: oklch(0.68 0.12 42);
+  --sidebar-primary-foreground: oklch(0.145 0.004 285.823);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0.002 247);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.792 0.209 151.711);
+  --sidebar-ring: oklch(0.68 0.12 42);
 }
 
 @layer base {
@@ -124,7 +182,7 @@
     @apply bg-background text-foreground font-sans;
   }
 
-  /* Green scrollbar */
+  /* Brand scrollbar */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;

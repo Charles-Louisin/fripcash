@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { DataTable } from "@/components/admin/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -12,8 +12,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAdminArticles, useUpdateArticleStatus } from "@/hooks/use-admin";
+import { mockAdminArticles, filterMockArticles } from "@/lib/admin-mock-data";
+import {
+  LISTING_DESTINATIONS,
+  listingDestinationLabels,
+  type ListingDestination,
+} from "@/lib/seller-domain";
 import { useToast } from "@/components/ui/toast";
-import { FiSearch, FiMoreHorizontal, FiCheck, FiX, FiFlag, FiEye, FiTrash2 } from "react-icons/fi";
+import { FiSearch, FiMoreHorizontal, FiCheck, FiX, FiFlag, FiEye } from "react-icons/fi";
 
 const statusConfig: Record<string, { label: string; variant: "warning" | "success" | "destructive" }> = {
   pending: { label: "En attente", variant: "warning" },
@@ -28,13 +34,18 @@ export default function ArticlesPage() {
   const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("all");
+  const [destinationFilter, setDestinationFilter] = useState("all");
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
 
   const statusParam = tab === "all" ? undefined : tab;
-  const { data, isLoading } = useAdminArticles({ status: statusParam, q: search || undefined });
+  const { data, isLoading, isError } = useAdminArticles({ status: statusParam, q: search || undefined });
   const updateStatus = useUpdateArticleStatus();
 
-  const articles = data?.data ?? [];
+  const articles = useMemo(() => {
+    const api = data?.data ?? [];
+    if (api.length > 0) return api;
+    return filterMockArticles(mockAdminArticles, search, tab, destinationFilter);
+  }, [data, search, tab, destinationFilter]);
 
   const handleApprove = (article: any) => {
     updateStatus.mutate(
@@ -81,6 +92,20 @@ export default function ArticlesPage() {
       header: "Catégorie",
       className: "hidden md:table-cell",
       render: (a: any) => <span className="text-muted-foreground">{a.category}</span>,
+    },
+    {
+      key: "destination",
+      header: "Univers",
+      className: "hidden lg:table-cell",
+      render: (a: any) => {
+        const dest = a.listingDestination as ListingDestination | undefined;
+        if (!dest) return <span className="text-muted-foreground text-xs">—</span>;
+        return (
+          <Badge variant="secondary" className="font-normal">
+            {listingDestinationLabels[dest] ?? dest}
+          </Badge>
+        );
+      },
     },
     {
       key: "price",
@@ -153,7 +178,7 @@ export default function ArticlesPage() {
     },
   ];
 
-  if (isLoading) {
+  if (isLoading && !isError && articles.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -165,7 +190,12 @@ export default function ArticlesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Articles</h1>
-        <p className="text-sm text-muted-foreground mt-1">Modérer les annonces publiées</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Modérer les annonces par univers (Seconde main, Articles neufs, Quartier, Enseignes)
+        </p>
+        {(isError || !data?.data?.length) && (
+          <p className="text-xs text-amber-600 mt-1">Données de démonstration</p>
+        )}
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -176,7 +206,7 @@ export default function ArticlesPage() {
         </TabsList>
 
         <TabsContent value={tab}>
-          <div className="flex flex-col sm:flex-row gap-3 mt-4">
+          <div className="flex flex-col sm:flex-row gap-3 mt-4 flex-wrap">
             <div className="relative flex-1 max-w-sm">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
@@ -187,6 +217,18 @@ export default function ArticlesPage() {
                 className="w-full h-9 pl-9 pr-4 rounded-lg border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
               />
             </div>
+            <select
+              value={destinationFilter}
+              onChange={(e) => setDestinationFilter(e.target.value)}
+              className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="all">Tous les univers</option>
+              {LISTING_DESTINATIONS.map((dest) => (
+                <option key={dest} value={dest}>
+                  {listingDestinationLabels[dest]}
+                </option>
+              ))}
+            </select>
           </div>
 
           <p className="text-sm text-muted-foreground mt-4">
@@ -230,6 +272,16 @@ export default function ArticlesPage() {
                 <span className="text-muted-foreground">Catégorie</span>
                 <span className="font-medium">{selectedArticle.category}</span>
               </div>
+              {selectedArticle.listingDestination && (
+                <div className="flex justify-between py-2 border-b border-border">
+                  <span className="text-muted-foreground">Univers accueil</span>
+                  <span className="font-medium">
+                    {listingDestinationLabels[
+                      selectedArticle.listingDestination as ListingDestination
+                    ] ?? selectedArticle.listingDestination}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Prix</span>
                 <span className="font-bold text-primary">{(selectedArticle.price || 0).toLocaleString("fr-FR")} GNF</span>

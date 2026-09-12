@@ -8,12 +8,21 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAdminUsers, useUpdateUserStatus } from "@/hooks/use-admin";
+import { mockAdminUsers, filterMockUsers } from "@/lib/admin-mock-data";
+import {
+  ACCOUNT_ROLES,
+  accountRoleLabels,
+  listingDestinationLabels,
+  shopKindLabels,
+  type AccountRole,
+  type ListingDestination,
+  type ShopKind,
+} from "@/lib/seller-domain";
 import { useToast } from "@/components/ui/toast";
-import { FiSearch, FiMoreHorizontal, FiEye, FiShield, FiSlash, FiTrash2 } from "react-icons/fi";
+import { FiSearch, FiMoreHorizontal, FiEye, FiShield, FiSlash } from "react-icons/fi";
 
 const statusConfig: Record<string, { label: string; variant: "success" | "destructive" | "warning" }> = {
   active: { label: "Actif", variant: "success" },
@@ -25,12 +34,17 @@ export default function UtilisateursPage() {
   const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
 
-  const { data, isLoading } = useAdminUsers({ status: statusFilter === "all" ? undefined : statusFilter, q: search || undefined });
+  const { data, isLoading, isError } = useAdminUsers({ status: statusFilter === "all" ? undefined : statusFilter, q: search || undefined });
   const updateStatus = useUpdateUserStatus();
 
-  const users = data?.data ?? [];
+  const users = useMemo(() => {
+    const api = data?.data ?? [];
+    if (api.length > 0) return api;
+    return filterMockUsers(mockAdminUsers, search, statusFilter, roleFilter);
+  }, [data, search, statusFilter, roleFilter]);
 
   const handleBan = (user: any) => {
     const newStatus = user.status === "banned" ? "active" : "banned";
@@ -65,9 +79,41 @@ export default function UtilisateursPage() {
       ),
     },
     {
+      key: "role",
+      header: "Rôle",
+      className: "hidden md:table-cell",
+      render: (u: any) => {
+        const role = (u.role as AccountRole) || "acheteur";
+        return (
+          <div className="space-y-1">
+            <Badge variant="secondary">{accountRoleLabels[role] ?? role}</Badge>
+            {u.shopPendingVerification && (
+              <p className="text-[10px] text-amber-600 font-medium">Validation boutique</p>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "destination",
+      header: "Univers",
+      className: "hidden lg:table-cell",
+      render: (u: any) => {
+        const dest = u.listingDestination as ListingDestination | undefined;
+        if (!dest || u.role === "acheteur" || u.role === "livreur") {
+          return <span className="text-muted-foreground text-xs">—</span>;
+        }
+        return (
+          <span className="text-xs text-muted-foreground">
+            {listingDestinationLabels[dest] ?? dest}
+          </span>
+        );
+      },
+    },
+    {
       key: "phone",
       header: "Téléphone",
-      className: "hidden md:table-cell",
+      className: "hidden xl:table-cell",
       render: (u: any) => <span className="text-muted-foreground">{u.phone}</span>,
     },
     {
@@ -126,7 +172,7 @@ export default function UtilisateursPage() {
     },
   ];
 
-  if (isLoading) {
+  if (isLoading && !isError && users.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -138,10 +184,15 @@ export default function UtilisateursPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Utilisateurs</h1>
-        <p className="text-sm text-muted-foreground mt-1">Gérer les comptes utilisateurs</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Rôles app : acheteur, particulier, boutique, commerce local, grande surface, livreur
+        </p>
+        {(isError || !data?.data?.length) && (
+          <p className="text-xs text-amber-600 mt-1">Données de démonstration</p>
+        )}
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
@@ -161,6 +212,18 @@ export default function UtilisateursPage() {
           <option value="active">Actif</option>
           <option value="pending">En attente</option>
           <option value="banned">Banni</option>
+        </select>
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          <option value="all">Tous les rôles</option>
+          {ACCOUNT_ROLES.map((role) => (
+            <option key={role} value={role}>
+              {accountRoleLabels[role]}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -199,6 +262,50 @@ export default function UtilisateursPage() {
                 <span className="font-medium text-foreground">{selectedUser.phone}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-border">
+                <span className="text-muted-foreground">Rôle</span>
+                <span className="font-medium text-foreground">
+                  {accountRoleLabels[(selectedUser.role as AccountRole) || "acheteur"] ??
+                    selectedUser.role}
+                </span>
+              </div>
+              {selectedUser.shopName && (
+                <div className="flex justify-between py-2 border-b border-border">
+                  <span className="text-muted-foreground">Boutique</span>
+                  <span className="font-medium text-foreground">{selectedUser.shopName}</span>
+                </div>
+              )}
+              {selectedUser.shopKind && (
+                <div className="flex justify-between py-2 border-b border-border">
+                  <span className="text-muted-foreground">Type boutique</span>
+                  <span className="font-medium text-foreground">
+                    {shopKindLabels[selectedUser.shopKind as ShopKind] ?? selectedUser.shopKind}
+                  </span>
+                </div>
+              )}
+              {selectedUser.zoneId && selectedUser.role === "livreur" && (
+                <div className="flex justify-between py-2 border-b border-border">
+                  <span className="text-muted-foreground">Zone livreur</span>
+                  <span className="font-medium text-foreground">{selectedUser.zoneId}</span>
+                </div>
+              )}
+              {selectedUser.listingDestination &&
+                selectedUser.role !== "acheteur" &&
+                selectedUser.role !== "livreur" && (
+                <div className="flex justify-between py-2 border-b border-border">
+                  <span className="text-muted-foreground">Univers accueil</span>
+                  <span className="font-medium text-foreground">
+                    {listingDestinationLabels[
+                      selectedUser.listingDestination as ListingDestination
+                    ] ?? selectedUser.listingDestination}
+                  </span>
+                </div>
+              )}
+              {selectedUser.shopPendingVerification && (
+                <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                  Validation manuelle requise (commerce local / grande surface) — comme dans l&apos;app.
+                </div>
+              )}
+              <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Inscrit le</span>
                 <span className="font-medium text-foreground">{new Date(selectedUser.createdAt).toLocaleDateString("fr-FR")}</span>
               </div>
@@ -212,7 +319,7 @@ export default function UtilisateursPage() {
               </div>
               <div className="flex justify-between py-2">
                 <span className="text-muted-foreground">Solde</span>
-                <span className="font-bold text-primary">{(selectedUser.walletBalance ?? 0).toLocaleString("fr-FR")} GNF</span>
+                <span className="font-bold text-foreground">{(selectedUser.walletBalance ?? 0).toLocaleString("fr-FR")} GNF</span>
               </div>
             </div>
           </div>

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { FiSend, FiCheck } from "react-icons/fi";
 import { useToast } from "@/components/ui/toast";
-import { newsletterApi } from "@/lib/api";
 
 export function NewsletterSection() {
   const [email, setEmail] = useState("");
@@ -16,16 +15,11 @@ export function NewsletterSection() {
     e.preventDefault();
     if (!email || loading) return;
     setLoading(true);
-    try {
-      const res = await newsletterApi.subscribe(email);
-      setSubmitted(true);
-      setEmail("");
-      toast(res.message || "Merci ! Tu es inscrit à la newsletter.");
-    } catch (err: any) {
-      toast(err?.message || "Une erreur est survenue. Réessaie.", "error");
-    } finally {
-      setLoading(false);
-    }
+    await new Promise((r) => setTimeout(r, 400));
+    setSubmitted(true);
+    setEmail("");
+    toast("Merci ! Tu es inscrit à la newsletter (démo).");
+    setLoading(false);
   };
 
   return (

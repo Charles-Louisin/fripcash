@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { authApi, setToken } from "@/lib/api";
+import { setToken } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { mockMe, mockMeExtras } from "@/lib/consumer-mock-data";
 import {
   FiUser,
   FiPhone,
@@ -61,6 +63,7 @@ function generatePseudos(firstName: string, lastName: string): string[] {
 export default function InscriptionPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -106,27 +109,22 @@ export default function InscriptionPage() {
     }
 
     setLoading(true);
-    try {
-      const res = await authApi.register({
-        phone: fullPhone,
-        password,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        pseudo: pseudo.trim(),
-      });
-      if (res.token) {
-        setToken(res.token);
-        toast("Compte créé ! Bienvenue sur FripCash.");
-        router.push("/");
-      } else {
-        toast("Compte créé ! Connecte-toi avec ton numéro et ton mot de passe.", "success");
-        router.push("/connexion");
-      }
-    } catch (err: any) {
-      toast(err?.message || "Erreur lors de l'inscription.", "error");
-    } finally {
-      setLoading(false);
-    }
+    await new Promise((r) => setTimeout(r, 400));
+    const user = {
+      ...mockMe,
+      ...mockMeExtras,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      pseudo: pseudo.trim(),
+      phone: fullPhone,
+      _id: `u_${Date.now()}`,
+      id: `u_${Date.now()}`,
+    };
+    setToken("mock-token");
+    queryClient.setQueryData(["me"], user);
+    toast("Compte créé ! Bienvenue sur FripCash (démo).");
+    router.push("/");
+    setLoading(false);
   };
 
   return (

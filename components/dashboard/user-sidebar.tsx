@@ -15,6 +15,7 @@ import {
   FiSearch,
   FiLogOut,
   FiAlertCircle,
+  FiSmartphone,
 } from "react-icons/fi";
 import { MdOutlineDashboard } from "react-icons/md";
 import { IoWalletOutline } from "react-icons/io5";
@@ -22,18 +23,77 @@ import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/toast";
 import { useProfileStore } from "@/stores/profile-store";
+import {
+  APP_STORE_URL,
+  PLAY_STORE_URL,
+} from "@/components/app-store-badges";
 
-const navItems = [
-  { href: "/dashboard", icon: MdOutlineDashboard, label: "Vue d'ensemble" },
+function AppPromo({ collapsed }: { collapsed?: boolean }) {
+  if (collapsed) {
+    return (
+      <a
+        href={PLAY_STORE_URL !== "#" ? PLAY_STORE_URL : APP_STORE_URL}
+        className="flex items-center justify-center rounded-lg p-2 text-primary hover:bg-primary/10"
+        title="Télécharger l'app"
+      >
+        <FiSmartphone className="h-5 w-5" />
+      </a>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <FiSmartphone className="h-3.5 w-3.5" />
+        </div>
+        <p className="text-xs font-semibold text-foreground">App FripCash</p>
+      </div>
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        Livreur, boutique de quartier, enseignes — dans l&apos;app.
+      </p>
+      <div className="flex gap-2">
+        <a
+          href={APP_STORE_URL}
+          className="flex-1 rounded-md bg-zinc-950 px-2 py-1.5 text-center text-[10px] font-medium text-white hover:opacity-90"
+        >
+          App Store
+        </a>
+        <a
+          href={PLAY_STORE_URL}
+          className="flex-1 rounded-md bg-zinc-950 px-2 py-1.5 text-center text-[10px] font-medium text-white hover:opacity-90"
+        >
+          Play Store
+        </a>
+      </div>
+    </div>
+  );
+}
+
+const accountNav = [
+  { href: "/dashboard", icon: MdOutlineDashboard, label: "Vue d'ensemble", exact: true },
   { href: "/dashboard/profil", icon: FiUser, label: "Mon profil" },
-  { href: "/dashboard/articles", icon: FiShoppingBag, label: "Mes articles" },
   { href: "/dashboard/commandes", icon: FiShoppingCart, label: "Mes commandes" },
-  { href: "/dashboard/porte-monnaie", icon: IoWalletOutline, label: "Porte-monnaie" },
   { href: "/dashboard/favoris", icon: FiHeart, label: "Mes favoris" },
   { href: "/dashboard/messages", icon: FiMessageSquare, label: "Messages" },
   { href: "/dashboard/notifications", icon: FiBell, label: "Notifications" },
+];
+
+const sellNav = [
+  { href: "/dashboard/articles", icon: FiShoppingBag, label: "Mes annonces" },
+  { href: "/dashboard/porte-monnaie", icon: IoWalletOutline, label: "Porte-monnaie" },
+];
+
+const settingsNav = [
   { href: "/dashboard/parametres", icon: FiSettings, label: "Paramètres" },
 ];
+
+const navItems = [...accountNav, ...sellNav, ...settingsNav];
+
+function isNavActive(pathname: string, href: string, exact?: boolean) {
+  if (exact || href === "/dashboard") return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 // ---- Logout Confirmation Dialog ----
 function LogoutDialog({
@@ -156,13 +216,15 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
       )}
 
       {!collapsed && (
-        <p className="px-5 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Menu</p>
+        <p className="px-5 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+          Mon compte
+        </p>
       )}
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
-        {filteredNav.map((item) => {
-          const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+        {(search ? filteredNav : accountNav).map((item) => {
+          const isActive = isNavActive(pathname, item.href, (item as { exact?: boolean }).exact);
           return (
             <Link
               key={item.href}
@@ -181,6 +243,62 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
             </Link>
           );
         })}
+
+        {!search && (
+          <>
+            {!collapsed && (
+              <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Vente légère
+              </p>
+            )}
+            {sellNav.map((item) => {
+              const isActive = isNavActive(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    collapsed && "justify-center px-2"
+                  )}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <item.icon className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span>{item.label}</span>}
+                </Link>
+              );
+            })}
+            {!collapsed && (
+              <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Réglages
+              </p>
+            )}
+            {settingsNav.map((item) => {
+              const isActive = isNavActive(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    collapsed && "justify-center px-2"
+                  )}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <item.icon className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span>{item.label}</span>}
+                </Link>
+              );
+            })}
+          </>
+        )}
+
         {search && filteredNav.length === 0 && !collapsed && (
           <p className="text-xs text-muted-foreground text-center py-4">Aucun résultat</p>
         )}
@@ -188,6 +306,7 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
 
       {/* Bottom */}
       <div className="border-t border-sidebar-border p-3 space-y-2">
+        <AppPromo collapsed={collapsed} />
         <button
           type="button"
           onClick={() => setLogoutOpen(true)}
@@ -200,18 +319,6 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
           <FiLogOut className="h-5 w-5 shrink-0" />
           {!collapsed && <span>Se déconnecter</span>}
         </button>
-
-        {!collapsed && (
-          <div className="flex items-center gap-2 px-2 pt-1">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <span className="text-xs font-bold text-primary">FC</span>
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-sidebar-foreground truncate">FripCash</p>
-              <p className="text-[10px] text-muted-foreground">Mon espace</p>
-            </div>
-          </div>
-        )}
       </div>
 
       <LogoutDialog
@@ -274,11 +381,13 @@ export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: (
           </div>
         </div>
 
-        <p className="px-5 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Menu</p>
+        <p className="px-5 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+          Mon compte
+        </p>
 
         <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
-          {filteredNav.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+          {(search ? filteredNav : accountNav).map((item) => {
+            const isActive = isNavActive(pathname, item.href, (item as { exact?: boolean }).exact);
             return (
               <Link
                 key={item.href}
@@ -296,9 +405,59 @@ export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: (
               </Link>
             );
           })}
+
+          {!search && (
+            <>
+              <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Vente légère
+              </p>
+              {sellNav.map((item) => {
+                const isActive = isNavActive(pathname, item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    )}
+                  >
+                    <item.icon className="h-5 w-5 shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+              <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Réglages
+              </p>
+              {settingsNav.map((item) => {
+                const isActive = isNavActive(pathname, item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    )}
+                  >
+                    <item.icon className="h-5 w-5 shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </>
+          )}
         </nav>
 
-        <div className="border-t border-sidebar-border p-3">
+        <div className="border-t border-sidebar-border p-3 space-y-2">
+          <AppPromo />
           <button
             type="button"
             onClick={() => setLogoutOpen(true)}

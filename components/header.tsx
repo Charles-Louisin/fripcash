@@ -197,7 +197,7 @@ export function Header() {
           {/* Logo */}
           <Link href="/" className="shrink-0 -my-12">
             <Image
-              src="/images/logo.png"
+              src="/images/fripcash-logo.png"
               alt="FripCash"
               width={500}
               height={500}
@@ -518,7 +518,7 @@ export function Header() {
         <div className="flex items-center justify-between h-16 px-4 border-b">
           <Link href="/" className="shrink-0 -my-10">
             <Image
-              src="/images/logo.png"
+              src="/images/fripcash-logo.png"
               alt="FripCash"
               width={500}
               height={500}

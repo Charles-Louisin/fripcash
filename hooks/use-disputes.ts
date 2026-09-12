@@ -1,28 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { disputesApi } from "@/lib/api";
+import { delay } from "@/lib/consumer-mock-data";
 
 export function useMyDisputes() {
   return useQuery({
-    queryKey: ["disputes"],
-    queryFn: async () => {
-      const res = await disputesApi.getMy();
-      return res.data;
-    },
+    queryKey: ["disputes", "me"],
+    queryFn: () => delay([]),
   });
 }
 
 export function useCreateDispute() {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: (body: {
+    mutationFn: async (body: {
       orderId: string;
       reason: string;
-      description: string;
-    }) => disputesApi.create(body),
+      details?: string;
+    }) => delay({ success: true, data: { _id: `disp_${Date.now()}`, ...body } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["disputes"] });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
   });
 }

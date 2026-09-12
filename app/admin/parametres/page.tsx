@@ -15,8 +15,9 @@ export default function ParametresPage() {
   const [contactPhone, setContactPhone] = useState("+224 6XX XXX XXX");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
 
-  // Commission settings
-  const [commissionRate, setCommissionRate] = useState(10);
+  // Commission settings — aligned with Flutter (8% standard, 5% proximité)
+  const [commissionRate, setCommissionRate] = useState(8);
+  const [proximityCommissionRate, setProximityCommissionRate] = useState(5);
   const [minCommission, setMinCommission] = useState(500);
 
   // Notification settings
@@ -30,7 +31,10 @@ export default function ParametresPage() {
   };
 
   const handleSaveCommission = () => {
-    toast(`Commission mise à jour : ${commissionRate}%`, "success");
+    toast(
+      `Commissions mises à jour : ${commissionRate}% standard / ${proximityCommissionRate}% proximité`,
+      "success"
+    );
   };
 
   const handleSaveNotifications = () => {
@@ -126,12 +130,14 @@ export default function ParametresPage() {
         {/* Commission Tab */}
         <TabsContent value="commission">
           <div className="rounded-xl border border-border bg-card p-6 mt-4 max-w-2xl">
-            <h3 className="font-semibold text-foreground mb-4">Paramètres de commission</h3>
+            <h3 className="font-semibold text-foreground mb-2">Paramètres de commission</h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Aligné avec l&apos;app : 8 % boutique / enseigne / particulier, 5 % boutiques de proximité (commerce local).
+            </p>
             <div className="space-y-6">
-              {/* Commission rate */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Taux de commission (%)
+                  Commission standard (%) — boutique, enseigne, particulier
                 </label>
                 <div className="flex items-center gap-4">
                   <input
@@ -154,13 +160,39 @@ export default function ParametresPage() {
                     <span className="text-sm text-muted-foreground">%</span>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  FripCash prélèvera {commissionRate}% sur chaque vente. Pour un article vendu à
-                  10 000 F, la commission sera de {(10000 * commissionRate / 100).toLocaleString("fr-FR")} F.
-                </p>
               </div>
 
-              {/* Minimum commission */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  Commission proximité (%) — boutiques de quartier
+                </label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min={1}
+                    max={30}
+                    value={proximityCommissionRate}
+                    onChange={(e) => setProximityCommissionRate(Number(e.target.value))}
+                    className="flex-1 h-2 rounded-full appearance-none bg-muted cursor-pointer accent-primary"
+                  />
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={proximityCommissionRate}
+                      onChange={(e) =>
+                        setProximityCommissionRate(
+                          Math.min(30, Math.max(1, Number(e.target.value)))
+                        )
+                      }
+                      className="w-16 h-9 rounded-lg border border-input bg-background px-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <span className="text-sm text-muted-foreground">%</span>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
                   Commission minimale (GNF)
@@ -176,23 +208,33 @@ export default function ParametresPage() {
                 </p>
               </div>
 
-              {/* Preview */}
               <div className="bg-muted/50 rounded-lg p-4">
-                <p className="text-xs font-medium text-muted-foreground mb-3">Aperçu des commissions</p>
-                <div className="space-y-2">
-                  {[5000, 10000, 25000, 50000, 100000].map((price) => {
-                    const comm = Math.max(minCommission, Math.round(price * commissionRate / 100));
-                    return (
-                      <div key={price} className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">
-                          Article à {price.toLocaleString("fr-FR")} F
-                        </span>
-                        <span className="font-medium text-primary">
-                          {comm.toLocaleString("fr-FR")} F
-                        </span>
-                      </div>
-                    );
-                  })}
+                <p className="text-xs font-medium text-muted-foreground mb-3">
+                  Aperçu — article à 10 000 F
+                </p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Standard ({commissionRate}%)</span>
+                    <span className="font-medium text-primary">
+                      {Math.max(
+                        minCommission,
+                        Math.round((10000 * commissionRate) / 100)
+                      ).toLocaleString("fr-FR")}{" "}
+                      F
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      Proximité ({proximityCommissionRate}%)
+                    </span>
+                    <span className="font-medium text-primary">
+                      {Math.max(
+                        minCommission,
+                        Math.round((10000 * proximityCommissionRate) / 100)
+                      ).toLocaleString("fr-FR")}{" "}
+                      F
+                    </span>
+                  </div>
                 </div>
               </div>
 

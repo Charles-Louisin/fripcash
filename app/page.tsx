@@ -8,6 +8,7 @@ import { CtaSection } from "@/components/cta-section";
 import { TestimonialsSection } from "@/components/testimonials-section";
 import { FaqSection } from "@/components/faq-section";
 import { NewsletterSection } from "@/components/newsletter-section";
+import { AppDownloadSection } from "@/components/app-download-section";
 import { Footer } from "@/components/footer";
 import { AppSheet } from "@/components/app-sheet";
 
@@ -28,6 +29,7 @@ export default function Home() {
       <NewProductsSlider />
       <TestimonialsSection />
       <CtaSection />
+      <AppDownloadSection />
       <FaqSection />
       <NewsletterSection />
       <Footer />

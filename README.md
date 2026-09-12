@@ -1,5 +1,15 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Backend contract (give to BE)
+
+Shared roles / upgrade / listing rules for app + site:
+
+→ [`docs/backend/`](./docs/backend/README.md)
+
+**Detailed multi-file SRS pack** (send the whole folder — do not merge on our side):
+
+→ [`docs/srs/`](./docs/srs/README.md)
+
 ## Getting Started
 
 First, run the development server:

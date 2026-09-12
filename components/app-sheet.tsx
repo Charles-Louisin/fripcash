@@ -90,7 +90,7 @@ export function AppSheet() {
             <SheetHeader className="px-6 pt-6 pb-6">
               <SheetTitle className="flex items-center">
                 <Image
-                  src="/images/logo.png"
+                  src="/images/fripcash-logo.png"
                   alt="FripCash"
                   width={120}
                   height={120}
