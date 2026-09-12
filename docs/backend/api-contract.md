@@ -89,6 +89,24 @@ Server sets `listingDestination` from seller profile.
 - Commission computed server-side.  
 - Dispute resolve: **admin only**.
 
+### Disputes (see `../srs/18-disputes-and-refunds.md`)
+
+| Method | Path | Notes |
+|--------|------|-------|
+| POST | `/orders/:id/disputes` | Buyer/seller opens litige (reason) → escrow locked |
+| GET | `/admin/disputes` | Admin queue |
+| POST | `/admin/disputes/:id/resolve` | `{ outcome: refund_buyer \| partial_refund \| release_seller }` |
+
+### Offers & chat
+
+| Method | Path |
+|--------|------|
+| POST | `/listings/:id/offers` |
+| POST | `/offers/:id/accept` |
+| POST | `/offers/:id/refuse` |
+| GET/POST | `/conversations`, `/conversations/:id/messages` |
+| POST | `/reports` | Listing/user signalement (moderation, not escrow) |
+
 ---
 
 ## Courier

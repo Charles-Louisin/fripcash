@@ -1,19 +1,29 @@
-# 08 — Offers and messaging
+# 08 — Offers (“bids”) and messaging
 
-## 8.1 Offers (negotiation)
-- Buyer proposes amount below display price on eligible listings.  
-- States: `pending` | `accepted` | `refused`.  
-- Seller accepts/refuses from seller offers inbox.  
-- **Disabled** for enseigne listings (and UI hides “demander”).  
-- On accept: BE defines whether price locks into checkout or creates a reserved offer token.
+## 8.1 Offers / negotiation (“Faire une offre” ≈ bid)
+This is **buyer ↔ seller** price negotiation — **not** an admin flow.
 
-## 8.2 Messaging
-- Thread between buyer and seller (and support).  
+1. Buyer opens product → **Faire une offre** (hidden for enseigne).  
+2. Amount must be **lower** than display price.  
+3. Offer stored as `pending`.  
+4. Seller inbox: **accept** or **refuse**.  
+5. On accept → negotiated price usable at checkout (BE defines lock/token).  
+6. Notify both parties.
+
+States: `pending` | `accepted` | `refused`.
+
+## 8.2 Chat with seller
+- Thread between buyer and seller (support/admin may read for disputes).  
 - Message types: text, image.  
-- System cards / events (examples from product UI): order summary, escrow held, waiting confirmation, payment released, dispute locked, out for delivery, confirm receipt.  
-- Enseigne threads may set `messagingDisabled` / limited actions.
+- System cards: order summary, escrow held, waiting confirmation, payment released, **dispute locked**, out for delivery, confirm receipt.  
+- From order / confirm-receipt UI, buyer can jump to **open dispute** (see [18-disputes-and-refunds.md](./18-disputes-and-refunds.md)).  
+- Enseigne: messaging / “demander” may be disabled.
 
-## 8.3 Requirements for BE
+## 8.3 What is *not* in this file
+- Admin refund / partial / release → **file 18**  
+- Listing signalement (report) → **file 18**
+
+## 8.4 Requirements for BE
 - AuthZ: only participants (or admin/support) read a thread.  
 - Persist media for chat images.  
 - Push / in-app notification on new message and offer events.
