@@ -10,7 +10,12 @@
 2. Choose fulfillment when applicable (`courier` | `pickup` | `shopLocalDelivery`).  
 3. Order summary (subtotal, shipping, total GNF).  
 4. Pay via **Orange Money** (phone).  
-5. Confirmation; proximity orders may show **pickup code**.
+5. Confirmation; proximity orders show a **4-digit pickup code** (code de retrait) — buyer + shop; not used for courier deliveries.
+
+### Orange Money
+- App collects OM phone + confirm (mock).  
+- Real **OM PIN** is via Orange Money / PSP — FripCash must not store it.  
+- See [19-codes-and-pins.md](./19-codes-and-pins.md).
 
 ## 6.3 Fulfillment defaults
 | Shop kind | Default |

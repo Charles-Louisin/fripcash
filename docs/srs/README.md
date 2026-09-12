@@ -26,5 +26,6 @@
 | 15 | [15-platforms-web-vs-app.md](./15-platforms-web-vs-app.md) | Shared API, different UX depth |
 | 16 | [16-open-questions-and-out-of-scope.md](./16-open-questions-and-out-of-scope.md) | Gaps / deferred |
 | 18 | [18-disputes-and-refunds.md](./18-disputes-and-refunds.md) | **Litige → admin inspect → full/partial refund / release** |
+| 19 | [19-codes-and-pins.md](./19-codes-and-pins.md) | **OTP, pickup code (4 digits), Orange Money PIN** |
 
 **Rule for implementers:** Clients (Flutter + Next.js) are UI-complete against these rules. The **API must enforce** authorization, commissions, verification, and escrow — UI gates are not security.
