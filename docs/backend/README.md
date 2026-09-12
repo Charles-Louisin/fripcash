@@ -10,6 +10,7 @@ Clients are **UI-complete against these rules**. The backend must enforce them; 
 | Doc | Purpose |
 |-----|---------|
 | [authentication.md](./authentication.md) | **Auth surfaces:** app vs web dashboard vs admin vs courier |
+| [disputes-refunds.md](./disputes-refunds.md) | **Litige → admin refund/partial/release** (+ offers/chat pointer) |
 | [roles-and-capabilities.md](./roles-and-capabilities.md) | Canonical roles, shop kinds, permission matrix |
 | [account-upgrade.md](./account-upgrade.md) | Upgrade (not role-switch), KYC, history |
 | [listing-destinations.md](./listing-destinations.md) | Where listings appear + condition rules |

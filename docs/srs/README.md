@@ -16,7 +16,7 @@
 | 05 | [05-listings.md](./05-listings.md) | Create/edit listings, photos |
 | 06 | [06-cart-checkout-payments.md](./06-cart-checkout-payments.md) | Cart, Orange Money |
 | 07 | [07-orders-and-fulfillment.md](./07-orders-and-fulfillment.md) | Order pipeline |
-| 08 | [08-offers-and-messaging.md](./08-offers-and-messaging.md) | Offers, chat |
+| 08 | [08-offers-and-messaging.md](./08-offers-and-messaging.md) | Offers (“bids”), chat seller |
 | 09 | [09-wallet-escrow-commissions.md](./09-wallet-escrow-commissions.md) | Money flows |
 | 10 | [10-seller-tools.md](./10-seller-tools.md) | Dashboard, Excel, library |
 | 11 | [11-courier.md](./11-courier.md) | Livreur app |
@@ -25,5 +25,6 @@
 | 14 | [14-non-functional.md](./14-non-functional.md) | i18n, security, devices |
 | 15 | [15-platforms-web-vs-app.md](./15-platforms-web-vs-app.md) | Shared API, different UX depth |
 | 16 | [16-open-questions-and-out-of-scope.md](./16-open-questions-and-out-of-scope.md) | Gaps / deferred |
+| 18 | [18-disputes-and-refunds.md](./18-disputes-and-refunds.md) | **Litige → admin inspect → full/partial refund / release** |
 
 **Rule for implementers:** Clients (Flutter + Next.js) are UI-complete against these rules. The **API must enforce** authorization, commissions, verification, and escrow — UI gates are not security.
