@@ -6,163 +6,196 @@ Related: [08-offers-and-messaging.md](./08-offers-and-messaging.md), [09-wallet-
 
 ---
 
-## 1. Two different “talk to admin” concepts
-
-| Concept | Who starts | Where | Goal |
-|---------|------------|-------|------|
-| **Offer / “bid”** (“Faire une offre”) | Buyer | Product detail | Negotiate price with **seller** (not admin) |
-| **Chat seller** | Buyer / seller | Inbox / product | Message the other party |
-| **Listing report** (signalement) | Any user | Product / profile | Flag scam, fake, inappropriate → **admin Signalements** queue |
-| **Order dispute / litige** | Buyer (or seller) | Order detail / chat system card | Escrow locked → **admin Litiges** → refund / release / partial |
-
-Do **not** mix signalement (moderation) with litige (money / escrow).
-
----
-
-## 2. Offers (“bids”) — already in product, short recap
-
-1. Buyer opens listing → **Faire une offre** (hidden on enseigne).  
-2. Amount must be **below** display price.  
-3. Offer → seller inbox: **accept** | **refuse**.  
-4. States: `pending` | `accepted` | `refused`.  
-5. On accept: BE locks negotiated price into checkout (exact mechanism BE chooses).  
-6. Notifications to both parties.
-
-Full rules: [08-offers-and-messaging.md](./08-offers-and-messaging.md).
-
----
-
-## 3. Chat with seller
-
-1. Buyer (or seller) opens thread.  
-2. Text / image messages.  
-3. System cards can appear: order summary, escrow held, out for delivery, **confirm receipt**, **dispute locked**.  
-4. From confirm-receipt / order context, buyer can open a **dispute** (see §4).  
-5. Enseigne: messaging / “demander” may be disabled.
-
----
-
-## 4. Order dispute → admin inspects → refund / release (REQUIRED FLOW)
-
-### 4.1 When buyer can open a dispute
-Typical triggers (app copy):
-- Item never arrived  
-- Damaged / not as described  
-- Other post-purchase problem  
-
-Suggested gate (confirm with ops):
-- Order is paid / in delivery / delivered (escrow still held or recently delivered).  
-- Not already `disputed` or `refunded`.  
-- Optional time window after delivery (open question in file 16).
-
-### 4.2 Buyer (or seller) opens dispute
-1. User opens **order detail** (or chat system card).  
-2. Taps **Ouvrir un litige** / send message to admin.  
-3. Writes **reason** (free text; optional photos later).  
-4. API creates dispute + sets order status → **`disputed`**.  
-5. **Escrow stays locked** (no auto payout to seller).  
-6. Parties see “dispute open / payment locked” in app + chat card.  
-7. **Admin** gets notification / item in **Litiges**.
-
-### 4.3 Admin review (web `/admin/litiges`)
-Statuses:
-| Status | Meaning |
-|--------|---------|
-| `open` | Just filed |
-| `under_review` | Admin inspecting (chat, delivery proof, payment history) |
-| `resolved` | Outcome applied |
-
-Admin may inspect:
-- Order + escrow amount  
-- Buyer / seller identities  
-- Dispute reason + evidence  
-- Related chat thread (read-only for staff)  
-- Delivery / courier events if any  
-
-### 4.4 Admin resolution actions (exactly three)
-| Outcome code | What happens to money | Order / wallet effect |
-|--------------|----------------------|------------------------|
-| `refund_buyer` | **Full refund** to buyer | Escrow → buyer; order → `refunded` (or equivalent) |
-| `partial_refund` | Part to buyer, remainder policy (usually rest to seller or held per rule) | Ledger: `partial_refund` + optional release of remainder |
-| `release_seller` | Claim rejected → **release escrow to seller** | Seller credited; dispute closed in seller’s favour |
-
-All three are **admin-only** APIs. Consumer tokens → 403.
-
-### 4.5 After resolve — back to users
-1. Dispute → `resolved` + `outcome` + `resolvedAt` + optional admin notes.  
-2. Wallet movements created (refund / partial / escrow_release).  
-3. Push / in-app notification to **buyer and seller**.  
-4. Chat may append a system card (“Refund issued” / “Payment released to seller”).  
-5. Order history shows final status; UI reflects escrow no longer locked.
+## 0. Escrow money model (must be true)
 
 ```text
-Buyer/Seller opens litige + reason
+Buyer pays (Orange Money)
         ↓
-Order = disputed · escrow LOCKED
+Funds = ESCROW HELD (pending — NOT in seller withdrawable balance yet)
         ↓
-Admin Litiges queue (open → under_review)
+Goods delivered / handed over
         ↓
-Admin chooses: refund_buyer | partial_refund | release_seller
+Buyer confirms receipt  ──OR──  auto-confirm after policy window (if product adds it)
         ↓
-Ledger updated · notifications · chat/order UI updated
-        ↓
-Dispute = resolved
+Funds RELEASED → seller wallet (then seller can withdraw)
+```
+
+**Until release:** money is **pending / locked**. Seller sees “en séquestre”, not spendable cash.
+
+| Event | Escrow |
+|-------|--------|
+| Payment success | Hold |
+| Buyer confirms OK | Release → seller |
+| Anyone opens litige | **Stay locked** (or re-lock if somehow mid-release) |
+| Seller voluntary refund | Release → buyer (full or amount seller chose) |
+| Admin resolve | Per outcome (refund / partial / release seller) |
+
+This protects both sides: buyer isn’t charged-and-gone if goods are bad; seller isn’t unpaid if buyer “plays victim” after damaging goods — admin (and evidence) decide.
+
+---
+
+## 1. Concepts (do not mix)
+
+| Concept | Who starts | Goal |
+|---------|------------|------|
+| **Offer / “bid”** | Buyer | Negotiate price with **seller** |
+| **Chat seller** | Buyer / seller | Message each other |
+| **Signalement** | Any user | Flag listing/user → admin moderation (**no escrow move**) |
+| **Litige / dispute** | **Buyer or seller** | Escrow stays locked → investigation → money outcome |
+| **Seller voluntary refund** | Seller only | Seller agrees to refund while funds still in escrow (no need to “win” a fight) |
+
+---
+
+## 2. Offers & chat (short)
+
+See [08-offers-and-messaging.md](./08-offers-and-messaging.md).  
+Dispute can be opened from order detail **or** from chat system cards (confirm receipt / dispute locked).
+
+---
+
+## 3. Who can open a litige (buyer AND seller)
+
+### 3.1 Buyer reasons (examples)
+- Never arrived  
+- Damaged / not as described  
+- Wrong item  
+
+### 3.2 Seller reasons (examples) — **required**
+Buyer may spoil / misuse the product then claim “it arrived broken” to get a refund. Seller must be able to:
+- Open their **own claim** on the same order  
+- Respond when admin asks “is there a problem?”  
+- Attach **camera evidence** of condition at handoff / packaging / returned state  
+
+### 3.3 Gates
+- Order paid; escrow still relevant (held or dispute window).  
+- Not already `resolved` / fully refunded.  
+- Both parties can add claims/messages on an open dispute (thread under the litige).
+
+---
+
+## 4. Evidence: camera capture only (anti-fraud)
+
+**Product rule for dispute evidence photos:**
+
+| Allowed | Not allowed |
+|---------|-------------|
+| **Live camera snap** in-app (`ImageSource.camera`) | Gallery / file import / screenshots from device |
+| Multiple snaps if needed | Pre-downloaded AI / stock / edited imports |
+
+**Why:** Gallery makes it trivial to upload AI or old fraud images. Camera raises the bar (still not perfect — note in open questions: EXIF, liveness, watermark with order id — BE/client enhancements later).
+
+Apply to:
+- Buyer dispute evidence  
+- Seller counter-claim evidence  
+- Optional: admin-requested “take a photo now” step  
+
+Client: dispute evidence picker = **camera only** (no gallery button).  
+BE: store media with `source=camera`, `capturedAt`, `orderId`, `uploaderRole`; reject uploads that are not from the dispute evidence endpoint if possible.
+
+Chat **general** images may still allow gallery (product decision); **litige evidence** = camera-only.
+
+---
+
+## 5. Investigation flow (admin ↔ parties)
+
+### 5.1 Open
+1. Buyer **or** seller opens litige + reason + camera evidence.  
+2. Order → `disputed`.  
+3. Escrow **locked**.  
+4. Admin Litiges queue: `open`.
+
+### 5.2 Admin contacts the other party
+Admin can send an **official dispute message** (in-app / push), e.g. to seller:
+
+> “Un litige a été ouvert sur la commande X. Y a-t-il un problème de ton côté ? Réponds Oui / Non et ajoute des preuves (caméra).”
+
+| Seller reply | Next |
+|--------------|------|
+| **Oui** (acknowledges issue) | Admin may refund / partial (or ask seller to use **voluntary refund**) |
+| **Non** + seller claim + camera proof | Admin keeps investigating both sides |
+| No reply within SLA | Admin decides with available evidence |
+
+Buyer can be asked the same way if **seller** opened the litige first.
+
+### 5.3 Seller voluntary refund (while money still pending)
+Because funds are still in escrow, **seller can choose to refund** without waiting for a “guilty” verdict:
+
+| Action | Effect |
+|--------|--------|
+| Seller **Rembourser (total)** | Escrow → buyer; dispute/order closed as refunded |
+| Seller **Rembourser (partial)** | Part → buyer; remainder → seller (or still held until confirm — BE documents) |
+| Seller **Contester** | Stays disputed; admin decides |
+
+Voluntary refund is a **seller** capability on disputed (or even pre-dispute delivered) orders while escrow held.  
+Admin can still override if abuse is detected.
+
+### 5.4 Admin final outcomes
+| Outcome | Money |
+|---------|--------|
+| `refund_buyer` | Full escrow → buyer |
+| `partial_refund` | Split per admin amount |
+| `release_seller` | Escrow → seller (buyer claim rejected / seller claim upheld) |
+
+Admin-only resolve API. Audited.
+
+### 5.5 After resolve
+- Notify buyer + seller  
+- Wallet ledger entries  
+- Chat/order system card  
+- Dispute `resolved`
+
+```text
+Payment → ESCROW HELD (seller cannot withdraw yet)
+                │
+     ┌──────────┼──────────┐
+     │          │          │
+ Buyer OK   Litige      Seller voluntary
+ confirm    (buyer or    refund
+     │      seller)         │
+     ▼          ▼          ▼
+ Release    LOCKED      Refund path
+ → seller   Admin asks other party
+            + camera evidence
+            + seller may refund
+            Admin: full / partial / release
 ```
 
 ---
 
-## 5. Listing / user signalements (reports) — separate queue
+## 6. Signalements (separate)
 
-1. User taps **Signaler** on a listing (or user).  
-2. Picks reason + optional comment.  
-3. Goes to admin **Signalements** (not Litiges).  
-4. Admin may unpublish listing, warn/suspend user — **no automatic escrow refund** (unless they also open/link a dispute on an order).
+Listing/user report → admin **Signalements**. Does **not** move escrow by itself.
 
 ---
 
-## 6. Suggested API sketch
+## 7. API sketch (extended)
 
-### Offers
-| Method | Path |
-|--------|------|
-| POST | `/listings/:id/offers` |
-| GET | `/me/offers` (buyer) |
-| GET | `/me/seller/offers` |
-| POST | `/offers/:id/accept` |
-| POST | `/offers/:id/refuse` |
-
-### Chat
-| Method | Path |
-|--------|------|
-| GET | `/conversations` |
-| GET | `/conversations/:id/messages` |
-| POST | `/conversations/:id/messages` |
+### Escrow lifecycle
+Documented under orders/payments; release only on confirm or resolve/voluntary refund.
 
 ### Disputes
 | Method | Path | Who |
 |--------|------|-----|
-| POST | `/orders/:id/disputes` | Buyer/seller (body: reason, evidence[]) |
-| GET | `/me/disputes` | Parties |
-| GET | `/admin/disputes` | Admin |
-| GET | `/admin/disputes/:id` | Admin (+ related chat snapshot) |
-| POST | `/admin/disputes/:id/review` | Admin → `under_review` |
-| POST | `/admin/disputes/:id/resolve` | Admin body: `{ outcome, amount?, notes? }` |
+| POST | `/orders/:id/disputes` | Buyer **or** seller (`reason`, role) |
+| POST | `/disputes/:id/evidence` | Party — **camera capture upload only** |
+| POST | `/disputes/:id/messages` | Party or admin (investigation thread) |
+| POST | `/admin/disputes/:id/ask-party` | Admin prompts seller/buyer for Yes/No + evidence |
+| POST | `/orders/:id/seller-refund` | Seller voluntary refund `{ amount: full \| number }` while escrow held |
+| POST | `/admin/disputes/:id/resolve` | `{ outcome, amount?, notes? }` |
 
 `outcome`: `refund_buyer` | `partial_refund` | `release_seller`
 
-### Signalements
-| Method | Path |
-|--------|------|
-| POST | `/reports` |
-| GET | `/admin/reports` |
-| POST | `/admin/reports/:id/resolve` |
+### Evidence upload
+- Endpoint accepts dispute evidence with metadata proving capture session (client sends `captureMode=camera`).  
+- Soft rule v1: client UI camera-only; harden later (server-side checks).
 
 ---
 
-## 7. Acceptance checks
-- [ ] Opening a dispute locks escrow and sets order `disputed`.  
-- [ ] Admin can full refund, partial refund, or release to seller.  
-- [ ] Buyer/seller are notified after resolve; order + wallet match outcome.  
-- [ ] Consumer cannot call resolve endpoints.  
-- [ ] Signalement does not by itself move escrow money.  
-- [ ] Offers/chat work independently of disputes; enseigne blocks offers.
+## 8. Acceptance checks
+- [ ] Seller cannot withdraw sale proceeds until escrow release.  
+- [ ] Buyer **and** seller can open / respond on a litige.  
+- [ ] Dispute evidence UI is **camera-only** (no gallery).  
+- [ ] Admin can message parties and collect Yes/No + counter-evidence.  
+- [ ] Seller can voluntarily refund (full/partial) while escrow pending.  
+- [ ] Admin can still full / partial / release_seller.  
+- [ ] Signalement ≠ escrow movement.

@@ -93,9 +93,15 @@ Server sets `listingDestination` from seller profile.
 
 | Method | Path | Notes |
 |--------|------|-------|
-| POST | `/orders/:id/disputes` | Buyer/seller opens litige (reason) → escrow locked |
+| POST | `/orders/:id/disputes` | **Buyer or seller** opens litige → escrow stays locked |
+| POST | `/disputes/:id/evidence` | Camera-capture evidence only (anti gallery/AI import) |
+| POST | `/disputes/:id/messages` | Investigation thread (parties + admin) |
+| POST | `/admin/disputes/:id/ask-party` | Admin asks other party Yes/No + proof |
+| POST | `/orders/:id/seller-refund` | **Seller voluntary refund** while escrow pending |
 | GET | `/admin/disputes` | Admin queue |
 | POST | `/admin/disputes/:id/resolve` | `{ outcome: refund_buyer \| partial_refund \| release_seller }` |
+
+Escrow: payment → hold → release to seller only after buyer confirm (or admin/seller refund path).
 
 ### Offers & chat
 
