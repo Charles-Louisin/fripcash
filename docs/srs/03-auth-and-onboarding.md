@@ -45,5 +45,12 @@ Admin approves/rejects via admin console.
 ## 3.6 Courier auth
 Separate entry (“Espace livreur”) → courier credentials / role claim → courier shell only.
 
+**Full detail:** [17-authentication-surfaces.md](./17-authentication-surfaces.md) (Surface D).
+
 ## 3.7 Admin auth
-Separate admin login on web; staff-only routes.
+Separate admin login on web (`/admin-login`, email + password); staff-only routes. **Not** the same session as `/connexion` or mobile marketplace login.
+
+**Full detail:** [17-authentication-surfaces.md](./17-authentication-surfaces.md) (Surface C).
+
+## 3.8 Web dashboard vs mobile
+Same **consumer** account/API as the mobile app. Dashboard is a thin client of Surface A/B — see authentication surfaces doc.

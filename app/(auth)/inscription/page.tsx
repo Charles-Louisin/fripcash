@@ -19,10 +19,11 @@ import {
   FiEye,
   FiEyeOff,
 } from "react-icons/fi";
-
-// ─── Country config: uncomment Guinea and comment Cameroon for production ───
-// const COUNTRY = { code: "+224", flag: "🇬🇳", label: "+224", placeholder: "6XX XXX XXX" };
-const COUNTRY = { code: "+237", flag: "🇨🇲", label: "+237", placeholder: "6XX XXX XXX" };
+import {
+  AUTH_COUNTRY,
+  fullPhoneFromLocal,
+  isValidLocalPhone,
+} from "@/lib/auth-country";
 
 function generatePseudos(firstName: string, lastName: string): string[] {
   const f = firstName.toLowerCase().trim().replace(/\s+/g, "");
@@ -76,8 +77,6 @@ export default function InscriptionPage() {
   const [loading, setLoading] = useState(false);
   const [suggestionKey, setSuggestionKey] = useState(0);
 
-  const fullPhone = `${COUNTRY.code}${localPhone.replace(/\s/g, "")}`;
-
   const suggestions = useMemo(
     () => generatePseudos(firstName, lastName),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,9 +91,11 @@ export default function InscriptionPage() {
       return;
     }
 
-    const digits = localPhone.replace(/\s/g, "");
-    if (digits.length < 9) {
-      toast("Numéro de téléphone invalide (9 chiffres requis).", "error");
+    if (!isValidLocalPhone(localPhone)) {
+      toast(
+        `Numéro invalide — entre ${AUTH_COUNTRY.minLocalDigits}–${AUTH_COUNTRY.maxLocalDigits} chiffres.`,
+        "error"
+      );
       return;
     }
 
@@ -110,6 +111,7 @@ export default function InscriptionPage() {
 
     setLoading(true);
     await new Promise((r) => setTimeout(r, 400));
+    const fullPhone = fullPhoneFromLocal(localPhone);
     const user = {
       ...mockMe,
       ...mockMeExtras,
@@ -117,13 +119,14 @@ export default function InscriptionPage() {
       lastName: lastName.trim(),
       pseudo: pseudo.trim(),
       phone: fullPhone,
+      role: "acheteur",
       _id: `u_${Date.now()}`,
       id: `u_${Date.now()}`,
     };
     setToken("mock-token");
     queryClient.setQueryData(["me"], user);
     toast("Compte créé ! Bienvenue sur FripCash (démo).");
-    router.push("/");
+    router.push("/dashboard");
     setLoading(false);
   };
 
@@ -236,14 +239,14 @@ export default function InscriptionPage() {
           </label>
           <div className="relative flex">
             <div className="flex items-center gap-1.5 px-3 h-11 rounded-l-md border border-r-0 border-input bg-muted text-sm font-medium text-foreground shrink-0 select-none">
-              <span className="text-base leading-none">{COUNTRY.flag}</span>
-              <span>{COUNTRY.label}</span>
+              <span className="text-base leading-none">{AUTH_COUNTRY.flag}</span>
+              <span>{AUTH_COUNTRY.label}</span>
             </div>
             <div className="relative flex-1">
               <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="tel"
-                placeholder={COUNTRY.placeholder}
+                placeholder={AUTH_COUNTRY.placeholder}
                 required
                 value={localPhone}
                 onChange={(e) => setLocalPhone(e.target.value.replace(/[^0-9\s]/g, ""))}
@@ -252,6 +255,9 @@ export default function InscriptionPage() {
               />
             </div>
           </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Guinée {AUTH_COUNTRY.label} — démo locale, pas d&apos;appel API.
+          </p>
         </div>
 
         {/* Password */}

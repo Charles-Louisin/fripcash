@@ -11,6 +11,7 @@
 | 01 | [01-product-overview.md](./01-product-overview.md) | Vision, market, goals |
 | 02 | [02-actors-and-roles.md](./02-actors-and-roles.md) | Users, shops, permissions |
 | 03 | [03-auth-and-onboarding.md](./03-auth-and-onboarding.md) | Signup, OTP, upgrade |
+| 17 | [17-authentication-surfaces.md](./17-authentication-surfaces.md) | **App vs dashboard vs admin vs courier auth** |
 | 04 | [04-discovery-and-catalog.md](./04-discovery-and-catalog.md) | Home universes, browse |
 | 05 | [05-listings.md](./05-listings.md) | Create/edit listings, photos |
 | 06 | [06-cart-checkout-payments.md](./06-cart-checkout-payments.md) | Cart, Orange Money |

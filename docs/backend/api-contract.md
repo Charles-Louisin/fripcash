@@ -4,11 +4,22 @@ Shape for the Nest (or other) API. Exact paths/DTO names can move; **semantics m
 
 ## Auth & me
 
+> **Four auth surfaces** (do not collapse): marketplace consumer (app + web dashboard), admin, courier.  
+> See [authentication.md](./authentication.md).
+
 | Method | Path | Notes |
 |--------|------|-------|
-| POST | `/auth/register` | Body includes signup path (`SignUpRole`) |
-| POST | `/auth/login` | Returns token + user |
-| GET | `/me` | Full capability snapshot (below) |
+| POST | `/auth/register` | Consumer; body includes signup path (`SignUpRole`) |
+| POST | `/auth/login` | Consumer phone + password → `aud: consumer` |
+| POST | `/auth/otp/request` | Consumer SMS |
+| POST | `/auth/otp/verify` | Consumer |
+| POST | `/auth/password/forgot` | Consumer |
+| POST | `/auth/password/reset` | Consumer |
+| POST | `/auth/admin/login` | Staff **email** + password → `aud: admin` |
+| POST | `/auth/courier/login` | Livreur phone + password → `aud: courier` (or role claim) |
+| GET | `/me` | Consumer capability snapshot |
+| GET | `/admin/me` | Staff profile |
+| GET | `/courier/me` | Courier profile |
 | PATCH | `/me` | Profile fields only — **not** role |
 
 ### `GET /me` (minimal)

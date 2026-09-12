@@ -11,10 +11,11 @@ import { FiPhone, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
 import { useQueryClient } from "@tanstack/react-query";
 import { mockMe, mockMeExtras } from "@/lib/consumer-mock-data";
 import { recordLoginSession } from "@/lib/admin-session-tracker";
-
-// ─── Country config: uncomment Guinea and comment Cameroon for production ───
-// const COUNTRY = { code: "+224", flag: "🇬🇳", label: "+224", placeholder: "6XX XXX XXX" };
-const COUNTRY = { code: "+237", flag: "🇨🇲", label: "+237", placeholder: "6XX XXX XXX" };
+import {
+  AUTH_COUNTRY,
+  fullPhoneFromLocal,
+  isValidLocalPhone,
+} from "@/lib/auth-country";
 
 export default function ConnexionPage() {
   const router = useRouter();
@@ -26,8 +27,6 @@ export default function ConnexionPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const fullPhone = `${COUNTRY.code}${localPhone.replace(/\s/g, "")}`;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -36,13 +35,18 @@ export default function ConnexionPage() {
       return;
     }
 
-    if (localPhone.replace(/\s/g, "").length < 9) {
-      toast("Numéro de téléphone invalide.", "error");
+    if (!isValidLocalPhone(localPhone)) {
+      toast(
+        `Numéro invalide — entre ${AUTH_COUNTRY.minLocalDigits}–${AUTH_COUNTRY.maxLocalDigits} chiffres (ex. 621112233).`,
+        "error"
+      );
       return;
     }
 
+    // Local demo auth — no backend call until the API is wired.
     setLoading(true);
     await new Promise((r) => setTimeout(r, 400));
+    const fullPhone = fullPhoneFromLocal(localPhone);
     setToken("mock-token");
     queryClient.setQueryData(["me"], {
       ...mockMe,
@@ -52,10 +56,10 @@ export default function ConnexionPage() {
     recordLoginSession({
       email: mockMe.email ?? fullPhone,
       displayName: mockMe.pseudo,
-      role: "particulier",
+      role: "acheteur",
     });
     toast("Connexion réussie ! Bienvenue (démo).");
-    router.push("/");
+    router.push("/dashboard");
     setLoading(false);
   };
 
@@ -76,14 +80,14 @@ export default function ConnexionPage() {
           </label>
           <div className="relative flex">
             <div className="flex items-center gap-1.5 px-3 h-11 rounded-l-md border border-r-0 border-input bg-muted text-sm font-medium text-foreground shrink-0 select-none">
-              <span className="text-base leading-none">{COUNTRY.flag}</span>
-              <span>{COUNTRY.label}</span>
+              <span className="text-base leading-none">{AUTH_COUNTRY.flag}</span>
+              <span>{AUTH_COUNTRY.label}</span>
             </div>
             <div className="relative flex-1">
               <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="tel"
-                placeholder={COUNTRY.placeholder}
+                placeholder={AUTH_COUNTRY.placeholder}
                 required
                 value={localPhone}
                 onChange={(e) => setLocalPhone(e.target.value.replace(/[^0-9\s]/g, ""))}
@@ -92,6 +96,10 @@ export default function ConnexionPage() {
               />
             </div>
           </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Démo : n&apos;importe quel numéro Guinée ({AUTH_COUNTRY.minLocalDigits}
+            –{AUTH_COUNTRY.maxLocalDigits} chiffres) + mot de passe — pas d&apos;API.
+          </p>
         </div>
 
         {/* Mot de passe */}
