@@ -15,8 +15,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { signupChartData } from "@/lib/admin-chart-mock";
-import { filterByDateRange } from "@/lib/admin-date-filter";
 import { useAdminDateRange } from "@/stores/admin-date-filter-store";
 
 const chartConfig = {
@@ -27,22 +25,22 @@ const chartConfig = {
 
 type MetricKey = "acheteurs" | "vendeurs";
 
-export function ChartBarInteractive() {
+type Point = { date: string; acheteurs: number; vendeurs: number };
+
+type Props = {
+  data?: Point[];
+};
+
+export function ChartBarInteractive({ data = [] }: Props) {
   const [activeChart, setActiveChart] = React.useState<MetricKey>("acheteurs");
   const range = useAdminDateRange();
 
-  const filteredData = React.useMemo(
-    () =>
-      filterByDateRange(signupChartData, (item) => item.date, range.from, range.to),
-    [range.from, range.to]
-  );
-
   const total = React.useMemo(
     () => ({
-      acheteurs: filteredData.reduce((acc, curr) => acc + curr.acheteurs, 0),
-      vendeurs: filteredData.reduce((acc, curr) => acc + curr.vendeurs, 0),
+      acheteurs: data.reduce((acc, curr) => acc + curr.acheteurs, 0),
+      vendeurs: data.reduce((acc, curr) => acc + curr.vendeurs, 0),
     }),
-    [filteredData]
+    [data]
   );
 
   return (
@@ -74,51 +72,57 @@ export function ChartBarInteractive() {
         </div>
       </CardHeader>
       <CardContent className="px-2 sm:p-6">
-        <ChartContainer
-          config={chartConfig}
-          className="aspect-auto h-[250px] w-full"
-        >
-          <BarChart
-            accessibilityLayer
-            data={filteredData}
-            margin={{ left: 12, right: 12 }}
+        {data.length === 0 ? (
+          <div className="flex h-[250px] items-center justify-center text-sm text-muted-foreground">
+            Aucune inscription pour cette période
+          </div>
+        ) : (
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-auto h-[250px] w-full"
           >
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              minTickGap={32}
-              tickFormatter={(value) =>
-                new Date(value).toLocaleDateString("fr-FR", {
-                  month: "short",
-                  day: "numeric",
-                })
-              }
-            />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  className="w-[150px]"
-                  nameKey="inscriptions"
-                  labelFormatter={(value) =>
-                    new Date(value).toLocaleDateString("fr-FR", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })
-                  }
-                />
-              }
-            />
-            <Bar
-              dataKey={activeChart}
-              fill={`var(--color-${activeChart})`}
-              radius={[4, 4, 0, 0]}
-            />
-          </BarChart>
-        </ChartContainer>
+            <BarChart
+              accessibilityLayer
+              data={data}
+              margin={{ left: 12, right: 12 }}
+            >
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="date"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                minTickGap={32}
+                tickFormatter={(value) =>
+                  new Date(value).toLocaleDateString("fr-FR", {
+                    month: "short",
+                    day: "numeric",
+                  })
+                }
+              />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    className="w-[150px]"
+                    nameKey="inscriptions"
+                    labelFormatter={(value) =>
+                      new Date(value).toLocaleDateString("fr-FR", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
+                    }
+                  />
+                }
+              />
+              <Bar
+                dataKey={activeChart}
+                fill={`var(--color-${activeChart})`}
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   );

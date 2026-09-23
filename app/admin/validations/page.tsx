@@ -2,225 +2,555 @@
 
 import { useMemo, useState } from "react";
 import { BadgeCheck } from "lucide-react";
-import { FiCheck, FiX, FiShield, FiHome, FiBriefcase } from "react-icons/fi";
+import {
+  FiCheck,
+  FiX,
+  FiShield,
+  FiBriefcase,
+  FiUser,
+  FiRefreshCw,
+} from "react-icons/fi";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/admin/data-table";
 import { StatCard } from "@/components/admin/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  mockAdminUsers,
-  pendingShopValidations,
-  type MockAdminUser,
-} from "@/lib/admin-mock-data";
-import {
-  accountRoleLabels,
-  listingDestinationLabels,
-  shopKindLabels,
-  type AccountRole,
-  type ListingDestination,
-  type ShopKind,
-} from "@/lib/seller-domain";
+  useSellerVerifications,
+  useApproveSellerVerification,
+  useRejectSellerVerification,
+  useAdminIndividualKyc,
+  useAdminOrgKyc,
+  useReviewIndividualKyc,
+  useReviewOrgKyc,
+} from "@/hooks/use-admin";
 import { useToast } from "@/components/ui/toast";
+import { listingImageUrl } from "@/lib/api";
+
+type VerificationRow = {
+  id: string;
+  shopName: string;
+  shopKind: string;
+  phone?: string;
+  createdAt?: string;
+  displayName?: string;
+};
+
+type KycRow = {
+  id: string;
+  label: string;
+  status: string;
+  createdAt?: string;
+  docs: string[];
+  raw: any;
+};
+
+function mapVerification(v: any): VerificationRow {
+  return {
+    id: v.id || v._id || v.sellerProfileId,
+    shopName:
+      v.shopName ||
+      v.name ||
+      v.sellerProfile?.shopName ||
+      v.displayName ||
+      "Boutique",
+    shopKind: (v.shopKind || v.sellerProfile?.shopKind || "STANDARD")
+      .toString()
+      .toLowerCase(),
+    phone: v.phone || v.user?.phone || v.sellerProfile?.phone,
+    createdAt: v.createdAt || v.submittedAt,
+    displayName: v.displayName || v.user?.name || v.user?.displayName,
+  };
+}
+
+function mapKyc(v: any, kind: "individual" | "org"): KycRow {
+  const docs = (v.documents || v.docs || [])
+    .map((d: any) =>
+      typeof d === "string"
+        ? d
+        : listingImageUrl(d.storageKey || d.key) || d.storageKey || d.url
+    )
+    .filter(Boolean);
+  return {
+    id: v.id || v._id,
+    label:
+      kind === "org"
+        ? v.organizationName ||
+          v.orgName ||
+          v.name ||
+          v.legalName ||
+          "Organisation"
+        : v.user?.name ||
+          v.displayName ||
+          v.fullName ||
+          v.user?.phoneNumber ||
+          "Individu",
+    status: String(v.status || v.verificationStatus || "PENDING"),
+    createdAt: v.createdAt || v.submittedAt,
+    docs,
+    raw: v,
+  };
+}
+
+function notePrompt(fallback: string) {
+  if (typeof window === "undefined") return fallback;
+  const note = window.prompt("Note du reviewer (obligatoire)", fallback);
+  return note?.trim() || null;
+}
 
 export default function AdminValidationsPage() {
   const { toast } = useToast();
-  const [queue, setQueue] = useState<MockAdminUser[]>(() =>
-    pendingShopValidations(mockAdminUsers)
-  );
-  const [filter, setFilter] = useState<"all" | "commerceLocal" | "grandeSurface">(
-    "all"
-  );
+  const [tab, setTab] = useState("boutiques");
+  const [shopFilter, setShopFilter] = useState<
+    "all" | "proximite" | "enseigne"
+  >("all");
 
-  const filtered = useMemo(
+  const {
+    data: shopRows = [],
+    isLoading: shopsLoading,
+    isError: shopsError,
+  } = useSellerVerifications();
+  const { data: individualRows = [], isLoading: indLoading } =
+    useAdminIndividualKyc();
+  const { data: orgRows = [], isLoading: orgLoading } = useAdminOrgKyc();
+
+  const approveShop = useApproveSellerVerification();
+  const rejectShop = useRejectSellerVerification();
+  const reviewIndividual = useReviewIndividualKyc();
+  const reviewOrg = useReviewOrgKyc();
+
+  const shops = useMemo(
+    () => (Array.isArray(shopRows) ? shopRows : []).map(mapVerification),
+    [shopRows]
+  );
+  const individuals = useMemo(
     () =>
-      filter === "all" ? queue : queue.filter((u) => u.role === filter),
-    [queue, filter]
+      (Array.isArray(individualRows) ? individualRows : []).map((v) =>
+        mapKyc(v, "individual")
+      ),
+    [individualRows]
+  );
+  const orgs = useMemo(
+    () =>
+      (Array.isArray(orgRows) ? orgRows : []).map((v) => mapKyc(v, "org")),
+    [orgRows]
   );
 
-  const stats = useMemo(
+  const filteredShops = useMemo(
+    () =>
+      shopFilter === "all"
+        ? shops
+        : shops.filter((u) => u.shopKind.includes(shopFilter)),
+    [shops, shopFilter]
+  );
+
+  const shopStats = useMemo(
     () => ({
-      total: queue.length,
-      local: queue.filter((u) => u.role === "commerceLocal").length,
-      enseigne: queue.filter((u) => u.role === "grandeSurface").length,
+      total: shops.length,
+      local: shops.filter((u) => u.shopKind.includes("proximite")).length,
+      enseigne: shops.filter((u) => u.shopKind.includes("enseigne")).length,
     }),
-    [queue]
+    [shops]
   );
 
-  const approve = (user: MockAdminUser) => {
-    setQueue((prev) => prev.filter((u) => u._id !== user._id));
-    toast(
-      `${user.shopName || user.pseudo} validé — visible dans l'annuaire app.`,
-      "success"
-    );
-  };
+  return (
+    <div className="space-y-6">
+      <AdminPageHeader
+        title="Validations"
+        description="Boutiques · KYC individus · KYC organisations (API admin live)"
+      />
 
-  const reject = (user: MockAdminUser) => {
-    setQueue((prev) => prev.filter((u) => u._id !== user._id));
-    toast(`${user.shopName || user.pseudo} refusé.`, "warning");
-  };
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Boutiques"
+          value={shopsLoading ? "…" : String(shopStats.total)}
+          description="Seller verifications"
+          icon={FiShield}
+        />
+        <StatCard
+          label="KYC individus"
+          value={indLoading ? "…" : String(individuals.length)}
+          description="File /admin/kyc/individuals"
+          icon={FiUser}
+        />
+        <StatCard
+          label="KYC orgs"
+          value={orgLoading ? "…" : String(orgs.length)}
+          description="File /admin/kyc/organizations"
+          icon={FiBriefcase}
+        />
+      </div>
 
-  const columns = [
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="boutiques">
+            Boutiques ({shopStats.total})
+          </TabsTrigger>
+          <TabsTrigger value="individus">
+            KYC individus ({individuals.length})
+          </TabsTrigger>
+          <TabsTrigger value="orgs">KYC orgs ({orgs.length})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="boutiques" className="space-y-4 mt-4">
+          {shopsError && (
+            <p className="text-sm text-destructive">
+              Impossible de charger les validations boutique.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["all", "Tous"],
+                ["proximite", "Proximité"],
+                ["enseigne", "Enseigne"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setShopFilter(value)}
+                className={`h-8 rounded-lg border px-3 text-sm transition-colors ${
+                  shopFilter === value
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-input bg-background text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {!shopsLoading && filteredShops.length === 0 ? (
+            <EmptyQueue title="Aucune boutique en attente" />
+          ) : (
+            <DataTable
+              data={filteredShops}
+              getRowKey={(u) => u.id}
+              emptyMessage="Aucune demande"
+              columns={[
+                {
+                  key: "shop",
+                  header: "Boutique",
+                  render: (u) => (
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9">
+                        <AvatarFallback>
+                          {(u.shopName || "B").charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">{u.shopName}</p>
+                        {u.displayName && (
+                          <p className="text-xs text-muted-foreground">
+                            {u.displayName}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  key: "role",
+                  header: "Type",
+                  render: (u) => (
+                    <Badge variant="secondary">{u.shopKind}</Badge>
+                  ),
+                },
+                {
+                  key: "phone",
+                  header: "Contact",
+                  render: (u) => (
+                    <span className="text-sm text-muted-foreground">
+                      {u.phone || "—"}
+                    </span>
+                  ),
+                },
+                {
+                  key: "date",
+                  header: "Demandé le",
+                  render: (u) => (
+                    <span className="text-xs text-muted-foreground">
+                      {u.createdAt
+                        ? new Date(u.createdAt).toLocaleDateString("fr-FR")
+                        : "—"}
+                    </span>
+                  ),
+                },
+                {
+                  key: "actions",
+                  header: "",
+                  render: (u) => (
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1"
+                        disabled={rejectShop.isPending}
+                        onClick={async () => {
+                          try {
+                            await rejectShop.mutateAsync({
+                              id: u.id,
+                              reviewerNote: "Refusé depuis l'admin web",
+                            });
+                            toast(`${u.shopName} refusé.`, "warning");
+                          } catch {
+                            toast("Impossible de refuser.", "error");
+                          }
+                        }}
+                      >
+                        <FiX className="h-3.5 w-3.5" /> Refuser
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-8 gap-1"
+                        disabled={approveShop.isPending}
+                        onClick={async () => {
+                          try {
+                            await approveShop.mutateAsync({ id: u.id });
+                            toast(`${u.shopName} validé.`, "success");
+                          } catch {
+                            toast("Impossible de valider.", "error");
+                          }
+                        }}
+                      >
+                        <FiCheck className="h-3.5 w-3.5" /> Valider
+                      </Button>
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="individus" className="space-y-4 mt-4">
+          {!indLoading && individuals.length === 0 ? (
+            <EmptyQueue title="Aucun KYC individu en file" />
+          ) : (
+            <DataTable
+              data={individuals}
+              getRowKey={(r) => r.id}
+              emptyMessage="File vide"
+              columns={kycColumns({
+                onApprove: async (row) => {
+                  try {
+                    await reviewIndividual.mutateAsync({
+                      id: row.id,
+                      action: "approve",
+                    });
+                    toast(`${row.label} approuvé.`, "success");
+                  } catch {
+                    toast("Approbation impossible.", "error");
+                  }
+                },
+                onReject: async (row) => {
+                  const note = notePrompt("Document illisible");
+                  if (!note) {
+                    toast("Une note est requise pour refuser.", "error");
+                    return;
+                  }
+                  try {
+                    await reviewIndividual.mutateAsync({
+                      id: row.id,
+                      action: "reject",
+                      reviewerNote: note,
+                    });
+                    toast(`${row.label} refusé.`, "warning");
+                  } catch {
+                    toast("Refus impossible.", "error");
+                  }
+                },
+                pending:
+                  reviewIndividual.isPending,
+              })}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="orgs" className="space-y-4 mt-4">
+          {!orgLoading && orgs.length === 0 ? (
+            <EmptyQueue title="Aucun KYC organisation en file" />
+          ) : (
+            <DataTable
+              data={orgs}
+              getRowKey={(r) => r.id}
+              emptyMessage="File vide"
+              columns={kycColumns({
+                onApprove: async (row) => {
+                  try {
+                    await reviewOrg.mutateAsync({
+                      id: row.id,
+                      action: "approve",
+                    });
+                    toast(`${row.label} approuvée.`, "success");
+                  } catch {
+                    toast("Approbation impossible.", "error");
+                  }
+                },
+                onReject: async (row) => {
+                  const note = notePrompt("RCCM illisible");
+                  if (!note) {
+                    toast("Une note est requise pour refuser.", "error");
+                    return;
+                  }
+                  try {
+                    await reviewOrg.mutateAsync({
+                      id: row.id,
+                      action: "reject",
+                      reviewerNote: note,
+                    });
+                    toast(`${row.label} refusée.`, "warning");
+                  } catch {
+                    toast("Refus impossible.", "error");
+                  }
+                },
+                onResubmit: async (row) => {
+                  const note = notePrompt("Merci de renvoyer les documents");
+                  if (!note) {
+                    toast("Une note est requise.", "error");
+                    return;
+                  }
+                  try {
+                    await reviewOrg.mutateAsync({
+                      id: row.id,
+                      action: "resubmit",
+                      reviewerNote: note,
+                    });
+                    toast(`Resoumission demandée pour ${row.label}.`, "info");
+                  } catch {
+                    toast("Action impossible.", "error");
+                  }
+                },
+                pending: reviewOrg.isPending,
+                showResubmit: true,
+              })}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function EmptyQueue({ title }: { title: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-16 text-center">
+      <BadgeCheck className="mb-3 h-10 w-10 text-muted-foreground/50" />
+      <p className="font-medium text-foreground">{title}</p>
+      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+        Les nouvelles demandes apparaîtront ici dès qu&apos;elles seront en base.
+      </p>
+    </div>
+  );
+}
+
+function kycColumns({
+  onApprove,
+  onReject,
+  onResubmit,
+  pending,
+  showResubmit,
+}: {
+  onApprove: (row: KycRow) => void;
+  onReject: (row: KycRow) => void;
+  onResubmit?: (row: KycRow) => void;
+  pending: boolean;
+  showResubmit?: boolean;
+}) {
+  return [
     {
-      key: "shop",
-      header: "Boutique",
-      render: (u: MockAdminUser) => (
+      key: "who",
+      header: "Demandeur",
+      render: (r: KycRow) => (
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={u.avatar} alt={u.pseudo} />
-            <AvatarFallback>{(u.firstName || "B").charAt(0)}</AvatarFallback>
+            <AvatarFallback>{(r.label || "?").charAt(0)}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium text-foreground">
-              {u.shopName || `${u.firstName} ${u.lastName}`}
+            <p className="font-medium text-sm">{r.label}</p>
+            <p className="text-xs text-muted-foreground font-mono">
+              {r.id.slice(-8)}
             </p>
-            <p className="text-xs text-muted-foreground">@{u.pseudo}</p>
           </div>
         </div>
       ),
     },
     {
-      key: "role",
-      header: "Type",
-      render: (u: MockAdminUser) => (
-        <div className="space-y-1">
-          <Badge variant="secondary">
-            {accountRoleLabels[u.role as AccountRole] ?? u.role}
-          </Badge>
-          {u.shopKind && (
-            <p className="text-[10px] text-muted-foreground">
-              {shopKindLabels[u.shopKind as ShopKind]}
-            </p>
-          )}
-        </div>
-      ),
+      key: "status",
+      header: "Statut",
+      render: (r: KycRow) => <Badge variant="secondary">{r.status}</Badge>,
     },
     {
-      key: "destination",
-      header: "Univers",
-      className: "hidden md:table-cell",
-      render: (u: MockAdminUser) =>
-        u.listingDestination ? (
-          <span className="text-xs text-muted-foreground">
-            {listingDestinationLabels[u.listingDestination as ListingDestination]}
-          </span>
+      key: "docs",
+      header: "Docs",
+      render: (r: KycRow) =>
+        r.docs.length === 0 ? (
+          <span className="text-xs text-muted-foreground">—</span>
         ) : (
-          <span className="text-muted-foreground text-xs">—</span>
+          <div className="flex flex-wrap gap-1">
+            {r.docs.slice(0, 3).map((url, i) => (
+              <a
+                key={`${r.id}-doc-${i}`}
+                href={url.startsWith("http") ? url : undefined}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-primary hover:underline"
+              >
+                Doc {i + 1}
+              </a>
+            ))}
+          </div>
         ),
     },
     {
-      key: "phone",
-      header: "Contact",
-      className: "hidden lg:table-cell",
-      render: (u: MockAdminUser) => (
-        <span className="text-muted-foreground text-sm">{u.phone}</span>
-      ),
-    },
-    {
       key: "date",
-      header: "Demandé le",
-      className: "hidden sm:table-cell",
-      render: (u: MockAdminUser) => (
-        <span className="text-muted-foreground text-xs">
-          {new Date(u.createdAt).toLocaleDateString("fr-FR")}
+      header: "Soumis",
+      render: (r: KycRow) => (
+        <span className="text-xs text-muted-foreground">
+          {r.createdAt
+            ? new Date(r.createdAt).toLocaleDateString("fr-FR")
+            : "—"}
         </span>
       ),
     },
     {
       key: "actions",
       header: "",
-      className: "w-40",
-      render: (u: MockAdminUser) => (
-        <div className="flex items-center gap-1 justify-end">
+      render: (r: KycRow) => (
+        <div className="flex justify-end gap-1">
+          {showResubmit && onResubmit && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 gap-1"
+              disabled={pending}
+              onClick={() => onResubmit(r)}
+            >
+              <FiRefreshCw className="h-3.5 w-3.5" />
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
             className="h-8 gap-1"
-            onClick={() => reject(u)}
+            disabled={pending}
+            onClick={() => onReject(r)}
           >
-            <FiX className="h-3.5 w-3.5" />
-            Refuser
+            <FiX className="h-3.5 w-3.5" /> Refuser
           </Button>
-          <Button size="sm" className="h-8 gap-1" onClick={() => approve(u)}>
-            <FiCheck className="h-3.5 w-3.5" />
-            Valider
+          <Button
+            size="sm"
+            className="h-8 gap-1"
+            disabled={pending}
+            onClick={() => onApprove(r)}
+          >
+            <FiCheck className="h-3.5 w-3.5" /> Approuver
           </Button>
         </div>
       ),
     },
   ];
-
-  return (
-    <div className="space-y-6">
-      <AdminPageHeader
-        title="Validations boutique"
-        description="File d'attente manuelle — commerce local & enseignes (comme SellerVerificationService dans l'app)"
-      />
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard
-          label="En attente"
-          value={String(stats.total)}
-          description="Validations à traiter"
-          icon={FiShield}
-        />
-        <StatCard
-          label="Commerce local"
-          value={String(stats.local)}
-          description="Boutiques de quartier · 5%"
-          icon={FiHome}
-          href="/admin/utilisateurs"
-          actionLabel="Voir utilisateurs"
-        />
-        <StatCard
-          label="Grandes surfaces"
-          value={String(stats.enseigne)}
-          description="Enseignes partenaires · SLA"
-          icon={FiBriefcase}
-          href="/admin/partenaires"
-          actionLabel="Voir enseignes"
-        />
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {(
-          [
-            ["all", "Tous"],
-            ["commerceLocal", "Commerce local"],
-            ["grandeSurface", "Grande surface"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setFilter(value)}
-            className={`h-8 rounded-lg border px-3 text-sm transition-colors ${
-              filter === value
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-input bg-background text-muted-foreground hover:bg-accent"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-16 text-center">
-          <BadgeCheck className="mb-3 h-10 w-10 text-muted-foreground/50" />
-          <p className="font-medium text-foreground">File vide</p>
-          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Aucune boutique en attente de validation manuelle.
-          </p>
-        </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={filtered}
-          emptyMessage="Aucune demande en attente"
-        />
-      )}
-    </div>
-  );
 }

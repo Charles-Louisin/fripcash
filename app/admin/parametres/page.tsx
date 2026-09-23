@@ -1,52 +1,82 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 import { FiSave } from "react-icons/fi";
+import { usePlatformSettings } from "@/hooks/use-admin";
 
 export default function ParametresPage() {
   const { toast } = useToast();
+  const { data: settings, isLoading } = usePlatformSettings();
 
-  // General settings
   const [platformName, setPlatformName] = useState("FripCash");
-  const [contactEmail, setContactEmail] = useState("contact@fripcash.com");
-  const [contactPhone, setContactPhone] = useState("+224 6XX XXX XXX");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
 
-  // Commission settings — aligned with Flutter (8% standard, 5% proximité)
-  const [commissionRate, setCommissionRate] = useState(8);
+  const [commissionRate, setCommissionRate] = useState(5);
   const [proximityCommissionRate, setProximityCommissionRate] = useState(5);
-  const [minCommission, setMinCommission] = useState(500);
+  const [minCommission, setMinCommission] = useState(0);
 
-  // Notification settings
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [smsNotifs, setSmsNotifs] = useState(true);
   const [disputeNotifs, setDisputeNotifs] = useState(true);
   const [newUserNotifs, setNewUserNotifs] = useState(false);
 
+  useEffect(() => {
+    if (!settings || typeof settings !== "object") return;
+    const s = settings as Record<string, unknown>;
+    if (typeof s.defaultCommissionBps === "number") {
+      setCommissionRate(s.defaultCommissionBps / 100);
+      setProximityCommissionRate(s.defaultCommissionBps / 100);
+    }
+    if (typeof s.minWithdrawalGnf === "number") {
+      setMinCommission(s.minWithdrawalGnf);
+    }
+    if (typeof s.maintenanceMode === "boolean") {
+      setMaintenanceMode(s.maintenanceMode);
+    }
+  }, [settings]);
+
   const handleSaveGeneral = () => {
-    toast("Paramètres généraux enregistrés.", "success");
+    toast(
+      "Lecture seule — PATCH platform-settings non exposé par l’API",
+      "warning"
+    );
   };
 
   const handleSaveCommission = () => {
     toast(
-      `Commissions mises à jour : ${commissionRate}% standard / ${proximityCommissionRate}% proximité`,
-      "success"
+      "Lecture seule — PATCH platform-settings non exposé par l’API",
+      "warning"
     );
   };
 
   const handleSaveNotifications = () => {
-    toast("Préférences de notification enregistrées.", "success");
+    toast(
+      "Préférences locales uniquement — pas d’API admin notifications",
+      "warning"
+    );
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Paramètres</h1>
-        <p className="text-sm text-muted-foreground mt-1">Configuration de la plateforme</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Configuration plateforme (GET /admin/platform-settings)
+          {!settings ? " — aucune ligne en base" : ""}
+        </p>
       </div>
 
       <Tabs defaultValue="general" className="w-full">
@@ -56,10 +86,11 @@ export default function ParametresPage() {
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
 
-        {/* General Tab */}
         <TabsContent value="general">
           <div className="rounded-xl border border-border bg-card p-6 mt-4 max-w-2xl">
-            <h3 className="font-semibold text-foreground mb-4">Informations générales</h3>
+            <h3 className="font-semibold text-foreground mb-4">
+              Informations générales
+            </h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
@@ -81,7 +112,8 @@ export default function ParametresPage() {
                     type="email"
                     value={contactEmail}
                     onChange={(e) => setContactEmail(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+                    placeholder="Non fourni par l’API"
+                    className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
                   />
                 </div>
                 <div>
@@ -89,214 +121,122 @@ export default function ParametresPage() {
                     Téléphone
                   </label>
                   <input
-                    type="tel"
+                    type="text"
                     value={contactPhone}
                     onChange={(e) => setContactPhone(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+                    placeholder="Non fourni par l’API"
+                    className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
                   />
                 </div>
               </div>
-
-              {/* Maintenance mode */}
-              <div className="flex items-center justify-between py-3 border-t border-border">
+              <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-foreground">Mode maintenance</p>
+                  <p className="text-sm font-medium">Mode maintenance</p>
                   <p className="text-xs text-muted-foreground">
-                    Désactive temporairement l&apos;accès à la plateforme pour les utilisateurs
+                    Valeur live: {String(maintenanceMode)}
                   </p>
                 </div>
-                <Switch checked={maintenanceMode} onCheckedChange={setMaintenanceMode} />
-              </div>
-
-              {maintenanceMode && (
-                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
-                  <p className="text-sm text-destructive font-medium">
-                    Le mode maintenance est activé. Les utilisateurs ne peuvent pas accéder à la plateforme.
-                  </p>
-                </div>
-              )}
-
-              <button
-                onClick={handleSaveGeneral}
-                className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                <FiSave className="h-4 w-4" />
-                Enregistrer
-              </button>
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* Commission Tab */}
-        <TabsContent value="commission">
-          <div className="rounded-xl border border-border bg-card p-6 mt-4 max-w-2xl">
-            <h3 className="font-semibold text-foreground mb-2">Paramètres de commission</h3>
-            <p className="text-xs text-muted-foreground mb-4">
-              Aligné avec l&apos;app : 8 % boutique / enseigne / particulier, 5 % boutiques de proximité (commerce local).
-            </p>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Commission standard (%) — boutique, enseigne, particulier
-                </label>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min={1}
-                    max={30}
-                    value={commissionRate}
-                    onChange={(e) => setCommissionRate(Number(e.target.value))}
-                    className="flex-1 h-2 rounded-full appearance-none bg-muted cursor-pointer accent-primary"
-                  />
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      min={1}
-                      max={30}
-                      value={commissionRate}
-                      onChange={(e) => setCommissionRate(Math.min(30, Math.max(1, Number(e.target.value))))}
-                      className="w-16 h-9 rounded-lg border border-input bg-background px-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-ring"
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Commission proximité (%) — boutiques de quartier
-                </label>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min={1}
-                    max={30}
-                    value={proximityCommissionRate}
-                    onChange={(e) => setProximityCommissionRate(Number(e.target.value))}
-                    className="flex-1 h-2 rounded-full appearance-none bg-muted cursor-pointer accent-primary"
-                  />
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      min={1}
-                      max={30}
-                      value={proximityCommissionRate}
-                      onChange={(e) =>
-                        setProximityCommissionRate(
-                          Math.min(30, Math.max(1, Number(e.target.value)))
-                        )
-                      }
-                      className="w-16 h-9 rounded-lg border border-input bg-background px-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-ring"
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Commission minimale (GNF)
-                </label>
-                <input
-                  type="number"
-                  value={minCommission}
-                  onChange={(e) => setMinCommission(Number(e.target.value))}
-                  className="w-full max-w-[200px] h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+                <Switch
+                  checked={maintenanceMode}
+                  onCheckedChange={setMaintenanceMode}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  La commission ne sera jamais inférieure à ce montant.
-                </p>
               </div>
-
-              <div className="bg-muted/50 rounded-lg p-4">
-                <p className="text-xs font-medium text-muted-foreground mb-3">
-                  Aperçu — article à 10 000 F
-                </p>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Standard ({commissionRate}%)</span>
-                    <span className="font-medium text-primary">
-                      {Math.max(
-                        minCommission,
-                        Math.round((10000 * commissionRate) / 100)
-                      ).toLocaleString("fr-FR")}{" "}
-                      F
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">
-                      Proximité ({proximityCommissionRate}%)
-                    </span>
-                    <span className="font-medium text-primary">
-                      {Math.max(
-                        minCommission,
-                        Math.round((10000 * proximityCommissionRate) / 100)
-                      ).toLocaleString("fr-FR")}{" "}
-                      F
-                    </span>
-                  </div>
-                </div>
-              </div>
-
               <button
-                onClick={handleSaveCommission}
-                className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+                type="button"
+                onClick={handleSaveGeneral}
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
               >
-                <FiSave className="h-4 w-4" />
-                Enregistrer
+                <FiSave className="h-4 w-4" /> Enregistrer
               </button>
             </div>
           </div>
         </TabsContent>
 
-        {/* Notifications Tab */}
-        <TabsContent value="notifications">
-          <div className="rounded-xl border border-border bg-card p-6 mt-4 max-w-2xl">
-            <h3 className="font-semibold text-foreground mb-4">Préférences de notification</h3>
-            <div className="space-y-1">
-              {[
-                {
-                  label: "Notifications par email",
-                  description: "Recevoir un email pour les événements importants",
-                  checked: emailNotifs,
-                  onChange: setEmailNotifs,
-                },
-                {
-                  label: "Notifications SMS",
-                  description: "Recevoir un SMS pour les alertes critiques",
-                  checked: smsNotifs,
-                  onChange: setSmsNotifs,
-                },
-                {
-                  label: "Alertes litiges",
-                  description: "Être notifié dès qu'un nouveau litige est ouvert",
-                  checked: disputeNotifs,
-                  onChange: setDisputeNotifs,
-                },
-                {
-                  label: "Nouveaux utilisateurs",
-                  description: "Être notifié des nouvelles inscriptions",
-                  checked: newUserNotifs,
-                  onChange: setNewUserNotifs,
-                },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between py-3 border-b border-border last:border-b-0">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">{item.description}</p>
-                  </div>
-                  <Switch checked={item.checked} onCheckedChange={item.onChange} />
-                </div>
-              ))}
-
-              <button
-                onClick={handleSaveNotifications}
-                className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors mt-4"
-              >
-                <FiSave className="h-4 w-4" />
-                Enregistrer
-              </button>
+        <TabsContent value="commission">
+          <div className="rounded-xl border border-border bg-card p-6 mt-4 max-w-2xl space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1.5">
+                Commission standard (%)
+              </label>
+              <input
+                type="number"
+                value={commissionRate}
+                onChange={(e) => setCommissionRate(Number(e.target.value))}
+                className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Depuis defaultCommissionBps / 100
+              </p>
             </div>
+            <div>
+              <label className="block text-sm font-medium mb-1.5">
+                Commission proximité (%)
+              </label>
+              <input
+                type="number"
+                value={proximityCommissionRate}
+                onChange={(e) =>
+                  setProximityCommissionRate(Number(e.target.value))
+                }
+                className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1.5">
+                Retrait minimum (GNF)
+              </label>
+              <input
+                type="number"
+                value={minCommission}
+                onChange={(e) => setMinCommission(Number(e.target.value))}
+                className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveCommission}
+              className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
+            >
+              <FiSave className="h-4 w-4" /> Enregistrer
+            </button>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="notifications">
+          <div className="rounded-xl border border-border bg-card p-6 mt-4 max-w-2xl space-y-4">
+            {[
+              {
+                label: "Email",
+                checked: emailNotifs,
+                set: setEmailNotifs,
+              },
+              { label: "SMS", checked: smsNotifs, set: setSmsNotifs },
+              {
+                label: "Litiges",
+                checked: disputeNotifs,
+                set: setDisputeNotifs,
+              },
+              {
+                label: "Nouveaux utilisateurs",
+                checked: newUserNotifs,
+                set: setNewUserNotifs,
+              },
+            ].map((row) => (
+              <div
+                key={row.label}
+                className="flex items-center justify-between"
+              >
+                <p className="text-sm font-medium">{row.label}</p>
+                <Switch checked={row.checked} onCheckedChange={row.set} />
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={handleSaveNotifications}
+              className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
+            >
+              <FiSave className="h-4 w-4" /> Enregistrer
+            </button>
           </div>
         </TabsContent>
       </Tabs>

@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCarousel } from "@/components/admin/stats-carousel";
@@ -9,7 +8,6 @@ import { ChartBarInteractive } from "@/components/admin/charts/chart-bar-interac
 import { ChartPieDonutText } from "@/components/admin/charts/chart-pie-donut-text";
 import { ChartRadialStacked } from "@/components/admin/charts/chart-radial-stacked";
 import { RecentActivity } from "@/components/admin/recent-activity";
-import { ActiveSessionsPanel } from "@/components/admin/active-sessions-panel";
 import { Badge } from "@/components/ui/badge";
 import {
   FiUsers,
@@ -20,60 +18,54 @@ import {
 import { FaShieldHalved } from "react-icons/fa6";
 import { BsShieldFillCheck } from "react-icons/bs";
 import { HiArrowTrendingUp, HiOutlineScale } from "react-icons/hi2";
-import { useAdminStats } from "@/hooks/use-admin";
-import { useAdminPlatformStore } from "@/stores/admin-platform-store";
-import { useAdminDisputesStore } from "@/stores/admin-disputes-store";
-import { formatGnf, dashboardMock } from "@/lib/admin-platform";
+import { useAdminDashboard } from "@/hooks/use-admin";
+import { formatGnf } from "@/lib/admin-platform";
 import { useAdminDateRange } from "@/stores/admin-date-filter-store";
-import { mockAdminOrders, pendingShopValidations } from "@/lib/admin-mock-data";
+import { listingImageUrl } from "@/lib/api";
 
 export default function AdminDashboardPage() {
   const range = useAdminDateRange();
-  const { data: stats, isLoading, isError } = useAdminStats();
-  const platform = useAdminPlatformStore();
-  const disputes = useAdminDisputesStore((s) => s.disputes);
+  const { data, isLoading, isError, error } = useAdminDashboard();
 
-  const totalUsers = stats?.totalUsers ?? 1284;
-  const totalArticles = stats?.totalArticles ?? 3562;
-  const totalRevenue = stats?.totalRevenue ?? 48_500_000;
-  const pendingArticles =
-    stats?.pendingArticles && stats.pendingArticles.length > 0
-      ? stats.pendingArticles
-      : dashboardMock.pendingArticles;
-  const pendingShopCount = pendingShopValidations().length;
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      </div>
+    );
+  }
 
-  const openDisputes = useMemo(
-    () => disputes.filter((d) => d.status !== "resolved"),
-    [disputes],
-  );
-  const lockedGmv = useMemo(
-    () => openDisputes.reduce((sum, d) => sum + d.amount, 0),
-    [openDisputes],
-  );
-  const escrowHolds = useMemo(
-    () =>
-      mockAdminOrders.filter((o) =>
-        ["paid", "delivered", "disputed", "inTransit", "readyForPickup"].includes(
-          o.status
-        )
-      ),
-    [],
-  );
-  const escrowGmv = useMemo(
-    () => escrowHolds.reduce((sum, o) => sum + (o.amount || 0), 0),
-    [escrowHolds],
-  );
-  const activeDeliveries = platform.stuckOrders.length;
+  if (isError || !data) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-8 text-center">
+        <p className="text-sm font-medium text-foreground">
+          Impossible de charger le tableau de bord
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {error instanceof Error ? error.message : "Réessaie dans un instant."}
+        </p>
+      </div>
+    );
+  }
 
-  const openDisputesList = openDisputes.slice(0, 3).map((d) => ({
-    _id: d.id,
-    reason: d.reason,
-    status: d.status,
-    buyer: { pseudo: d.buyerName },
-    seller: { pseudo: d.sellerName },
-  }));
-
-  const showApiFallback = isError && !stats;
+  const {
+    totalListings,
+    activeListings,
+    pendingListings,
+    pendingListingCount,
+    pendingShopCount,
+    catalogValueGnf,
+    commissionRatePercent,
+    categoryChart,
+    activity,
+    openDisputeCount,
+    escrowGmv,
+    escrowHoldCount,
+    totalUsers,
+    activeDeliveries,
+    draftListings,
+    soldListings,
+  } = data;
 
   return (
     <div className="space-y-6">
@@ -82,199 +74,183 @@ export default function AdminDashboardPage() {
           Vue d&apos;ensemble
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Paiements, litiges et confiance vendeurs · {range.label}
+          Données live de la plateforme · {range.label}
         </p>
-        {showApiFallback && (
-          <p className="mt-2 text-xs text-amber-600">
-            API hors ligne — KPIs complétés avec données de démonstration.
-          </p>
-        )}
       </div>
 
-      {isLoading && !showApiFallback ? (
-        <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      <StatsCarousel gridClassName="sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Litiges ouverts"
+          value={`${openDisputeCount}`}
+          description="À examiner ou résoudre"
+          href="/admin/litiges"
+          actionLabel="Voir les litiges"
+          icon={HiOutlineScale}
+        />
+        <StatCard
+          label="Paiement bloqué"
+          value={formatGnf(escrowGmv)}
+          description={
+            escrowHoldCount === 0
+              ? "Aucun séquestre"
+              : `${escrowHoldCount} séquestres actives`
+          }
+          href="/admin/porte-monnaies"
+          actionLabel="Voir les paiements"
+          icon={FaShieldHalved}
+        />
+        <StatCard
+          label="Validations boutique"
+          value={`${pendingShopCount}`}
+          description="Commerce local & enseignes"
+          href="/admin/validations"
+          actionLabel="Valider"
+          icon={BsShieldFillCheck}
+        />
+        <StatCard
+          label="Utilisateurs"
+          value={
+            totalUsers == null ? "—" : totalUsers.toLocaleString("fr-FR")
+          }
+          description="Compteur utilisateurs indisponible"
+          href="/admin/utilisateurs"
+          actionLabel="Voir les utilisateurs"
+          icon={FiUsers}
+        />
+      </StatsCarousel>
+
+      <StatsCarousel gridClassName="sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Articles"
+          value={totalListings.toLocaleString("fr-FR")}
+          description={`${activeListings} actifs · ${draftListings ?? 0} brouillons · ${soldListings ?? 0} vendus`}
+          href="/admin/articles"
+          actionLabel="Voir les articles"
+          icon={FiShoppingBag}
+        />
+        <StatCard
+          label="Valeur catalogue"
+          value={formatGnf(catalogValueGnf)}
+          description="Somme des annonces actives"
+          href="/admin/articles"
+          actionLabel="Voir le catalogue"
+          icon={HiArrowTrendingUp}
+        />
+        <StatCard
+          label="Livraisons actives"
+          value={activeDeliveries.toString()}
+          description={
+            activeDeliveries > 0 ? "Missions en cours" : "Aucune livraison active"
+          }
+          href="/admin/livreurs"
+          actionLabel="Voir livreurs"
+          icon={FiTruck}
+        />
+        <StatCard
+          label="Commission"
+          value={
+            commissionRatePercent == null
+              ? "—"
+              : `${commissionRatePercent} %`
+          }
+          description={
+            commissionRatePercent == null
+              ? "Paramètres plateforme non configurés"
+              : "Taux plateforme actuel"
+          }
+          href="/admin/parametres"
+          actionLabel="Paramètres"
+          icon={HiArrowTrendingUp}
+        />
+      </StatsCarousel>
+
+      <ChartAreaInteractive />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <ChartBarInteractive />
+        <ChartRadialStacked />
+        <ChartPieDonutText
+          title="Catalogue par catégorie"
+          description="Annonces live regroupées par catégorie"
+          data={categoryChart}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="rounded-xl border border-border bg-card p-5 xl:col-span-2">
+          <h3 className="mb-4 font-semibold text-foreground">
+            Activité récente (audit)
+          </h3>
+          {activity.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Aucun événement d&apos;audit pour le moment
+            </p>
+          ) : (
+            <RecentActivity items={activity} />
+          )}
         </div>
-      ) : (
-        <>
-          <StatsCarousel gridClassName="sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              label="Litiges ouverts"
-              value={`${openDisputes.length}`}
-              description="À examiner ou résoudre"
-              href="/admin/litiges"
-              actionLabel="Voir les litiges"
-              icon={HiOutlineScale}
-            />
-            <StatCard
-              label="Paiement bloqué"
-              value={formatGnf(escrowGmv + lockedGmv)}
-              description={`${escrowHolds.length + openDisputes.length} séquestres actives`}
-              href="/admin/porte-monnaies"
-              actionLabel="Voir les paiements"
-              icon={FaShieldHalved}
-            />
-            <StatCard
-              label="Validations boutique"
-              value={`${pendingShopCount}`}
-              description="Commerce local & enseignes"
-              href="/admin/validations"
-              actionLabel="Valider"
-              icon={BsShieldFillCheck}
-            />
-            <StatCard
-              label="Utilisateurs"
-              value={totalUsers.toLocaleString("fr-FR")}
-              description={`${activeDeliveries} livraisons actives`}
-              href="/admin/utilisateurs"
-              actionLabel="Voir les utilisateurs"
-              icon={FiUsers}
-            />
-          </StatsCarousel>
 
-          <StatsCarousel gridClassName="sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              label="Articles"
-              value={totalArticles.toLocaleString("fr-FR")}
-              description={stats?.articlesChange ?? "Catalogue live + mock"}
-              href="/admin/articles"
-              actionLabel="Voir les articles"
-              icon={FiShoppingBag}
-            />
-            <StatCard
-              label="Revenus cumulés"
-              value={formatGnf(totalRevenue)}
-              description={stats?.revenueChange ?? "Commission plateforme"}
-              href="/admin/rapports"
-              actionLabel="Voir les rapports"
-              icon={HiArrowTrendingUp}
-            />
-            <StatCard
-              label="Livraisons actives"
-              value={activeDeliveries.toString()}
-              description={
-                activeDeliveries > 0 ? "Missions en cours" : "Aucune en attente"
-              }
-              href="/admin/livreurs"
-              actionLabel="Voir livreurs"
-              icon={FiTruck}
-            />
-            <StatCard
-              label="Commission"
-              value={`${platform.commissionRate} %`}
-              description="Taux plateforme actuel"
-              href="/admin/parametres"
-              actionLabel="Paramètres"
-              icon={HiArrowTrendingUp}
-            />
-          </StatsCarousel>
-
-          <ChartAreaInteractive />
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-            <ChartBarInteractive />
-            <ChartRadialStacked />
-            <ChartPieDonutText />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <div className="rounded-xl border border-border bg-card p-5 xl:col-span-2">
-              <h3 className="mb-4 font-semibold text-foreground">
-                Activité en direct
+        <div className="space-y-4">
+          <div className="rounded-xl border border-border bg-card p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">
+                Articles en attente
               </h3>
-              <RecentActivity items={platform.activity} />
+              <Badge variant="secondary">{pendingListingCount}</Badge>
             </div>
-
-            <div className="space-y-4">
-              <ActiveSessionsPanel />
-
-              <div className="rounded-xl border border-border bg-card p-5">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-foreground">
-                    Articles en attente
-                  </h3>
-                  <Badge variant="secondary">{pendingArticles.length}</Badge>
-                </div>
-                <div className="space-y-2">
-                  {pendingArticles
-                    .slice(0, 3)
-                    .map(
-                      (a: {
-                        _id: string;
-                        title: string;
-                        price?: number;
-                        images?: string[];
-                        seller?: { pseudo?: string } | string;
-                      }) => (
-                        <div key={a._id} className="flex items-center gap-3 py-1.5">
-                          {a.images?.[0] && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={a.images[0]}
-                              alt={a.title}
-                              className="h-9 w-9 rounded object-cover"
-                            />
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">
-                              {a.title}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {typeof a.seller === "object"
-                                ? a.seller.pseudo
-                                : "Vendeur"}
-                            </p>
-                          </div>
-                        </div>
-                      ),
+            <div className="space-y-2">
+              {pendingListings.slice(0, 3).map((a) => {
+                const img = listingImageUrl(a.media?.[0]);
+                return (
+                  <div key={a.id} className="flex items-center gap-3 py-1.5">
+                    {img && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={img}
+                        alt={a.title}
+                        className="h-9 w-9 rounded object-cover"
+                      />
                     )}
-                  {pendingArticles.length === 0 && (
-                    <p className="py-4 text-center text-sm text-muted-foreground">
-                      Aucun article en attente
-                    </p>
-                  )}
-                </div>
-                <Link
-                  href="/admin/articles"
-                  className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                >
-                  Voir tout <FiArrowRight className="h-3 w-3" />
-                </Link>
-              </div>
-
-              <div className="rounded-xl border border-border bg-card p-5">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-foreground">
-                    Litiges à traiter
-                  </h3>
-                  <Badge variant="destructive">{openDisputes.length}</Badge>
-                </div>
-                <div className="space-y-2">
-                  {openDisputesList.map((d) => (
-                    <div key={d._id} className="py-1.5">
-                      <p className="truncate text-sm font-medium">{d.reason}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {d.buyer.pseudo} vs {d.seller.pseudo}
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{a.title}</p>
+                      <p className="text-xs text-muted-foreground">{a.status}</p>
                     </div>
-                  ))}
-                  {openDisputesList.length === 0 && (
-                    <p className="py-4 text-center text-sm text-muted-foreground">
-                      Aucun litige ouvert
-                    </p>
-                  )}
-                </div>
-                <Link
-                  href="/admin/litiges"
-                  className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                >
-                  Voir tout <FiArrowRight className="h-3 w-3" />
-                </Link>
-              </div>
+                  </div>
+                );
+              })}
+              {pendingListingCount === 0 && (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  Aucun article en attente
+                </p>
+              )}
             </div>
+            <Link
+              href="/admin/articles"
+              className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              Voir tout <FiArrowRight className="h-3 w-3" />
+            </Link>
           </div>
-        </>
-      )}
+
+          <div className="rounded-xl border border-border bg-card p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">
+                Litiges à traiter
+              </h3>
+              <Badge variant="destructive">{openDisputeCount}</Badge>
+            </div>
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Aucun litige ouvert
+            </p>
+            <Link
+              href="/admin/litiges"
+              className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              Voir tout <FiArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

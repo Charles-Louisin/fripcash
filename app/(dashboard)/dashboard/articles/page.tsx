@@ -1,8 +1,28 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { FiPlus, FiEdit2, FiTrash2, FiCheck, FiEye, FiHeart, FiGrid, FiList, FiCamera, FiX, FiImage, FiAlertCircle } from "react-icons/fi";
-import { useMyArticles, useCreateArticle, useUpdateArticle, useDeleteArticle } from "@/hooks/use-articles";
+import { useState, useRef, useMemo } from "react";
+import {
+  FiPlus,
+  FiEdit2,
+  FiTrash2,
+  FiCheck,
+  FiEye,
+  FiHeart,
+  FiGrid,
+  FiList,
+  FiCamera,
+  FiX,
+  FiImage,
+  FiAlertCircle,
+} from "react-icons/fi";
+import {
+  useMyArticles,
+  useCreateArticle,
+  useUpdateArticle,
+  useDeleteArticle,
+} from "@/hooks/use-articles";
+import { fetchCategories, type CatalogCategory } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -23,61 +43,67 @@ const tabs = [
   { id: "draft", label: "Brouillons" },
 ];
 
-const categoryTree: Record<string, Record<string, string[]>> = {
-  Femme: {
-    Vêtements: ["Robes", "Hauts et t-shirts", "Pantalons et leggings", "Jupes", "Jeans", "Sweats et sweats à capuche", "Manteaux et vestes", "Blazers et tailleurs", "Shorts", "Maillots de bain", "Lingerie et pyjamas", "Vêtements de sport", "Maternité"],
-    Chaussures: ["Baskets", "Sandales", "Talons", "Bottes"],
-    Sacs: ["Sacs à main", "Sacs à dos"],
-    Accessoires: ["Bijoux", "Ceintures", "Lunettes"],
-    Beauté: ["Maquillage", "Soins", "Parfums"],
-  },
-  Homme: {
-    Vêtements: ["T-shirts et polos", "Chemises", "Pantalons", "Jeans", "Sweats et hoodies", "Vestes et manteaux", "Costumes", "Shorts"],
-    Chaussures: ["Baskets", "Chaussures de ville", "Bottes"],
-    Accessoires: ["Montres", "Ceintures", "Sacs"],
-  },
-  Enfant: {
-    Fille: ["Robes", "Hauts", "Pantalons"],
-    Garçon: ["T-shirts", "Pantalons", "Sweats"],
-    Bébé: ["Bodies", "Pyjamas"],
-    Chaussures: [],
-  },
-  Maison: {
-    Décoration: ["Coussins", "Cadres", "Bougies"],
-    "Linge de maison": ["Draps", "Serviettes"],
-    Cuisine: ["Vaisselle", "Ustensiles"],
-  },
-  Électronique: {
-    Téléphones: ["Smartphones", "Coques et accessoires"],
-    Informatique: ["Ordinateurs portables", "Tablettes", "Accessoires"],
-    "Audio & Photo": ["Écouteurs", "Enceintes", "Appareils photo"],
-  },
-  Loisirs: {
-    "Jeux & Jouets": ["Jeux de société", "Puzzles", "Figurines"],
-    Collections: ["Vinyles", "Cartes"],
-    "Loisirs créatifs": [],
-  },
-  Sport: {
-    "Vêtements de sport": ["Running", "Fitness", "Football"],
-    "Chaussures de sport": [],
-    Équipement: ["Vélos", "Accessoires"],
-  },
-  Divertissement: {
-    Livres: ["Romans", "BD & Mangas", "Manuels scolaires"],
-    "Musique & Films": ["CD & Vinyles", "DVD & Blu-ray"],
-    "Jeux vidéo": ["Consoles", "Jeux"],
-  },
-};
+const conditions = [
+  "Neuf avec étiquette",
+  "Neuf sans étiquette",
+  "Très bon état",
+  "Bon état",
+  "Satisfaisant",
+];
+const sizes = [
+  "XS",
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL",
+  "34",
+  "36",
+  "38",
+  "40",
+  "42",
+  "44",
+  "46",
+  "Unique",
+];
 
-const categoryNames = Object.keys(categoryTree);
-const conditions = ["Neuf avec étiquette", "Neuf sans étiquette", "Très bon état", "Bon état", "Satisfaisant"];
-const sizes = ["XS", "S", "M", "L", "XL", "XXL", "34", "36", "38", "40", "42", "44", "46", "Unique"];
+function buildCategoryOptions(rows: CatalogCategory[]) {
+  const active = rows.filter((c) => c.isActive !== false);
+  const byId = new Map(active.map((c) => [c.id, c]));
+  // Prefer leaves (subs); fall back to roots without children
+  const childParentIds = new Set(
+    active.filter((c) => c.parentId).map((c) => c.parentId as string)
+  );
+  return active
+    .filter((c) => c.parentId || !childParentIds.has(c.id))
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .map((c) => {
+      const parent = c.parentId ? byId.get(c.parentId) : null;
+      return {
+        id: c.id,
+        label: parent
+          ? `${parent.nameFr} › ${c.nameFr}`
+          : c.nameFr || c.nameEn || c.slug,
+      };
+    });
+}
 
 export default function MyArticlesPage() {
   const { showToast } = useToast();
   const { data: user } = useMe();
   const canCreateListing = user?.seller?.capabilities?.createListing === true;
+  const verificationPending =
+    user?.seller?.verificationStatus === "pending";
   const { data: listings = [], isLoading } = useMyArticles();
+  const { data: catalogRows = [] } = useQuery({
+    queryKey: ["catalog", "categories", "flat"],
+    queryFn: fetchCategories,
+    staleTime: 30 * 60 * 1000,
+  });
+  const categoryOptions = useMemo(
+    () => buildCategoryOptions(catalogRows),
+    [catalogRows]
+  );
   const createArticle = useCreateArticle();
   const updateArticle = useUpdateArticle();
   const deleteArticleMut = useDeleteArticle();
@@ -87,11 +113,25 @@ export default function MyArticlesPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const emptyForm = { title: "", brand: "", description: "", category: categoryNames[0], subcategory: "", subItem: "", condition: conditions[0], price: "", size: "", color: "" };
+  const emptyForm = {
+    title: "",
+    brand: "",
+    description: "",
+    categoryId: "",
+    condition: conditions[0],
+    price: "",
+    size: "",
+    color: "",
+  };
   const [formData, setFormData] = useState(emptyForm);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string | null; title: string }>({ open: false, id: null, title: "" });
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    open: boolean;
+    id: string | null;
+    title: string;
+  }>({ open: false, id: null, title: "" });
 
   const openAddSheet = () => {
     if (!canCreateListing) {
@@ -101,9 +141,20 @@ export default function MyArticlesPage() {
       );
       return;
     }
+    if (verificationPending) {
+      showToast(
+        "Ton profil vendeur est en attente de validation — tu ne peux pas encore publier.",
+        "info"
+      );
+      return;
+    }
     setEditingItem(null);
-    setFormData(emptyForm);
+    setFormData({
+      ...emptyForm,
+      categoryId: categoryOptions[0]?.id || "",
+    });
     setImagePreviews([]);
+    setImageFiles([]);
     setSheetOpen(true);
   };
 
@@ -113,24 +164,27 @@ export default function MyArticlesPage() {
       title: item.title || "",
       brand: item.brand || "",
       description: item.description || "",
-      category: item.category || categoryNames[0],
-      subcategory: "",
-      subItem: "",
+      categoryId: item.categoryId || categoryOptions[0]?.id || "",
       condition: item.condition || conditions[0],
       price: String(item.price || ""),
       size: item.size || "",
       color: item.color || "",
     });
     setImagePreviews(item.images || []);
+    setImageFiles([]);
     setSheetOpen(true);
   };
 
   const closeSheet = () => {
     setSheetOpen(false);
     setEditingItem(null);
+    setImageFiles([]);
   };
 
-  const filtered = listings.filter((l: any) => l.status === activeTab);
+  const filtered = listings.filter((l: any) =>
+    activeTab === "draft" ? l.status === "pending" : l.status === activeTab
+  );
+
 
   const askDelete = (id: string) => {
     const item = listings.find((l: any) => l._id === id);
@@ -157,9 +211,11 @@ export default function MyArticlesPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    const newPreviews: string[] = [];
     Array.from(files).forEach((file) => {
-      if (imagePreviews.length + newPreviews.length >= 5) return;
+      setImageFiles((prev) => {
+        if (prev.length >= 5) return prev;
+        return [...prev, file];
+      });
       const reader = new FileReader();
       reader.onload = (ev) => {
         setImagePreviews((prev) => {
@@ -168,7 +224,6 @@ export default function MyArticlesPage() {
         });
       };
       reader.readAsDataURL(file);
-      newPreviews.push("");
     });
     // Reset input so same file can be selected again
     e.target.value = "";
@@ -176,26 +231,56 @@ export default function MyArticlesPage() {
 
   const removeImage = (index: number) => {
     setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const listingErrorMessage = (err: any) => {
+    const code = err?.body?.code || err?.code;
+    if (
+      code === "FORBIDDEN_AUDIENCE" ||
+      err?.body?.statusCode === 403 ||
+      err?.statusCode === 403
+    ) {
+      if (verificationPending) {
+        return "Profil vendeur en attente de validation — la création d'annonces est bloquée par l'API.";
+      }
+      return (
+        err?.message ||
+        "Accès refusé pour publier une annonce (vérifie ton profil vendeur)."
+      );
+    }
+    return err?.message || "Erreur";
   };
 
   const handleSubmit = () => {
     if (createArticle.isPending || updateArticle.isPending) return;
+    if (verificationPending && !editingItem) {
+      showToast(
+        "Profil vendeur en attente de validation — publication impossible.",
+        "error"
+      );
+      return;
+    }
     if (!formData.title || !formData.price) {
       showToast("Remplis le titre et le prix.", "error");
+      return;
+    }
+    if (!formData.categoryId) {
+      showToast("Choisis une catégorie.", "error");
       return;
     }
     if (imagePreviews.length === 0) {
       showToast("Ajoute au moins une photo.", "error");
       return;
     }
-    const fullCategory = [formData.category, formData.subcategory, formData.subItem].filter(Boolean).join(" > ");
 
     const body = {
       title: formData.title,
       brand: formData.brand || "Sans marque",
       description: formData.description,
       images: imagePreviews,
-      category: fullCategory,
+      imageFiles,
+      categoryId: formData.categoryId,
       condition: formData.condition,
       size: formData.size || undefined,
       color: formData.color || undefined,
@@ -203,20 +288,23 @@ export default function MyArticlesPage() {
     };
 
     if (editingItem) {
-      updateArticle.mutate({ id: editingItem._id, ...body }, {
-        onSuccess: () => {
-          showToast("Article modifié avec succès !", "success");
-          closeSheet();
-        },
-        onError: (err: any) => showToast(err.message || "Erreur", "error"),
-      });
+      updateArticle.mutate(
+        { id: editingItem._id, ...body },
+        {
+          onSuccess: () => {
+            showToast("Article modifié avec succès !", "success");
+            closeSheet();
+          },
+          onError: (err: any) => showToast(listingErrorMessage(err), "error"),
+        }
+      );
     } else {
       createArticle.mutate(body, {
         onSuccess: () => {
           showToast("Article publié avec succès !", "success");
           closeSheet();
         },
-        onError: (err: any) => showToast(err.message || "Erreur", "error"),
+        onError: (err: any) => showToast(listingErrorMessage(err), "error"),
       });
     }
   };
@@ -257,6 +345,26 @@ export default function MyArticlesPage() {
           >
             Paramètres → Vendre
           </Link>
+        </div>
+      )}
+
+      {canCreateListing && verificationPending && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex gap-3">
+          <FiAlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-amber-900">
+              Profil vendeur en attente de validation
+            </p>
+            <p className="mt-0.5 text-amber-800/80">
+              Tu es bien connecté en tant que vendeur, et tes annonces seed
+              restent visibles. L&apos;API bloque{" "}
+              <strong>POST /listings</strong> tant que{" "}
+              <code className="text-xs">verificationStatus</code> est{" "}
+              <code className="text-xs">pending</code> (le 403{" "}
+              <code className="text-xs">FORBIDDEN_AUDIENCE</code> vient du BE,
+              pas d&apos;un mauvais login).
+            </p>
+          </div>
         </div>
       )}
 
@@ -592,45 +700,30 @@ export default function MyArticlesPage() {
               />
             </div>
 
-            {/* ─── Category cascading selects ─── */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-1.5">Catégorie *</label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value, subcategory: "", subItem: "" })}
-                  className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                >
-                  {categoryNames.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-1.5">Sous-catégorie *</label>
-                <select
-                  value={formData.subcategory}
-                  onChange={(e) => setFormData({ ...formData, subcategory: e.target.value, subItem: "" })}
-                  className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                >
-                  <option value="">Choisir...</option>
-                  {formData.category && Object.keys(categoryTree[formData.category] || {}).map((sub) => (
-                    <option key={sub} value={sub}>{sub}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-1.5">Type</label>
-                <select
-                  value={formData.subItem}
-                  onChange={(e) => setFormData({ ...formData, subItem: e.target.value })}
-                  disabled={!formData.subcategory || (categoryTree[formData.category]?.[formData.subcategory]?.length ?? 0) === 0}
-                  className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <option value="">Choisir...</option>
-                  {formData.subcategory && (categoryTree[formData.category]?.[formData.subcategory] || []).map((item) => (
-                    <option key={item} value={item}>{item}</option>
-                  ))}
-                </select>
-              </div>
+            {/* ─── Category (catalog live) ─── */}
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-1.5">
+                Catégorie *
+              </label>
+              <select
+                value={formData.categoryId}
+                onChange={(e) =>
+                  setFormData({ ...formData, categoryId: e.target.value })
+                }
+                className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              >
+                <option value="">Choisir…</option>
+                {categoryOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              {categoryOptions.length === 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Aucune catégorie catalogue disponible.
+                </p>
+              )}
             </div>
 
             {/* ─── Condition ─── */}

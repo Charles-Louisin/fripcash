@@ -20,9 +20,3 @@ export function clearAdminSession() {
   setAdminSession(false);
   removeToken();
 }
-
-/** Demo access when the API backend is offline. */
-export function enableAdminDemoSession() {
-  setToken("demo-admin-token");
-  setAdminSession(true);
-}

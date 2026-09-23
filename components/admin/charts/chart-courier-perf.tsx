@@ -14,13 +14,16 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { courierPerfChartData } from "@/lib/admin-chart-mock";
 
 const chartConfig = {
   deliveries: { label: "Livraisons", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
-export function ChartCourierPerf() {
+type Point = { name: string; deliveries: number };
+
+type Props = { data?: Point[] };
+
+export function ChartCourierPerf({ data = [] }: Props) {
   return (
     <Card>
       <CardHeader>
@@ -28,15 +31,33 @@ export function ChartCourierPerf() {
         <CardDescription>Livraisons complétées ce mois</CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="aspect-auto h-[260px] w-full">
-          <BarChart data={[...courierPerfChartData]}>
-            <CartesianGrid vertical={false} />
-            <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
-            <YAxis tickLine={false} axisLine={false} width={32} />
-            <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="deliveries" fill="var(--color-deliveries)" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ChartContainer>
+        {data.length === 0 ? (
+          <div className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
+            Aucune donnée livreur
+          </div>
+        ) : (
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-auto h-[260px] w-full"
+          >
+            <BarChart data={data}>
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="name"
+                tickLine={false}
+                axisLine={false}
+                tick={{ fontSize: 12 }}
+              />
+              <YAxis tickLine={false} axisLine={false} width={32} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar
+                dataKey="deliveries"
+                fill="var(--color-deliveries)"
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   );

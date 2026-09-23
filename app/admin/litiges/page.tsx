@@ -9,12 +9,13 @@ import { useToast } from "@/components/ui/toast";
 import {
   type AdminDispute,
   type AdminDisputeOutcome,
+  type AdminDisputePayment,
   DISPUTE_OUTCOME_LABELS,
   DISPUTE_OUTCOMES,
   DISPUTE_PAYMENT_KIND_LABELS,
   DISPUTE_STATUS_LABELS,
 } from "@/lib/admin-disputes";
-import { useAdminDisputesStore } from "@/stores/admin-disputes-store";
+import { useResolveAdminDispute } from "@/hooks/use-admin";
 import {
   FiAlertTriangle,
   FiCheck,
@@ -58,11 +59,20 @@ export default function LitigesPage() {
   const [confirmOutcome, setConfirmOutcome] =
     useState<AdminDisputeOutcome | null>(null);
 
-  const disputes = useAdminDisputesStore((s) => s.disputes);
-  const payments = useAdminDisputesStore((s) => s.payments);
-  const orderStatuses = useAdminDisputesStore((s) => s.orderStatuses);
-  const markUnderReview = useAdminDisputesStore((s) => s.markUnderReview);
-  const resolveDispute = useAdminDisputesStore((s) => s.resolveDispute);
+  // No GET /admin/disputes yet — empty live list (no mock store).
+  const disputes: AdminDispute[] = [];
+  const payments: AdminDisputePayment[] = [];
+  const orderStatuses: Record<string, string> = {};
+  const markUnderReview = (_id: string) => ({
+    ok: false as const,
+    message: "Aucun litige à mettre en revue",
+  });
+  const resolveDisputeLocal = (
+    _id: string,
+    _outcome: AdminDisputeOutcome,
+    _notes: string
+  ) => ({ ok: false as const, message: "Aucun litige local" });
+  const resolveDisputeApi = useResolveAdminDispute();
 
   const selectedDispute = useMemo(
     () => disputes.find((d) => d.id === selectedId) ?? null,
@@ -124,12 +134,26 @@ export default function LitigesPage() {
     showToast(result.message, result.ok ? "success" : "warning");
   }
 
-  function handleConfirmOutcome() {
+  async function handleConfirmOutcome() {
     if (!selectedDispute || !confirmOutcome) return;
-    const result = resolveDispute(
+    const note = notes.trim() || "Résolu depuis l'admin web";
+    const apiResolution =
+      confirmOutcome === "refund_buyer" || confirmOutcome === "partial_refund"
+        ? "resolved_buyer"
+        : "resolved_seller";
+    try {
+      await resolveDisputeApi.mutateAsync({
+        id: selectedDispute.id,
+        resolution: apiResolution,
+        note,
+      });
+    } catch {
+      /* keep local store update for offline demo queue */
+    }
+    const result = resolveDisputeLocal(
       selectedDispute.id,
       confirmOutcome,
-      notes.trim() || undefined,
+      notes.trim() || "Résolu depuis l'admin web",
     );
     showToast(result.message, result.ok ? "success" : "warning");
     setConfirmOutcome(null);
@@ -258,6 +282,10 @@ export default function LitigesPage() {
         <h1 className="text-2xl font-bold text-foreground">Litiges</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Examiner les différends et résoudre le paiement (séquestre)
+        </p>
+        <p className="text-xs text-amber-700 dark:text-amber-500 mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+          Liste vide : GET /admin/disputes n’existe pas encore (seed ~7 litiges).
+          Seul POST /admin/disputes/:id/resolve est branché.
         </p>
       </div>
 

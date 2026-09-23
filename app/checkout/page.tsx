@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCartStore } from "@/stores/cart-store";
 import { useToast } from "@/components/ui/toast";
-import { useCreateOrder } from "@/hooks/use-orders";
+import { useCheckout, useAddCartItem } from "@/hooks/use-cart";
 import { useWalletBalance } from "@/hooks/use-wallet";
 import { EmptyStateLottie } from "@/components/empty-state-lottie";
 import {
@@ -60,7 +60,8 @@ export default function CheckoutPage() {
   const { toast } = useToast();
   const { items, removeItem, subtotal, totalWithShipping, clearCart, itemCount } =
     useCartStore();
-  const createOrder = useCreateOrder();
+  const checkoutApi = useCheckout();
+  const addCartItem = useAddCartItem();
   const { data: walletData } = useWalletBalance();
   const walletBalance = walletData?.balance ?? 0;
   const availableBalance = (walletData?.availableBalance ?? walletData?.balance ?? 0);
@@ -140,25 +141,34 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
-      const createdIds: string[] = [];
-
+      // Sync local cart lines to server cart, then checkout once
       for (const item of displayItems) {
-        const res = await createOrder.mutateAsync({
-          articleId: String(item.id),
-          deliveryMode,
-          paymentMethod,
-          fullName: form.fullName.trim(),
-          phone: form.phone.trim(),
-          address: form.address.trim() || undefined,
-          city: form.city.trim(),
-        });
-        if (res?.data?._id) {
-          createdIds.push(res.data._id);
+        try {
+          await addCartItem.mutateAsync({
+            listingId: String(item.id),
+            quantity: item.quantity || 1,
+          });
+        } catch {
+          /* item may already be on server cart */
         }
       }
 
+      const res = await checkoutApi.mutateAsync();
+      const orders = Array.isArray((res as any)?.orders)
+        ? (res as any).orders
+        : [];
+      const createdIds = orders.map(
+        (o: any) => o.id || o._id || `ord_${Date.now()}`
+      );
+
       clearCart();
-      setOrderNumber(createdIds.length === 1 ? createdIds[0] : `${createdIds.length} commandes`);
+      setOrderNumber(
+        createdIds.length === 1
+          ? createdIds[0]
+          : createdIds.length > 0
+            ? `${createdIds.length} commandes`
+            : "commande"
+      );
       setOrderPlaced(true);
       toast("Paiement sécurisé en attente de livraison", "success");
     } catch (err: any) {

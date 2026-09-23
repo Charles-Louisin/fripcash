@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useMe, useBecomeParticulier } from "@/hooks/use-auth";
+import { useEffect, useMemo, useState } from "react";
+import { useMe, useBecomeParticulier, useUpdateProfile } from "@/hooks/use-auth";
+import {
+  useNotificationPreferences,
+  useUpsertNotificationPreference,
+} from "@/hooks/use-notifications";
 import { useToast } from "@/components/ui/toast";
-import { FiAlertCircle, FiShoppingBag, FiSmartphone } from "react-icons/fi";
+import { FiShoppingBag, FiSmartphone } from "react-icons/fi";
 import { buildSellerSnapshot } from "@/lib/account-capabilities";
 import { GetAppBanner } from "@/components/dashboard/get-app-banner";
 import {
@@ -15,15 +19,62 @@ const settingsTabs = [
   { id: "account", label: "Compte" },
   { id: "seller", label: "Vendre" },
   { id: "notifications", label: "Notifications" },
-  { id: "privacy", label: "Confidentialité" },
 ];
+
+const NOTIF_TYPES = [
+  {
+    type: "MESSAGE",
+    label: "Nouveaux messages",
+    desc: "Recevoir une notification pour chaque nouveau message",
+  },
+  {
+    type: "ORDER",
+    label: "Mises à jour de commande",
+    desc: "Suivi de vos achats et ventes",
+  },
+  {
+    type: "OFFER",
+    label: "Offres",
+    desc: "Négociations et propositions de prix",
+  },
+  {
+    type: "PROMOTION",
+    label: "Promotions",
+    desc: "Offres spéciales et réductions",
+  },
+] as const;
+
+function prefEnabled(
+  prefs: unknown,
+  type: string,
+  channel: "pushEnabled" | "smsEnabled" | "emailEnabled"
+): boolean {
+  const rows = Array.isArray(prefs) ? prefs : [];
+  const row = rows.find(
+    (p: any) =>
+      String(p.type || p.notificationType || "").toUpperCase() === type
+  );
+  if (!row) return true; // default on until user saves otherwise
+  return row[channel] !== false;
+}
 
 export default function SettingsPage() {
   const { showToast } = useToast();
   const { data: user } = useMe();
   const becomeParticulier = useBecomeParticulier();
+  const updateProfile = useUpdateProfile();
+  const { data: prefs = [], isLoading: prefsLoading } =
+    useNotificationPreferences();
+  const upsertPref = useUpsertNotificationPreference();
+
   const [activeTab, setActiveTab] = useState("account");
   const [upgradeConfirm, setUpgradeConfirm] = useState(false);
+  const [displayName, setDisplayName] = useState(user?.pseudo || "");
+  const [upgrading, setUpgrading] = useState(false);
+
+  useEffect(() => {
+    if (user?.pseudo) setDisplayName(user.pseudo);
+  }, [user?.pseudo]);
 
   const seller =
     user?.seller ??
@@ -34,71 +85,66 @@ export default function SettingsPage() {
         null,
     });
 
-  const [phone, setPhone] = useState(user?.phone || "");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  const [notifs, setNotifs] = useState({
-    newMessage: true,
-    orderUpdate: true,
-    promotion: false,
-    newsletter: false,
-    smsAlerts: true,
-  });
-  const [newsletterLoading, setNewsletterLoading] = useState(false);
-
-  const [privacy, setPrivacy] = useState({
-    profileVisible: true,
-    activityStatus: true,
-    showRating: true,
-  });
-
   const handleSaveAccount = () => {
-    if (newPassword && newPassword !== confirmPassword) {
-      showToast("Les mots de passe ne correspondent pas", "error");
+    const name = displayName.trim();
+    if (!name) {
+      showToast("Le nom d'affichage est requis", "error");
       return;
     }
-    showToast("Paramètres du compte mis à jour", "success");
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-  };
-
-  const handleToggleNewsletter = async () => {
-    const email = user?.email || user?.phone;
-    if (!email) {
-      showToast("Aucun email associé à ton compte", "error");
-      return;
-    }
-    setNewsletterLoading(true);
-    await new Promise((r) => setTimeout(r, 300));
-    if (notifs.newsletter) {
-      setNotifs((prev) => ({ ...prev, newsletter: false }));
-      showToast("Tu es désinscrit de la newsletter (démo)", "info");
-    } else {
-      setNotifs((prev) => ({ ...prev, newsletter: true }));
-      showToast("Inscrit à la newsletter ! (démo)", "success");
-    }
-    setNewsletterLoading(false);
-  };
-
-  const handleBecomeParticulier = () => {
-    becomeParticulier();
-    setUpgradeConfirm(false);
-    showToast(
-      "Profil particulier activé. Tes achats restent sur ce compte.",
-      "success"
+    updateProfile.mutate(
+      { name },
+      {
+        onSuccess: () => showToast("Profil mis à jour", "success"),
+        onError: (err: any) =>
+          showToast(err.message || "Erreur lors de la mise à jour", "error"),
+      }
     );
   };
+
+  const handleToggleNotif = async (
+    type: string,
+    channel: "pushEnabled" | "smsEnabled",
+    next: boolean
+  ) => {
+    try {
+      await upsertPref.mutateAsync({
+        type,
+        [channel]: next,
+      });
+      showToast("Préférence enregistrée", "success");
+    } catch (err: any) {
+      showToast(err?.message || "Impossible d'enregistrer", "error");
+    }
+  };
+
+  const handleBecomeParticulier = async () => {
+    setUpgrading(true);
+    try {
+      await becomeParticulier();
+      setUpgradeConfirm(false);
+      showToast(
+        "Profil particulier activé. Tes achats restent sur ce compte.",
+        "success"
+      );
+    } catch (err: any) {
+      showToast(err?.message || "Activation impossible", "error");
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
+  const smsAlertsOn = useMemo(
+    () =>
+      NOTIF_TYPES.some((t) => prefEnabled(prefs, t.type, "smsEnabled")),
+    [prefs]
+  );
 
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Paramètres</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Gérez votre compte — pas de changement de rôle libre
+          Données live — pas de changement de rôle libre
         </p>
       </div>
 
@@ -121,81 +167,61 @@ export default function SettingsPage() {
 
       {activeTab === "account" && (
         <div className="space-y-6">
-          <div className="rounded-xl border border-border bg-card p-6">
-            <h3 className="font-semibold text-foreground mb-4">
-              Numéro de téléphone
-            </h3>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="w-full max-w-sm h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-
-          <div className="rounded-xl border border-border bg-card p-6">
-            <h3 className="font-semibold text-foreground mb-4">
-              Changer le mot de passe
-            </h3>
-            <div className="space-y-3 max-w-sm">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Mot de passe actuel
-                </label>
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Nouveau mot de passe
-                </label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Confirmer le mot de passe
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
+          <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+            <h3 className="font-semibold text-foreground">Compte</h3>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Nom d&apos;affichage
+              </label>
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="w-full max-w-sm h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Téléphone
+              </label>
+              <input
+                type="tel"
+                value={user?.phone || ""}
+                disabled
+                className="w-full max-w-sm h-10 px-3 rounded-lg border border-input bg-muted text-sm text-muted-foreground"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Le numéro est géré via la connexion OTP — non modifiable ici.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveAccount}
+              disabled={updateProfile.isPending}
+              className="h-10 px-6 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {updateProfile.isPending ? "Enregistrement…" : "Enregistrer"}
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={handleSaveAccount}
-            className="h-10 px-6 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            Enregistrer les modifications
-          </button>
+          <div className="rounded-xl border border-border bg-muted/30 p-6">
+            <h3 className="font-semibold text-foreground mb-2">
+              Mot de passe
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Compte téléphone OTP — pas de mot de passe côté API web. Les
+              comptes email (ex. France) se gèrent via le flux auth email.
+            </p>
+          </div>
 
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6">
             <h3 className="font-semibold text-destructive mb-2">
               Zone dangereuse
             </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              La suppression de votre compte est irréversible.
+            <p className="text-sm text-muted-foreground">
+              La suppression de compte n&apos;est pas encore exposée par
+              l&apos;API. Contacte le support pour une demande.
             </p>
-            <button
-              type="button"
-              onClick={() => setShowDeleteConfirm(true)}
-              className="h-9 px-4 rounded-lg border border-destructive text-destructive text-sm font-medium hover:bg-destructive hover:text-white transition-colors"
-            >
-              Supprimer mon compte
-            </button>
           </div>
         </div>
       )}
@@ -205,8 +231,8 @@ export default function SettingsPage() {
           <div className="rounded-xl border border-border bg-card p-6 space-y-3">
             <h3 className="font-semibold text-foreground">Profil vendeur</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Un seul compte. Tu upgrades pour vendre — pas de changement de rôle
-              libre. Tes achats restent toujours visibles.
+              Un seul compte. Tu upgrades pour vendre — pas de changement de
+              rôle libre. Tes achats restent toujours visibles.
             </p>
             <dl className="grid gap-2 text-sm pt-2">
               <div className="flex justify-between gap-4">
@@ -219,11 +245,20 @@ export default function SettingsPage() {
                       : "Boutique"}
                 </dd>
               </div>
+              {user?.seller?.verificationStatus && (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Vérification</dt>
+                  <dd className="font-medium text-foreground capitalize">
+                    {user.seller.verificationStatus}
+                  </dd>
+                </div>
+              )}
               {seller.listingDestination && (
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted-foreground">Univers</dt>
                   <dd className="font-medium text-foreground">
-                    {seller.listingDestination === "secondeMain"
+                    {seller.listingDestination === "secondeMain" ||
+                    seller.listingDestination === "SECONDE_MAIN"
                       ? "Seconde main"
                       : seller.listingDestination}
                   </dd>
@@ -305,158 +340,75 @@ export default function SettingsPage() {
             <h3 className="font-semibold text-foreground mb-4">
               Préférences de notifications
             </h3>
-            <div className="space-y-4">
-              {(
-                [
-                  {
-                    key: "newMessage" as const,
-                    label: "Nouveaux messages",
-                    desc: "Recevoir une notification pour chaque nouveau message",
-                  },
-                  {
-                    key: "orderUpdate" as const,
-                    label: "Mises à jour de commande",
-                    desc: "Suivi de vos achats et ventes",
-                  },
-                  {
-                    key: "promotion" as const,
-                    label: "Promotions",
-                    desc: "Offres spéciales et réductions",
-                  },
-                  {
-                    key: "newsletter" as const,
-                    label: "Newsletter",
-                    desc: "Actualités et conseils FripCash",
-                  },
-                  {
-                    key: "smsAlerts" as const,
-                    label: "Alertes SMS",
-                    desc: "Recevoir les notifications par SMS",
-                  },
-                ] as const
-              ).map((item) => (
-                <div
-                  key={item.key}
-                  className="flex items-center justify-between py-2"
-                >
+            {prefsLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {NOTIF_TYPES.map((item) => {
+                  const on = prefEnabled(prefs, item.type, "pushEnabled");
+                  return (
+                    <div
+                      key={item.type}
+                      className="flex items-center justify-between py-2"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          {item.label}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.desc}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={upsertPref.isPending}
+                        onClick={() =>
+                          handleToggleNotif(item.type, "pushEnabled", !on)
+                        }
+                        className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${
+                          on ? "bg-primary" : "bg-muted"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                            on ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
+                <div className="flex items-center justify-between py-2 border-t border-border pt-4">
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      {item.label}
+                      Alertes SMS
                     </p>
-                    <p className="text-xs text-muted-foreground">{item.desc}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Canal SMS pour les types ci-dessus
+                    </p>
                   </div>
                   <button
                     type="button"
-                    disabled={item.key === "newsletter" && newsletterLoading}
-                    onClick={() => {
-                      if (item.key === "newsletter") {
-                        handleToggleNewsletter();
-                      } else {
-                        setNotifs((prev) => ({
-                          ...prev,
-                          [item.key]: !prev[item.key],
-                        }));
-                      }
-                    }}
-                    className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${
-                      notifs[item.key] ? "bg-primary" : "bg-muted"
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                        notifs[item.key] ? "translate-x-5" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() =>
-              showToast(
-                "Préférences de notifications enregistrées",
-                "success"
-              )
-            }
-            className="h-10 px-6 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            Enregistrer
-          </button>
-        </div>
-      )}
-
-      {activeTab === "privacy" && (
-        <div className="space-y-6">
-          <div className="rounded-xl border border-border bg-card p-6">
-            <h3 className="font-semibold text-foreground mb-4">
-              Paramètres de confidentialité
-            </h3>
-            <div className="space-y-4">
-              {(
-                [
-                  {
-                    key: "profileVisible" as const,
-                    label: "Profil public",
-                    desc: "Permettre aux autres de voir votre profil",
-                  },
-                  {
-                    key: "activityStatus" as const,
-                    label: "Statut d'activité",
-                    desc: "Afficher quand vous êtes en ligne",
-                  },
-                  {
-                    key: "showRating" as const,
-                    label: "Afficher les avis",
-                    desc: "Rendre visibles vos évaluations",
-                  },
-                ] as const
-              ).map((item) => (
-                <div
-                  key={item.key}
-                  className="flex items-center justify-between py-2"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {item.label}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{item.desc}</p>
-                  </div>
-                  <button
-                    type="button"
+                    disabled={upsertPref.isPending}
                     onClick={() =>
-                      setPrivacy((prev) => ({
-                        ...prev,
-                        [item.key]: !prev[item.key],
-                      }))
+                      handleToggleNotif("ORDER", "smsEnabled", !smsAlertsOn)
                     }
-                    className={`relative w-11 h-6 rounded-full transition-colors ${
-                      privacy[item.key] ? "bg-primary" : "bg-muted"
+                    className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${
+                      smsAlertsOn ? "bg-primary" : "bg-muted"
                     }`}
                   >
                     <span
                       className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                        privacy[item.key] ? "translate-x-5" : "translate-x-0"
+                        smsAlertsOn ? "translate-x-5" : "translate-x-0"
                       }`}
                     />
                   </button>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={() =>
-              showToast(
-                "Paramètres de confidentialité enregistrés",
-                "success"
-              )
-            }
-            className="h-10 px-6 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            Enregistrer
-          </button>
         </div>
       )}
 
@@ -491,53 +443,11 @@ export default function SettingsPage() {
               </button>
               <button
                 type="button"
+                disabled={upgrading}
                 onClick={handleBecomeParticulier}
-                className="flex-1 h-10 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90"
+                className="flex-1 h-10 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
               >
-                Confirmer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/50"
-            aria-label="Fermer"
-            onClick={() => setShowDeleteConfirm(false)}
-          />
-          <div className="relative z-10 w-full max-w-sm mx-4 bg-background rounded-xl border border-border shadow-lg">
-            <div className="p-6 text-center">
-              <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
-                <FiAlertCircle className="h-6 w-6 text-destructive" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-1">
-                Supprimer votre compte ?
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Cette action est irréversible.
-              </p>
-            </div>
-            <div className="flex items-center gap-3 px-6 pb-6">
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 h-10 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-accent"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowDeleteConfirm(false);
-                  showToast("Compte supprimé", "success");
-                }}
-                className="flex-1 h-10 rounded-lg bg-destructive text-white text-sm font-medium hover:bg-destructive/90"
-              >
-                Supprimer
+                {upgrading ? "…" : "Confirmer"}
               </button>
             </div>
           </div>

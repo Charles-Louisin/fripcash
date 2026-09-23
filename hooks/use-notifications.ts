@@ -1,36 +1,59 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  delay,
-  mockNotifications,
-  type MockNotification,
-} from "@/lib/consumer-mock-data";
-
-let notifications: MockNotification[] = [...mockNotifications];
+  fetchNotifications,
+  markNotificationRead,
+  fetchNotificationPreferences,
+  upsertNotificationPreference,
+  readToken,
+} from "@/lib/api";
 
 function hasToken(): boolean {
   if (typeof window === "undefined") return false;
-  return !!localStorage.getItem("fripcash-token");
+  return !!readToken();
+}
+
+function asArray(data: unknown): any[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object" && Array.isArray((data as any).items)) {
+    return (data as any).items;
+  }
+  return [];
+}
+
+function normalizeNotification(n: any) {
+  return {
+    _id: n.id || n._id,
+    id: n.id || n._id,
+    title: n.title || n.type || "Notification",
+    body: n.body || n.message || "",
+    read: n.readAt != null || n.read === true || n.isRead === true,
+    createdAt: n.createdAt,
+    type: n.type,
+    ...n,
+  };
 }
 
 export function useNotifications(page = 1, limit = 20) {
   return useQuery({
     queryKey: ["notifications", page, limit],
     queryFn: async () => {
+      const raw = await fetchNotifications();
+      const all = asArray(raw).map(normalizeNotification);
       const start = (page - 1) * limit;
-      const data = notifications.slice(start, start + limit);
-      return delay({
+      const data = all.slice(start, start + limit);
+      return {
         data,
-        total: notifications.length,
+        total: all.length,
         page,
         limit,
         pagination: {
           page,
           limit,
-          total: notifications.length,
-          pages: Math.max(1, Math.ceil(notifications.length / limit)),
-          totalPages: Math.max(1, Math.ceil(notifications.length / limit)),
+          total: all.length,
+          pages: Math.max(1, Math.ceil(all.length / limit)),
+          totalPages: Math.max(1, Math.ceil(all.length / limit)),
         },
-      });
+      };
     },
     enabled: hasToken(),
   });
@@ -39,8 +62,12 @@ export function useNotifications(page = 1, limit = 20) {
 export function useUnreadNotificationsCount() {
   return useQuery({
     queryKey: ["notifications", "unreadCount"],
-    queryFn: () =>
-      delay(notifications.filter((n) => !n.read).length),
+    queryFn: async () => {
+      const raw = await fetchNotifications();
+      return asArray(raw)
+        .map(normalizeNotification)
+        .filter((n) => !n.read).length;
+    },
     enabled: hasToken(),
   });
 }
@@ -48,34 +75,7 @@ export function useUnreadNotificationsCount() {
 export function useMarkNotificationAsRead() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      notifications = notifications.map((n) =>
-        n._id === id ? { ...n, read: true } : n
-      );
-      return delay({ success: true });
-    },
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({
-        queryKey: ["notifications", "unreadCount"],
-      });
-      const prev = queryClient.getQueryData<number>([
-        "notifications",
-        "unreadCount",
-      ]);
-      queryClient.setQueryData(
-        ["notifications", "unreadCount"],
-        (old: number | undefined) => Math.max(0, (old ?? 0) - 1)
-      );
-      return { prev, id };
-    },
-    onError: (_err, _id, context) => {
-      if (context?.prev !== undefined) {
-        queryClient.setQueryData(
-          ["notifications", "unreadCount"],
-          context.prev
-        );
-      }
-    },
+    mutationFn: (id: string) => markNotificationRead(id),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
@@ -86,30 +86,35 @@ export function useMarkAllNotificationsAsRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      notifications = notifications.map((n) => ({ ...n, read: true }));
-      return delay({ success: true });
-    },
-    onMutate: async () => {
-      await queryClient.cancelQueries({
-        queryKey: ["notifications", "unreadCount"],
-      });
-      const prev = queryClient.getQueryData<number>([
-        "notifications",
-        "unreadCount",
-      ]);
-      queryClient.setQueryData(["notifications", "unreadCount"], 0);
-      return { prev };
-    },
-    onError: (_err, _vars, context) => {
-      if (context?.prev !== undefined) {
-        queryClient.setQueryData(
-          ["notifications", "unreadCount"],
-          context.prev
-        );
-      }
+      const raw = await fetchNotifications();
+      const unread = asArray(raw)
+        .map(normalizeNotification)
+        .filter((n) => !n.read);
+      await Promise.all(unread.map((n) => markNotificationRead(n._id)));
+      return { success: true };
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
+export function useNotificationPreferences() {
+  return useQuery({
+    queryKey: ["notifications", "preferences"],
+    queryFn: fetchNotificationPreferences,
+    enabled: hasToken(),
+  });
+}
+
+export function useUpsertNotificationPreference() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: upsertNotificationPreference,
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["notifications", "preferences"],
+      });
     },
   });
 }

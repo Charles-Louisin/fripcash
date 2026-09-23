@@ -1,25 +1,76 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useAdminPlatformStore } from "@/stores/admin-platform-store";
 import { useToast } from "@/components/ui/toast";
 import { FiPlus, FiTrash2, FiMapPin } from "react-icons/fi";
+import {
+  useAdminCatalogZones,
+  useAdminZoneMutations,
+} from "@/hooks/use-admin";
+import { ApiError } from "@/lib/api";
+
+function slugCode(name: string) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 24);
+}
 
 export default function AdminZonesPage() {
-  const { zones, addZone, removeZone, addQuartier, removeQuartier } =
-    useAdminPlatformStore();
+  const { data: zones = [], isLoading, isError } = useAdminCatalogZones();
+  const { create, remove } = useAdminZoneMutations();
   const { toast } = useToast();
   const [newZone, setNewZone] = useState("");
-  const [quartierInputs, setQuartierInputs] = useState<Record<string, string>>({});
+
+  const sorted = useMemo(
+    () => [...zones].sort((a, b) => a.nameFr.localeCompare(b.nameFr, "fr")),
+    [zones]
+  );
+
+  const handleAdd = async () => {
+    const name = newZone.trim();
+    if (!name) return;
+    const code = slugCode(name) || `ZONE-${Date.now()}`;
+    try {
+      await create.mutateAsync({
+        code,
+        nameFr: name,
+        nameEn: name,
+        isActive: true,
+      });
+      setNewZone("");
+      toast("Zone ajoutée", "success");
+    } catch (err) {
+      toast(
+        err instanceof ApiError ? err.body.message : "Impossible d’ajouter",
+        "error"
+      );
+    }
+  };
+
+  const handleRemove = async (id: string, name: string) => {
+    try {
+      await remove.mutateAsync(id);
+      toast(`Zone « ${name} » désactivée`, "success");
+    } catch (err) {
+      toast(
+        err instanceof ApiError ? err.body.message : "Suppression impossible",
+        "error"
+      );
+    }
+  };
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
         title="Zones de livraison"
-        description="Gérez les zones et quartiers de Conakry"
+        description="Zones catalogue (GET/POST /catalog/zones)"
         action={
           <div className="flex gap-2 w-full sm:w-auto">
             <input
@@ -30,12 +81,8 @@ export default function AdminZonesPage() {
             />
             <Button
               size="sm"
-              onClick={() => {
-                if (!newZone.trim()) return;
-                addZone(newZone.trim());
-                setNewZone("");
-                toast("Zone ajoutée", "success");
-              }}
+              disabled={create.isPending || !newZone.trim()}
+              onClick={handleAdd}
             >
               <FiPlus className="h-4 w-4 mr-1" /> Ajouter
             </Button>
@@ -43,75 +90,57 @@ export default function AdminZonesPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-        {zones.map((zone) => (
-          <div
-            key={zone.id}
-            className="rounded-lg border border-border bg-card p-3"
-          >
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <FiMapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <h3 className="font-semibold text-sm truncate">{zone.name}</h3>
+      {isLoading ? (
+        <div className="flex h-40 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+        </div>
+      ) : isError ? (
+        <p className="text-sm text-muted-foreground text-center py-12">
+          Impossible de charger les zones
+        </p>
+      ) : sorted.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-12">
+          Aucune zone en base
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {sorted.map((zone) => (
+            <div
+              key={zone.id}
+              className="rounded-lg border border-border bg-card p-3"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <FiMapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <h3 className="font-semibold text-sm truncate">
+                      {zone.nameFr}
+                    </h3>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                    {zone.code}
+                  </p>
+                  <Badge
+                    variant={zone.isActive ? "secondary" : "outline"}
+                    className="mt-2 text-[10px]"
+                  >
+                    {zone.isActive ? "Active" : "Inactive"}
+                  </Badge>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {zone.quartiers.length} quartier{zone.quartiers.length !== 1 ? "s" : ""}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  removeZone(zone.id);
-                  toast("Zone supprimée", "success");
-                }}
-                className="text-destructive hover:bg-destructive/10 p-1.5 rounded-md shrink-0"
-                aria-label={`Supprimer ${zone.name}`}
-              >
-                <FiTrash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-1 mb-2 max-h-16 overflow-y-auto">
-              {zone.quartiers.map((q) => (
-                <Badge
-                  key={q}
-                  variant="secondary"
-                  className="cursor-pointer text-[10px] px-1.5 py-0 h-5"
-                  onClick={() => removeQuartier(zone.id, q)}
+                <button
+                  type="button"
+                  onClick={() => handleRemove(zone.id, zone.nameFr)}
+                  disabled={remove.isPending}
+                  className="text-destructive hover:bg-destructive/10 p-1.5 rounded-md shrink-0"
+                  aria-label={`Supprimer ${zone.nameFr}`}
                 >
-                  {q} ×
-                </Badge>
-              ))}
+                  <FiTrash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
-            <div className="flex gap-1.5">
-              <input
-                value={quartierInputs[zone.id] ?? ""}
-                onChange={(e) =>
-                  setQuartierInputs((prev) => ({
-                    ...prev,
-                    [zone.id]: e.target.value,
-                  }))
-                }
-                placeholder="Quartier"
-                className="h-7 flex-1 min-w-0 rounded-md border border-input px-2 text-xs"
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-xs"
-                onClick={() => {
-                  const q = quartierInputs[zone.id]?.trim();
-                  if (!q) return;
-                  addQuartier(zone.id, q);
-                  setQuartierInputs((prev) => ({ ...prev, [zone.id]: "" }));
-                }}
-              >
-                +
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

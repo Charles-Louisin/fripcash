@@ -10,28 +10,26 @@ const AREA_MAP: Record<string, string> = {
   Maison: "home",
   Électronique: "electronics",
   Sport: "sport",
-};
-
-const FALLBACK_IMAGES: Record<string, string> = {
-  Femme: "/images/woman.png",
-  Homme: "/images/man.png",
-  Enfant: "https://images.unsplash.com/photo-1503919545889-aef636e10ad4?w=600&h=400&fit=crop",
-  Maison: "https://images.unsplash.com/photo-1616046229478-9901c5536a45?w=400&h=500&fit=crop",
-  Électronique: "/images/electronics.png",
-  Sport: "/images/sports.png",
-  Loisirs: "/images/hobbies.png",
-  Divertissement: "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=400&h=500&fit=crop",
+  Mode: "mode",
+  Enseignes: "enseignes",
 };
 
 export function CategoriesGrid() {
   const { data: rawCategories = [] } = useCategories();
 
-  const categories = rawCategories.slice(0, 6).map((cat: any) => ({
-    label: cat.name,
-    href: `/produits?category=${encodeURIComponent(cat.name)}`,
-    area: AREA_MAP[cat.name] || cat.slug || cat.name.toLowerCase().replace(/[^a-z]/g, ""),
-    image: cat.image || FALLBACK_IMAGES[cat.name] || "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=400&fit=crop",
-  }));
+  // Only categories with a seeded Cloudinary imageUrl from the API.
+  const categories = rawCategories
+    .filter((cat: { image?: string }) => !!cat.image)
+    .slice(0, 6)
+    .map((cat: { name: string; slug?: string; image?: string }) => ({
+      label: cat.name,
+      href: `/produits?category=${encodeURIComponent(cat.name)}`,
+      area:
+        AREA_MAP[cat.name] ||
+        cat.slug ||
+        cat.name.toLowerCase().replace(/[^a-z]/g, ""),
+      image: cat.image as string,
+    }));
 
   if (categories.length === 0) return null;
 
@@ -48,13 +46,13 @@ export function CategoriesGrid() {
           gridTemplateColumns: "2fr 1fr 1fr",
           gridTemplateRows: "260px 180px 180px",
           gridTemplateAreas: `
-            "${categories[0]?.area || 'a'} ${categories[1]?.area || 'b'} ${categories[5]?.area || 'f'}"
-            "${categories[0]?.area || 'a'} ${categories[2]?.area || 'c'} ${categories[3]?.area || 'd'}"
-            "${categories[4]?.area || 'e'} ${categories[2]?.area || 'c'} ${categories[3]?.area || 'd'}"
+            "${categories[0]?.area || "a"} ${categories[1]?.area || "b"} ${categories[5]?.area || "f"}"
+            "${categories[0]?.area || "a"} ${categories[2]?.area || "c"} ${categories[3]?.area || "d"}"
+            "${categories[4]?.area || "e"} ${categories[2]?.area || "c"} ${categories[3]?.area || "d"}"
           `,
         }}
       >
-        {categories.map((cat: any) => (
+        {categories.map((cat) => (
           <CategoryCard key={cat.area} cat={cat} />
         ))}
       </div>
@@ -66,14 +64,14 @@ export function CategoriesGrid() {
           gridTemplateColumns: "1fr 1fr",
           gridTemplateRows: "200px 140px 140px 140px",
           gridTemplateAreas: `
-            "${categories[0]?.area || 'a'} ${categories[0]?.area || 'a'}"
-            "${categories[1]?.area || 'b'} ${categories[5]?.area || 'f'}"
-            "${categories[2]?.area || 'c'} ${categories[3]?.area || 'd'}"
-            "${categories[4]?.area || 'e'} ${categories[4]?.area || 'e'}"
+            "${categories[0]?.area || "a"} ${categories[0]?.area || "a"}"
+            "${categories[1]?.area || "b"} ${categories[5]?.area || "f"}"
+            "${categories[2]?.area || "c"} ${categories[3]?.area || "d"}"
+            "${categories[4]?.area || "e"} ${categories[4]?.area || "e"}"
           `,
         }}
       >
-        {categories.map((cat: any) => (
+        {categories.map((cat) => (
           <CategoryCard key={cat.area} cat={cat} />
         ))}
       </div>
@@ -81,20 +79,25 @@ export function CategoriesGrid() {
   );
 }
 
-function CategoryCard({ cat }: { cat: { label: string; href: string; area: string; image: string } }) {
+function CategoryCard({
+  cat,
+}: {
+  cat: { label: string; href: string; area: string; image: string };
+}) {
   return (
     <Link
       href={cat.href}
-      className="relative flex items-end overflow-hidden p-4 group"
+      className="relative overflow-hidden rounded-xl group"
       style={{ gridArea: cat.area }}
     >
-      <div
-        className="absolute inset-0 bg-cover bg-center transition-transform duration-500 ease-out group-hover:scale-110"
-        style={{ backgroundImage: `url(${cat.image})` }}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={cat.image}
+        alt={cat.label}
+        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
       />
-      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-500" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-      <span className="relative z-10 text-white font-semibold text-sm sm:text-base md:text-lg drop-shadow-md">
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+      <span className="absolute bottom-3 left-3 text-white font-semibold text-lg drop-shadow">
         {cat.label}
       </span>
     </Link>

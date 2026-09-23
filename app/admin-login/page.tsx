@@ -6,8 +6,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { useToast } from "@/components/ui/toast";
 import { useAdminLogin } from "@/hooks/use-auth";
-import { enableAdminDemoSession } from "@/lib/admin-session";
-import { recordLoginSession } from "@/lib/admin-session-tracker";
 import { FiMail, FiLock, FiEye, FiEyeOff, FiShield, FiArrowRight } from "react-icons/fi";
 
 export default function AdminLoginPage() {
@@ -200,26 +198,6 @@ export default function AdminLoginPage() {
               )}
             </button>
           </form>
-
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={() => {
-                enableAdminDemoSession();
-                recordLoginSession({
-                  email: "admin@fripcash.com",
-                  displayName: "Super Admin",
-                  role: "admin",
-                  userId: "admin_1",
-                });
-                showToast("Mode démo admin activé", "success");
-                router.push("/admin");
-              }}
-              className="w-full h-11 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
-            >
-              Accès démo (sans API)
-            </button>
-          </div>
 
           {/* Footer */}
           <div className="mt-8 pt-6 border-t border-border">

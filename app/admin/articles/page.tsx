@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAdminArticles, useUpdateArticleStatus } from "@/hooks/use-admin";
-import { mockAdminArticles, filterMockArticles } from "@/lib/admin-mock-data";
 import {
   LISTING_DESTINATIONS,
   listingDestinationLabels,
@@ -42,29 +41,46 @@ export default function ArticlesPage() {
   const updateStatus = useUpdateArticleStatus();
 
   const articles = useMemo(() => {
-    const api = data?.data ?? [];
-    if (api.length > 0) return api;
-    return filterMockArticles(mockAdminArticles, search, tab, destinationFilter);
-  }, [data, search, tab, destinationFilter]);
+    let rows = data?.data ?? [];
+    if (destinationFilter !== "all") {
+      rows = rows.filter((a: any) => a.destination === destinationFilter);
+    }
+    return rows;
+  }, [data, destinationFilter]);
 
   const handleApprove = (article: any) => {
     updateStatus.mutate(
-      { id: article._id, status: "active" },
-      { onSuccess: () => showToast(`"${article.title}" a été approuvé.`, "success") }
+      { id: article.id || article._id, status: "active" },
+      {
+        onSuccess: () =>
+          showToast(`"${article.title}" a été approuvé.`, "success"),
+        onError: (err: any) =>
+          showToast(err?.message || "Action impossible", "error"),
+      }
     );
   };
 
   const handleReject = (article: any) => {
     updateStatus.mutate(
-      { id: article._id, status: "rejected" },
-      { onSuccess: () => showToast(`"${article.title}" a été rejeté.`, "warning") }
+      { id: article.id || article._id, status: "rejected" },
+      {
+        onSuccess: () =>
+          showToast(`"${article.title}" a été rejeté.`, "warning"),
+        onError: (err: any) =>
+          showToast(err?.message || "Action impossible", "error"),
+      }
     );
   };
 
   const handleFlag = (article: any) => {
     updateStatus.mutate(
-      { id: article._id, status: "flagged" },
-      { onSuccess: () => showToast(`"${article.title}" a été signalé.`, "warning") }
+      { id: article.id || article._id, status: "flagged" },
+      {
+        onSuccess: () =>
+          showToast(`"${article.title}" a été signalé.`, "warning"),
+        onError: (err: any) =>
+          showToast(err?.message || "Action impossible", "error"),
+      }
     );
   };
 
@@ -98,7 +114,9 @@ export default function ArticlesPage() {
       header: "Univers",
       className: "hidden lg:table-cell",
       render: (a: any) => {
-        const dest = a.listingDestination as ListingDestination | undefined;
+        const dest = (a.destination || a.listingDestination) as
+          | ListingDestination
+          | undefined;
         if (!dest) return <span className="text-muted-foreground text-xs">—</span>;
         return (
           <Badge variant="secondary" className="font-normal">
@@ -201,7 +219,9 @@ export default function ArticlesPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="all">Tous</TabsTrigger>
-          <TabsTrigger value="pending">En attente</TabsTrigger>
+          <TabsTrigger value="pending">Brouillons</TabsTrigger>
+          <TabsTrigger value="active">Actifs</TabsTrigger>
+          <TabsTrigger value="sold">Vendus</TabsTrigger>
           <TabsTrigger value="flagged">Signalés</TabsTrigger>
         </TabsList>
 

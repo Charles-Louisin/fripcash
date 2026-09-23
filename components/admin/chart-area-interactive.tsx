@@ -3,8 +3,6 @@
 import * as React from "react"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 import { useAdminChartData } from "@/hooks/use-admin"
-import { filterTransactionChartByRange } from "@/lib/admin-chart-mock"
-import { filterByDateRange } from "@/lib/admin-date-filter"
 import { useAdminDateRange } from "@/stores/admin-date-filter-store"
 
 import {
@@ -39,15 +37,7 @@ const chartConfig = {
 
 export function ChartAreaInteractive() {
   const range = useAdminDateRange()
-  const { data: apiData, isLoading } = useAdminChartData(range.days)
-
-  const chartData = React.useMemo(() => {
-    const source =
-      apiData && apiData.length > 0
-        ? apiData
-        : filterTransactionChartByRange(range.from, range.to)
-    return filterByDateRange(source, (item) => item.date, range.from, range.to)
-  }, [apiData, range.from, range.to])
+  const { data: chartData = [], isLoading } = useAdminChartData(range.days)
 
   return (
     <Card className="pt-0">

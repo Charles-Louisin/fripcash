@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useMyOrders, useConfirmDelivery, useShipOrder } from "@/hooks/use-orders";
-import { useMe } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -19,9 +18,7 @@ import {
 import { LuHandshake } from "react-icons/lu";
 import { GetAppBanner } from "@/components/dashboard/get-app-banner";
 
-type OrderStatus = "pending" | "paid_escrow" | "in_delivery" | "awaiting_confirmation" | "delivered" | "disputed" | "refunded";
 type DeliveryMode = "main-propre" | "buyer-delivery" | "seller-delivery";
-type EscrowStatus = "blocked" | "released";
 
 const orderTabs = [
   { id: "all", label: "Toutes" },
@@ -29,38 +26,61 @@ const orderTabs = [
   { id: "sale", label: "Mes ventes" },
 ];
 
-const statusConfig: Record<OrderStatus, { label: string; variant: "default" | "secondary" | "destructive"; icon: React.ElementType }> = {
-  pending: { label: "En attente", variant: "secondary", icon: FiClock },
-  paid_escrow: { label: "Payé (séquestre)", variant: "default", icon: FiLock },
-  in_delivery: { label: "En livraison", variant: "default", icon: FiTruck },
-  awaiting_confirmation: { label: "En attente de confirmation", variant: "default", icon: FiShield },
+const statusConfig: Record<
+  string,
+  { label: string; variant: "default" | "secondary" | "destructive"; icon: React.ElementType }
+> = {
+  ordered: { label: "Commandé", variant: "secondary", icon: FiClock },
+  paid: { label: "Payé", variant: "default", icon: FiLock },
+  sellerNotified: { label: "Vendeur notifié", variant: "default", icon: FiPackage },
+  preparing: { label: "Préparation", variant: "default", icon: FiPackage },
+  readyForPickup: { label: "Prêt à récupérer", variant: "default", icon: FiPackage },
+  courierAssigned: { label: "Livreur assigné", variant: "default", icon: FiTruck },
+  collected: { label: "Collecté", variant: "default", icon: FiTruck },
+  inTransit: { label: "En livraison", variant: "default", icon: FiTruck },
   delivered: { label: "Livré", variant: "default", icon: FiCheckCircle },
+  fundsReleased: { label: "Fonds libérés", variant: "default", icon: FiUnlock },
+  feedbackPending: { label: "Avis en attente", variant: "default", icon: FiShield },
   disputed: { label: "En litige", variant: "destructive", icon: FiAlertTriangle },
   refunded: { label: "Remboursé", variant: "secondary", icon: FiPackage },
 };
 
-const deliveryModeLabels: Record<DeliveryMode, { label: string; icon: React.ElementType }> = {
+const deliveryModeLabels: Record<
+  DeliveryMode,
+  { label: string; icon: React.ElementType }
+> = {
   "main-propre": { label: "Main propre", icon: LuHandshake },
   "buyer-delivery": { label: "Livraison (acheteur)", icon: FiTruck },
   "seller-delivery": { label: "Livraison (vendeur)", icon: FiPackage },
 };
 
-const statusFilters: OrderStatus[] = ["pending", "paid_escrow", "in_delivery", "awaiting_confirmation", "delivered", "disputed"];
-
-function getOrderType(order: any, userId: string): "purchase" | "sale" {
-  const buyerId = typeof order.buyer === "object" ? order.buyer._id : order.buyer;
-  return buyerId === userId ? "purchase" : "sale";
-}
+const statusFilters = [
+  "ordered",
+  "paid",
+  "preparing",
+  "inTransit",
+  "delivered",
+  "feedbackPending",
+  "disputed",
+  "refunded",
+];
 
 function getOtherParty(order: any, type: "purchase" | "sale"): string {
   if (type === "purchase") {
-    return typeof order.seller === "object" ? order.seller.pseudo : "Vendeur";
+    return typeof order.seller === "object"
+      ? order.seller.pseudo || "Vendeur"
+      : "Vendeur";
   }
-  return typeof order.buyer === "object" ? order.buyer.pseudo : "Acheteur";
+  return typeof order.buyer === "object"
+    ? order.buyer.pseudo || "Acheteur"
+    : "Acheteur";
 }
 
 function getArticleTitle(order: any): string {
-  return typeof order.article === "object" ? order.article.title : "Article";
+  if (typeof order.article === "object" && order.article?.title) {
+    return order.article.title;
+  }
+  return order.raw?.orderNumber || "Article";
 }
 
 function getArticleImage(order: any): string {
@@ -72,7 +92,6 @@ function getArticleImage(order: any): string {
 
 export default function MyOrdersPage() {
   const { showToast } = useToast();
-  const { data: user } = useMe();
   const { data: orders, isLoading } = useMyOrders();
   const confirmDelivery = useConfirmDelivery();
   const shipOrder = useShipOrder();
@@ -82,16 +101,22 @@ export default function MyOrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [confirmCode, setConfirmCode] = useState(["", "", "", "", "", ""]);
 
-  const userId = user?.id || "";
-
   const enrichedOrders = (orders || []).map((o: any) => {
-    const type = getOrderType(o, userId);
-    return { ...o, type, otherParty: getOtherParty(o, type), articleTitle: getArticleTitle(o), articleImage: getArticleImage(o) };
+    const type: "purchase" | "sale" =
+      o.role === "seller" ? "sale" : "purchase";
+    return {
+      ...o,
+      type,
+      otherParty: getOtherParty(o, type),
+      articleTitle: getArticleTitle(o),
+      articleImage: getArticleImage(o),
+    };
   });
 
   const filtered = enrichedOrders
     .filter((o: any) => activeTab === "all" || o.type === activeTab)
     .filter((o: any) => statusFilter === "all" || o.status === statusFilter);
+
 
   const handleCodeChange = (index: number, value: string) => {
     if (value.length > 1) return;
@@ -236,7 +261,7 @@ export default function MyOrdersPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((order: any) => {
-            const config = statusConfig[order.status as OrderStatus];
+            const config = statusConfig[order.status as string];
             const StatusIcon = config?.icon || FiPackage;
             const deliveryInfo = deliveryModeLabels[order.deliveryMode as DeliveryMode];
             const DeliveryIcon = deliveryInfo?.icon || FiPackage;
@@ -323,8 +348,8 @@ export default function MyOrdersPage() {
                   <p className="text-sm text-muted-foreground">
                     {selectedOrder.type === "purchase" ? "Vendu par" : "Acheté par"} {selectedOrder.otherParty}
                   </p>
-                  <Badge variant={statusConfig[selectedOrder.status as OrderStatus]?.variant || "secondary"} className="mt-1 text-[10px]">
-                    {statusConfig[selectedOrder.status as OrderStatus]?.label || selectedOrder.status}
+                  <Badge variant={statusConfig[selectedOrder.status as string]?.variant || "secondary"} className="mt-1 text-[10px]">
+                    {statusConfig[selectedOrder.status as string]?.label || selectedOrder.status}
                   </Badge>
                 </div>
               </div>

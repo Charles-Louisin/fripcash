@@ -1,8 +1,21 @@
 "use client";
 
 import { useRef } from "react";
-import { FiCamera, FiStar, FiCalendar, FiShoppingBag, FiPackage, FiMapPin, FiMail, FiPhone, FiEdit2, FiCheck } from "react-icons/fi";
+import {
+  FiCamera,
+  FiStar,
+  FiCalendar,
+  FiShoppingBag,
+  FiPackage,
+  FiMapPin,
+  FiMail,
+  FiPhone,
+  FiEdit2,
+  FiCheck,
+} from "react-icons/fi";
 import { useMe, useUpdateProfile } from "@/hooks/use-auth";
+import { useMyOrders } from "@/hooks/use-orders";
+import { useMyArticles } from "@/hooks/use-articles";
 import { useToast } from "@/components/ui/toast";
 import { useProfileStore } from "@/stores/profile-store";
 
@@ -10,8 +23,15 @@ export default function ProfilePage() {
   const { showToast } = useToast();
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const { data: user, isLoading } = useMe();
+  const { data: orders = [] } = useMyOrders();
+  const { data: articles = [] } = useMyArticles();
   const updateProfileMut = useUpdateProfile();
-  const { name, pseudo, phone, email, city, bio, avatar, updateProfile } = useProfileStore();
+  const { name, pseudo, phone, email, city, bio, avatar, updateProfile } =
+    useProfileStore();
+
+  const salesCount = orders.filter((o) => o.role === "seller").length;
+  const purchasesCount = orders.filter((o) => o.role === "buyer").length;
+  const articlesCount = articles.length;
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -34,16 +54,37 @@ export default function ProfilePage() {
       { firstName, lastName, pseudo, phone, city, bio, avatar },
       {
         onSuccess: () => showToast("Profil mis à jour avec succès", "success"),
-        onError: (err: any) => showToast(err.message || "Erreur lors de la mise à jour", "error"),
+        onError: (err: any) =>
+          showToast(err.message || "Erreur lors de la mise à jour", "error"),
       }
     );
   };
 
   const stats = [
-    { label: "Ventes", value: user?.salesCount ?? 0, icon: FiShoppingBag, color: "text-primary bg-primary/10" },
-    { label: "Achats", value: user?.purchasesCount ?? 0, icon: FiPackage, color: "text-blue-600 bg-blue-50" },
-    { label: "Note", value: user?.rating ?? 0, icon: FiStar, color: "text-amber-500 bg-amber-50", suffix: "/5" },
-    { label: "Avis", value: user?.reviewsCount ?? 0, icon: FiEdit2, color: "text-purple-600 bg-purple-50" },
+    {
+      label: "Ventes",
+      value: salesCount,
+      icon: FiShoppingBag,
+      color: "text-primary bg-primary/10",
+    },
+    {
+      label: "Achats",
+      value: purchasesCount,
+      icon: FiPackage,
+      color: "text-blue-600 bg-blue-50",
+    },
+    {
+      label: "Annonces",
+      value: articlesCount,
+      icon: FiStar,
+      color: "text-amber-500 bg-amber-50",
+    },
+    {
+      label: "En vente",
+      value: articles.filter((a) => a.status === "active").length,
+      icon: FiEdit2,
+      color: "text-purple-600 bg-purple-50",
+    },
   ];
 
   if (isLoading) {
@@ -70,7 +111,7 @@ export default function ProfilePage() {
             </div>
             <div className="min-w-0">
               <p className="text-lg font-bold text-foreground leading-tight">
-                {stat.value}{stat.suffix || ""}
+                {stat.value}
               </p>
               <p className="text-xs text-muted-foreground">{stat.label}</p>
             </div>

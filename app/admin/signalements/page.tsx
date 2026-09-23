@@ -3,26 +3,31 @@
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/admin/data-table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useAdminPlatformStore } from "@/stores/admin-platform-store";
-import { useToast } from "@/components/ui/toast";
+
+type ReportRow = {
+  id: string;
+  type: "article" | "user" | "message";
+  target: string;
+  reason: string;
+  status: "open" | "resolved" | "dismissed";
+};
+
+const LIVE_REPORTS: ReportRow[] = [];
 
 export default function AdminReportsPage() {
-  const { reports, updateReportStatus } = useAdminPlatformStore();
-  const { toast } = useToast();
-
-  const openCount = reports.filter((r) => r.status === "open").length;
+  const openCount = LIVE_REPORTS.filter((r) => r.status === "open").length;
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
         title="Signalements"
-        description={`File d'attente modération — ${openCount} ouvert(s)`}
+        description={`File de modération — ${openCount} ouvert(s)`}
       />
 
       <DataTable
-        data={reports}
+        data={LIVE_REPORTS}
         getRowKey={(r) => r.id}
+        emptyMessage="Aucun signalement — endpoint admin non disponible"
         columns={[
           {
             key: "type",
@@ -46,49 +51,14 @@ export default function AdminReportsPage() {
               <Badge
                 variant={
                   r.status === "open"
-                    ? "warning"
-                    : r.status === "reviewed"
-                      ? "success"
+                    ? "destructive"
+                    : r.status === "resolved"
+                      ? "default"
                       : "secondary"
                 }
               >
-                {r.status === "open"
-                  ? "Ouvert"
-                  : r.status === "reviewed"
-                    ? "Traité"
-                    : "Rejeté"}
+                {r.status}
               </Badge>
-            ),
-          },
-          { key: "date", header: "Date", render: (r) => r.createdAtLabel },
-          {
-            key: "actions",
-            header: "Actions",
-            render: (r) => (
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={r.status !== "open"}
-                  onClick={() => {
-                    updateReportStatus(r.id, "reviewed");
-                    toast("Signalement traité", "success");
-                  }}
-                >
-                  Traiter
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={r.status !== "open"}
-                  onClick={() => {
-                    updateReportStatus(r.id, "dismissed");
-                    toast("Signalement rejeté", "success");
-                  }}
-                >
-                  Rejeter
-                </Button>
-              </div>
             ),
           },
         ]}

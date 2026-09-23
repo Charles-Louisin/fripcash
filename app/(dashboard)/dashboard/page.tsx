@@ -14,25 +14,21 @@ import {
 import { useMe } from "@/hooks/use-auth";
 import { useMyArticles } from "@/hooks/use-articles";
 import { useMyOrders } from "@/hooks/use-orders";
+import { useWalletBalance } from "@/hooks/use-wallet";
 import { Badge } from "@/components/ui/badge";
 import { GetAppBanner } from "@/components/dashboard/get-app-banner";
 
 export default function DashboardOverviewPage() {
-  const { data: user, isLoading: userLoading } = useMe();
-  const { data: articles } = useMyArticles();
-  const { data: orders } = useMyOrders();
+  const { data: user, isLoading: userLoading, isError: userError, isFetched } =
+    useMe();
+  const { data: articles = [], isLoading: articlesLoading } = useMyArticles();
+  const { data: orders = [], isLoading: ordersLoading } = useMyOrders();
+  const { data: wallet, isLoading: walletLoading } = useWalletBalance();
 
-  const activeListings =
-    articles?.filter((l: any) => l.status === "active").length ?? 0;
-  const userId = user?.id || user?._id || "";
-  const totalSales =
-    orders?.filter(
-      (o: any) => o.seller?._id === userId || o.seller === userId || o.role === "seller"
-    ).length ?? 0;
-  const totalPurchases =
-    orders?.filter(
-      (o: any) => o.buyer?._id === userId || o.buyer === userId || o.role === "buyer"
-    ).length ?? 0;
+  const activeListings = articles.filter((l) => l.status === "active").length;
+  const totalSales = orders.filter((o) => o.role === "seller").length;
+  const totalPurchases = orders.filter((o) => o.role === "buyer").length;
+  const balanceGnf = wallet?.balance ?? wallet?.balanceGnf ?? 0;
 
   const recentActivity = React.useMemo(() => {
     const items: {
@@ -42,28 +38,30 @@ export default function DashboardOverviewPage() {
       date: string;
       link: string;
     }[] = [];
-    (orders || []).forEach((o: any) => {
-      const isSale =
-        (o.seller?._id || o.seller) === userId || o.role === "seller";
+
+    orders.forEach((o) => {
       const title =
-        typeof o.article === "object" ? o.article?.title : "Article";
+        typeof o.article === "object" && o.article?.title
+          ? o.article.title
+          : o.raw?.orderNumber || "Commande";
       items.push({
-        id: o._id,
-        type: isSale ? "sale" : "purchase",
-        label: isSale ? `Vente: ${title}` : `Achat: ${title}`,
-        date: o.createdAt,
+        id: o._id || o.id,
+        type: o.role === "seller" ? "sale" : "purchase",
+        label:
+          o.role === "seller" ? `Vente: ${title}` : `Achat: ${title}`,
+        date: o.createdAt || new Date().toISOString(),
         link: "/dashboard/commandes",
       });
     });
-    (articles || [])
-      .filter((a: any) => a.status === "active")
+
+    [...articles]
       .sort(
-        (a: any, b: any) =>
+        (a, b) =>
           new Date(b.createdAt || 0).getTime() -
           new Date(a.createdAt || 0).getTime()
       )
       .slice(0, 3)
-      .forEach((a: any) => {
+      .forEach((a) => {
         items.push({
           id: `art-${a._id}`,
           type: "listing",
@@ -72,48 +70,67 @@ export default function DashboardOverviewPage() {
           link: "/dashboard/articles",
         });
       });
+
     return items
       .sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       )
       .slice(0, 6);
-  }, [orders, articles, userId]);
+  }, [orders, articles]);
 
   const stats = [
     {
       label: "Annonces actives",
-      value: activeListings,
+      value: articlesLoading ? "…" : String(activeListings),
       icon: FiShoppingBag,
       color: "bg-primary/10 text-primary",
       href: "/dashboard/articles",
     },
     {
       label: "Achats",
-      value: totalPurchases,
+      value: ordersLoading ? "…" : String(totalPurchases),
       icon: FiShoppingCart,
       color: "bg-blue-100 text-blue-600",
       href: "/dashboard/commandes",
     },
     {
       label: "Ventes",
-      value: totalSales,
+      value: ordersLoading ? "…" : String(totalSales),
       icon: FiTrendingUp,
       color: "bg-emerald-100 text-emerald-700",
       href: "/dashboard/commandes",
     },
     {
       label: "Solde (GNF)",
-      value: (user?.walletBalance ?? 0).toLocaleString("fr-FR"),
+      value: walletLoading
+        ? "…"
+        : Number(balanceGnf).toLocaleString("fr-FR"),
       icon: FiCreditCard,
       color: "bg-amber-100 text-amber-700",
       href: "/dashboard/porte-monnaie",
     },
   ];
 
-  if (userLoading) {
+  if (userLoading || !isFetched) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (userError || !user) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-8 text-center">
+        <p className="text-sm font-medium">
+          Connecte-toi pour voir ton tableau de bord
+        </p>
+        <Link
+          href="/connexion"
+          className="mt-3 inline-flex text-sm font-medium text-primary hover:underline"
+        >
+          Aller à la connexion
+        </Link>
       </div>
     );
   }
@@ -122,11 +139,10 @@ export default function DashboardOverviewPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">
-          Bonjour, {user?.firstName || "Utilisateur"} !
+          Bonjour, {user.firstName || "Utilisateur"} !
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Ton compte web — achats, annonces simples et messages. Les rôles
-          avancés sont dans l&apos;app.
+          Données live — achats, ventes, annonces et porte-monnaie.
         </p>
       </div>
 
@@ -231,7 +247,9 @@ export default function DashboardOverviewPage() {
               Mon porte-monnaie
             </h3>
             <p className="text-3xl font-bold text-foreground">
-              {(user?.walletBalance ?? 0).toLocaleString("fr-FR")}{" "}
+              {walletLoading
+                ? "…"
+                : Number(balanceGnf).toLocaleString("fr-FR")}{" "}
               <span className="text-base font-medium text-muted-foreground">
                 GNF
               </span>
@@ -250,7 +268,7 @@ export default function DashboardOverviewPage() {
             </h3>
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-muted">
-                {user?.avatar && (
+                {user.avatar && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={user.avatar}
@@ -261,9 +279,11 @@ export default function DashboardOverviewPage() {
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">
-                  {user?.firstName} {user?.lastName}
+                  {user.firstName} {user.lastName}
                 </p>
-                <p className="text-xs text-muted-foreground">@{user?.pseudo}</p>
+                <p className="text-xs text-muted-foreground">
+                  {user.phone || `@${user.pseudo}`}
+                </p>
               </div>
             </div>
             <Link

@@ -1,13 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Monitor, Smartphone, Tablet, LogOut } from "lucide-react";
+import { Monitor, Smartphone, Tablet } from "lucide-react";
 import { FiUsers, FiMonitor, FiShield, FiUserCheck } from "react-icons/fi";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/admin/data-table";
 import { StatCard } from "@/components/admin/stat-card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -16,13 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useAdminPlatformStore } from "@/stores/admin-platform-store";
-import { filterByDateRange } from "@/lib/admin-date-filter";
 import { useAdminDateRange } from "@/stores/admin-date-filter-store";
-import { useToast } from "@/components/ui/toast";
 import type { AdminUserSession, SessionStatus } from "@/lib/admin-platform";
 import { sessionRoleLabels } from "@/lib/admin-platform";
+
+/** No admin sessions API yet — render empty live shell (no mock). */
+const LIVE_SESSIONS: AdminUserSession[] = [];
 
 const roleLabels = sessionRoleLabels;
 
@@ -33,8 +31,10 @@ const statusLabels: Record<SessionStatus, string> = {
 };
 
 function DeviceIcon({ device }: { device: AdminUserSession["device"] }) {
-  if (device === "mobile") return <Smartphone className="h-4 w-4 text-muted-foreground" />;
-  if (device === "tablet") return <Tablet className="h-4 w-4 text-muted-foreground" />;
+  if (device === "mobile")
+    return <Smartphone className="h-4 w-4 text-muted-foreground" />;
+  if (device === "tablet")
+    return <Tablet className="h-4 w-4 text-muted-foreground" />;
   return <Monitor className="h-4 w-4 text-muted-foreground" />;
 }
 
@@ -49,39 +49,28 @@ function initials(name: string) {
 
 export default function AdminSessionsPage() {
   const range = useAdminDateRange();
-  const { userSessions, revokeSession } = useAdminPlatformStore();
-  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const rangedSessions = useMemo(
-    () =>
-      filterByDateRange(
-        userSessions,
-        (s) => s.startedAtIso,
-        range.from,
-        range.to
-      ),
-    [userSessions, range.from, range.to]
-  );
+  const sessions = LIVE_SESSIONS;
 
   const stats = useMemo(() => {
-    const active = rangedSessions.filter((s) => s.status === "active").length;
-    const idle = rangedSessions.filter((s) => s.status === "idle").length;
-    const today = rangedSessions.filter((s) => {
+    const active = sessions.filter((s) => s.status === "active").length;
+    const idle = sessions.filter((s) => s.status === "idle").length;
+    const today = sessions.filter((s) => {
       const d = new Date(s.startedAtIso);
       const now = new Date();
       return d.toDateString() === now.toDateString();
     }).length;
-    const admins = rangedSessions.filter(
+    const admins = sessions.filter(
       (s) => s.role === "admin" && s.status !== "ended"
     ).length;
     return { active, idle, today, admins };
-  }, [rangedSessions]);
+  }, [sessions]);
 
   const filtered = useMemo(() => {
-    return rangedSessions.filter((s) => {
+    return sessions.filter((s) => {
       const q = search.toLowerCase();
       const matchesSearch =
         !q ||
@@ -92,13 +81,13 @@ export default function AdminSessionsPage() {
       const matchesStatus = statusFilter === "all" || s.status === statusFilter;
       return matchesSearch && matchesRole && matchesStatus;
     });
-  }, [rangedSessions, search, roleFilter, statusFilter]);
+  }, [sessions, search, roleFilter, statusFilter]);
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
         title="Sessions utilisateurs"
-        description={`Performance des connexions — ${range.label}`}
+        description={`Connexions actives — ${range.label}`}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
@@ -108,8 +97,6 @@ export default function AdminSessionsPage() {
           change={`${stats.idle} inactives`}
           changeType="positive"
           icon={FiUserCheck}
-          href="/admin/sessions"
-          actionLabel="Voir sessions"
         />
         <StatCard
           title="Connexions aujourd'hui"
@@ -117,8 +104,6 @@ export default function AdminSessionsPage() {
           change="Toutes plateformes"
           changeType="neutral"
           icon={FiUsers}
-          href="/admin/sessions"
-          actionLabel="Voir sessions"
         />
         <StatCard
           title="Admins en ligne"
@@ -126,17 +111,13 @@ export default function AdminSessionsPage() {
           change="Espace super admin"
           changeType="neutral"
           icon={FiShield}
-          href="/admin/sessions"
-          actionLabel="Voir sessions"
         />
         <StatCard
           title="Total enregistré"
-          value={rangedSessions.length.toString()}
-          change="Historique mock + live"
+          value={sessions.length.toString()}
+          change="Données live uniquement"
           changeType="neutral"
           icon={FiMonitor}
-          href="/admin/sessions"
-          actionLabel="Voir sessions"
         />
       </div>
 
@@ -157,8 +138,6 @@ export default function AdminSessionsPage() {
             <SelectItem value="acheteur">Acheteur</SelectItem>
             <SelectItem value="particulier">Particulier</SelectItem>
             <SelectItem value="boutique">Boutique</SelectItem>
-            <SelectItem value="commerceLocal">Commerce local</SelectItem>
-            <SelectItem value="grandeSurface">Grande surface</SelectItem>
             <SelectItem value="livreur">Livreur</SelectItem>
           </SelectContent>
         </Select>
@@ -178,18 +157,16 @@ export default function AdminSessionsPage() {
       <DataTable
         data={filtered}
         getRowKey={(s) => s.id}
-        emptyMessage="Aucune session trouvée"
+        emptyMessage="Aucune session — endpoint admin sessions indisponible"
         columns={[
           {
             key: "user",
             header: "Utilisateur",
             render: (s) => (
               <div className="flex items-center gap-3 min-w-[200px]">
-                <Avatar className="h-9 w-9">
-                  <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                    {initials(s.displayName)}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="h-9 w-9 rounded-full bg-primary/10 text-primary text-xs font-medium flex items-center justify-center">
+                  {initials(s.displayName)}
+                </div>
                 <div>
                   <p className="font-medium text-sm">{s.displayName}</p>
                   <p className="text-xs text-muted-foreground">{s.email}</p>
@@ -202,7 +179,7 @@ export default function AdminSessionsPage() {
             header: "Rôle",
             render: (s) => (
               <Badge variant={s.role === "admin" ? "default" : "secondary"}>
-                {roleLabels[s.role]}
+                {roleLabels[s.role] ?? s.role}
               </Badge>
             ),
           },
@@ -233,7 +210,9 @@ export default function AdminSessionsPage() {
             key: "started",
             header: "Début",
             render: (s) => (
-              <span className="text-sm text-muted-foreground">{s.startedAtLabel}</span>
+              <span className="text-sm text-muted-foreground">
+                {s.startedAtLabel}
+              </span>
             ),
           },
           {
@@ -264,27 +243,6 @@ export default function AdminSessionsPage() {
                 {statusLabels[s.status]}
               </Badge>
             ),
-          },
-          {
-            key: "actions",
-            header: "",
-            render: (s) =>
-              s.status !== "ended" ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  onClick={() => {
-                    revokeSession(s.id);
-                    toast(`Session de ${s.displayName} révoquée`, "success");
-                  }}
-                >
-                  <LogOut className="h-4 w-4 mr-1" />
-                  Révoquer
-                </Button>
-              ) : (
-                <span className="text-xs text-muted-foreground">—</span>
-              ),
           },
         ]}
       />

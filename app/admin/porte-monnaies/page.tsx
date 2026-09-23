@@ -2,23 +2,26 @@
 
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/admin/data-table";
-import { Button } from "@/components/ui/button";
-import { useAdminPlatformStore } from "@/stores/admin-platform-store";
 import { formatGnf } from "@/lib/admin-platform";
-import { useToast } from "@/components/ui/toast";
+
+type WalletRow = {
+  id: string;
+  sellerName: string;
+  balanceGnf: number;
+  escrowGnf: number;
+};
+
+const LIVE_WALLETS: WalletRow[] = [];
 
 export default function AdminWalletsPage() {
-  const { wallets, releaseEscrow } = useAdminPlatformStore();
-  const { toast } = useToast();
-
-  const totalBalance = wallets.reduce((s, w) => s + w.balanceGnf, 0);
-  const totalEscrow = wallets.reduce((s, w) => s + w.escrowGnf, 0);
+  const totalBalance = LIVE_WALLETS.reduce((s, w) => s + w.balanceGnf, 0);
+  const totalEscrow = LIVE_WALLETS.reduce((s, w) => s + w.escrowGnf, 0);
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
         title="Porte-monnaies vendeurs"
-        description="Soldes, fonds bloqués (escrow) et déblocages"
+        description="Soldes et escrow — pas d’endpoint admin wallets pour l’instant"
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -35,13 +38,16 @@ export default function AdminWalletsPage() {
       </div>
 
       <DataTable
-        data={wallets}
+        data={LIVE_WALLETS}
         getRowKey={(w) => w.id}
+        emptyMessage="Aucun porte-monnaie — données admin indisponibles"
         columns={[
           {
             key: "seller",
             header: "Vendeur",
-            render: (w) => <span className="font-medium">{w.sellerName}</span>,
+            render: (w) => (
+              <span className="font-medium text-sm">{w.sellerName}</span>
+            ),
           },
           {
             key: "balance",
@@ -51,35 +57,8 @@ export default function AdminWalletsPage() {
           {
             key: "escrow",
             header: "Escrow",
-            render: (w) =>
-              w.escrowGnf > 0 ? (
-                <span className="text-amber-600 font-medium">
-                  {formatGnf(w.escrowGnf)}
-                </span>
-              ) : (
-                "—"
-              ),
-          },
-          {
-            key: "last",
-            header: "Dernier déblocage",
-            render: (w) => w.lastReleaseLabel,
-          },
-          {
-            key: "action",
-            header: "Action",
             render: (w) => (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={w.escrowGnf <= 0}
-                onClick={() => {
-                  releaseEscrow(w.id);
-                  toast(`Escrow débloqué pour ${w.sellerName}`, "success");
-                }}
-              >
-                Débloquer
-              </Button>
+              <span className="text-amber-600">{formatGnf(w.escrowGnf)}</span>
             ),
           },
         ]}

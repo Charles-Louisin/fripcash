@@ -37,8 +37,10 @@ ordered → paid → sellerNotified → preparing → readyForPickup
 - Same user can see **both** after upgrade.
 
 ## 7.5 Proximity specifics
-- Shared **pickup code** for buyer ↔ shop.  
-- No default FripCash courier assignment.
+- Shared **4-digit pickup code** (code de retrait) for buyer ↔ shop.  
+- No default FripCash courier assignment.  
+- Seller verifies code before handoff.  
+- Details: [19-codes-and-pins.md](./19-codes-and-pins.md).
 
 ## 7.6 Admin
 - List/filter orders; intervene on disputes; audit status history.

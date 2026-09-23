@@ -11,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAdminUsers, useUpdateUserStatus } from "@/hooks/use-admin";
-import { mockAdminUsers, filterMockUsers } from "@/lib/admin-mock-data";
 import {
   ACCOUNT_ROLES,
   accountRoleLabels,
@@ -40,11 +39,7 @@ export default function UtilisateursPage() {
   const { data, isLoading, isError } = useAdminUsers({ status: statusFilter === "all" ? undefined : statusFilter, q: search || undefined });
   const updateStatus = useUpdateUserStatus();
 
-  const users = useMemo(() => {
-    const api = data?.data ?? [];
-    if (api.length > 0) return api;
-    return filterMockUsers(mockAdminUsers, search, statusFilter, roleFilter);
-  }, [data, search, statusFilter, roleFilter]);
+  const users = useMemo(() => data?.data ?? [], [data]);
 
   const handleBan = (user: any) => {
     const newStatus = user.status === "banned" ? "active" : "banned";
@@ -187,9 +182,10 @@ export default function UtilisateursPage() {
         <p className="text-sm text-muted-foreground mt-1">
           Rôles app : acheteur, particulier, boutique, commerce local, grande surface, livreur
         </p>
-        {(isError || !data?.data?.length) && (
-          <p className="text-xs text-amber-600 mt-1">Données de démonstration</p>
-        )}
+        <p className="text-xs text-amber-700 dark:text-amber-500 mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+          {data?.unavailableReason ||
+            "Liste vide : l’API n’expose pas encore GET /admin/users (le seed Prisma contient bien les comptes test)."}
+        </p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">

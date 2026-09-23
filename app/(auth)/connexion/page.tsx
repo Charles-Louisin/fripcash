@@ -4,63 +4,173 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
+import { OtpInput } from "@/components/ui/otp-input";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/toast";
-import { setToken } from "@/lib/api";
-import { FiPhone, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
-import { useQueryClient } from "@tanstack/react-query";
-import { mockMe, mockMeExtras } from "@/lib/consumer-mock-data";
-import { recordLoginSession } from "@/lib/admin-session-tracker";
 import {
-  AUTH_COUNTRY,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
+import { FiPhone, FiMail, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  ApiError,
+  sendOtp,
+  verifyOtp,
+  fetchMe,
+  signInEmail,
+} from "@/lib/api";
+import { mapMeToUiUser } from "@/hooks/use-auth";
+import {
+  AUTH_COUNTRIES,
+  AUTH_COUNTRY_OPTIONS,
+  type AuthCountryId,
   fullPhoneFromLocal,
+  isValidEmail,
   isValidLocalPhone,
+  normalizeLocalPhone,
 } from "@/lib/auth-country";
+import { recordLoginSession } from "@/lib/admin-session-tracker";
+
+const DEV_OTP =
+  process.env.NODE_ENV === "development" ? "000000" : "";
 
 export default function ConnexionPage() {
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const [countryId, setCountryId] = useState<AuthCountryId>("GN");
+  const country = AUTH_COUNTRIES[countryId];
+  const isEmailAuth = country.authMethod === "email";
+
+  const [step, setStep] = useState<"identifier" | "code">("identifier");
   const [localPhone, setLocalPhone] = useState("");
+  const [phoneSent, setPhoneSent] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [code, setCode] = useState(DEV_OTP);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCountryChange = (id: AuthCountryId) => {
+    setCountryId(id);
+    setStep("identifier");
+    setLocalPhone("");
+    setPhoneSent("");
+    setEmail("");
+    setPassword("");
+    setCode(DEV_OTP);
+  };
 
-    if (!localPhone.trim() || !password) {
-      toast("Remplis tous les champs.", "error");
-      return;
+  const finishLogin = async (fallbackContact: string) => {
+    const me = await fetchMe();
+    const user = mapMeToUiUser(me);
+    queryClient.setQueryData(["me"], user);
+    recordLoginSession({
+      email: me.phone ?? fallbackContact,
+      displayName: me.displayName,
+      role: me.seller ? "particulier" : "acheteur",
+      userId: me.id,
+    });
+    toast("Connexion réussie !");
+    if (!me.displayName || me.displayName === me.phone) {
+      try {
+        sessionStorage.setItem("fripcash_need_profile", "1");
+      } catch {
+        /* ignore */
+      }
+      router.push("/inscription");
+    } else {
+      router.push("/dashboard");
     }
+  };
 
-    if (!isValidLocalPhone(localPhone)) {
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isValidLocalPhone(localPhone, country)) {
       toast(
-        `Numéro invalide — entre ${AUTH_COUNTRY.minLocalDigits}–${AUTH_COUNTRY.maxLocalDigits} chiffres (ex. 621112233).`,
+        `Numéro invalide — ${country.maxLocalDigits} chiffres requis.`,
         "error"
       );
       return;
     }
-
-    // Local demo auth — no backend call until the API is wired.
+    const phoneNumber = normalizeLocalPhone(localPhone, country);
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 400));
-    const fullPhone = fullPhoneFromLocal(localPhone);
-    setToken("mock-token");
-    queryClient.setQueryData(["me"], {
-      ...mockMe,
-      ...mockMeExtras,
-      phone: fullPhone,
-    });
-    recordLoginSession({
-      email: mockMe.email ?? fullPhone,
-      displayName: mockMe.pseudo,
-      role: "acheteur",
-    });
-    toast("Connexion réussie ! Bienvenue (démo).");
-    router.push("/dashboard");
-    setLoading(false);
+    try {
+      await sendOtp(phoneNumber);
+      setPhoneSent(phoneNumber);
+      setStep("code");
+      setCode(DEV_OTP);
+      toast(
+        process.env.NODE_ENV === "development"
+          ? "Code envoyé (démo : 000000)."
+          : "Code envoyé par SMS.",
+        "success"
+      );
+    } catch (err) {
+      toast(
+        err instanceof ApiError
+          ? err.body.message
+          : "Impossible d'envoyer le code.",
+        "error"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isValidEmail(email)) {
+      toast("Adresse email invalide.", "error");
+      return;
+    }
+    if (!password) {
+      toast("Entre ton mot de passe.", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      await signInEmail(email.trim(), password);
+      await finishLogin(email.trim());
+    } catch (err) {
+      toast(
+        err instanceof ApiError
+          ? err.body.message
+          : "Email ou mot de passe incorrect.",
+        "error"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (code.replace(/\D/g, "").length !== 6) {
+      toast("Entre le code à 6 chiffres.", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      await verifyOtp(phoneSent, code.replace(/\D/g, ""));
+      await finishLogin(fullPhoneFromLocal(phoneSent, country));
+    } catch (err) {
+      if (err instanceof ApiError && err.body.code === "TOO_MANY_ATTEMPTS") {
+        toast("Trop d'essais. Renvoie un code.", "error");
+        setStep("identifier");
+      } else {
+        toast(
+          err instanceof ApiError ? err.body.message : "Code invalide.",
+          "error"
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -68,101 +178,213 @@ export default function ConnexionPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground">Bon retour !</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Connecte-toi à ton compte pour continuer.
+          {isEmailAuth
+            ? "Connexion par email — compte France."
+            : "Connexion par SMS — même compte que l'app FripCash."}
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Numéro de téléphone with country prefix */}
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">
-            Numéro de téléphone
-          </label>
-          <div className="relative flex">
-            <div className="flex items-center gap-1.5 px-3 h-11 rounded-l-md border border-r-0 border-input bg-muted text-sm font-medium text-foreground shrink-0 select-none">
-              <span className="text-base leading-none">{AUTH_COUNTRY.flag}</span>
-              <span>{AUTH_COUNTRY.label}</span>
-            </div>
-            <div className="relative flex-1">
-              <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="tel"
-                placeholder={AUTH_COUNTRY.placeholder}
-                required
-                value={localPhone}
-                onChange={(e) => setLocalPhone(e.target.value.replace(/[^0-9\s]/g, ""))}
-                maxLength={12}
-                className="pl-9 h-11 rounded-l-none"
-              />
-            </div>
-          </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            Démo : n&apos;importe quel numéro Guinée ({AUTH_COUNTRY.minLocalDigits}
-            –{AUTH_COUNTRY.maxLocalDigits} chiffres) + mot de passe — pas d&apos;API.
-          </p>
-        </div>
-
-        {/* Mot de passe */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-sm font-medium text-foreground">
-              Mot de passe
-            </label>
-            <Link
-              href="/mot-de-passe-oublie"
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              Mot de passe oublié ?
-            </Link>
-          </div>
-          <div className="relative">
-            <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type={showPassword ? "text" : "password"}
-              placeholder="Ton mot de passe"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="pl-9 pr-10 h-11"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {showPassword ? (
-                <FiEyeOff className="h-4 w-4" />
-              ) : (
-                <FiEye className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-        </div>
-
-        <Button
-          type="submit"
-          disabled={loading}
-          className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md"
+      {step === "identifier" ? (
+        <form
+          onSubmit={isEmailAuth ? handleEmailLogin : handleSendOtp}
+          className="space-y-4"
         >
-          {loading ? (
-            <span className="flex items-center gap-2">
-              <span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-              Connexion...
-            </span>
-          ) : (
-            "Se connecter"
+          <div>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <label className="block text-sm font-medium text-foreground">
+                {isEmailAuth ? "Adresse email" : "Numéro de téléphone"}
+              </label>
+              {isEmailAuth && (
+                <Select
+                  value={countryId}
+                  onValueChange={(v) => handleCountryChange(v as AuthCountryId)}
+                >
+                  <SelectTrigger className="h-8 w-auto gap-1.5 border-0 bg-transparent px-1.5 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:opacity-50">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <span className="text-sm leading-none">{country.flag}</span>
+                      <span>{country.name}</span>
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    {AUTH_COUNTRY_OPTIONS.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <span className="flex items-center gap-2">
+                          <span className="text-base leading-none">{c.flag}</span>
+                          <span>
+                            {c.name}
+                            {c.authMethod === "phone" ? ` (${c.code})` : ""}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {isEmailAuth ? (
+              <div className="relative">
+                <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="email"
+                  placeholder="toi@exemple.fr"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  className="pl-9 h-11"
+                />
+              </div>
+            ) : (
+              <div className="relative flex">
+                <Select
+                  value={countryId}
+                  onValueChange={(v) => handleCountryChange(v as AuthCountryId)}
+                >
+                  <SelectTrigger className="h-11 w-auto shrink-0 rounded-r-none border-r-0 bg-muted px-3 gap-1.5 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:opacity-60">
+                    <span className="flex items-center gap-1.5 text-sm font-medium">
+                      <span className="text-base leading-none">{country.flag}</span>
+                      <span>{country.code}</span>
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AUTH_COUNTRY_OPTIONS.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <span className="flex items-center gap-2">
+                          <span className="text-base leading-none">{c.flag}</span>
+                          <span>
+                            {c.name}
+                            {c.authMethod === "phone" ? ` (${c.code})` : ""}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="relative flex-1">
+                  <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="tel"
+                    placeholder={country.placeholder}
+                    required
+                    value={localPhone}
+                    onChange={(e) =>
+                      setLocalPhone(
+                        normalizeLocalPhone(e.target.value, country)
+                      )
+                    }
+                    maxLength={country.maxLocalDigits}
+                    inputMode="numeric"
+                    className="pl-9 h-11 rounded-l-none"
+                  />
+                </div>
+              </div>
+            )}
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {isEmailAuth
+                ? "Connexion par email et mot de passe."
+                : `${country.name} ${country.code} — tu recevras un code à 6 chiffres.`}
+            </p>
+          </div>
+
+          {isEmailAuth && (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Mot de passe
+              </label>
+              <div className="relative">
+                <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Ton mot de passe"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  className="pl-9 pr-11 h-11"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={
+                    showPassword
+                      ? "Masquer le mot de passe"
+                      : "Afficher le mot de passe"
+                  }
+                >
+                  {showPassword ? (
+                    <FiEyeOff className="h-4 w-4" />
+                  ) : (
+                    <FiEye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
           )}
-        </Button>
-      </form>
+
+          <Button
+            type="submit"
+            disabled={loading}
+            className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md"
+          >
+            {loading
+              ? isEmailAuth
+                ? "Connexion..."
+                : "Envoi..."
+              : isEmailAuth
+                ? "Se connecter"
+                : "Recevoir le code"}
+          </Button>
+        </form>
+      ) : (
+        <form onSubmit={handleVerify} className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Code envoyé au {country.label} {phoneSent}
+          </p>
+          {process.env.NODE_ENV === "development" && (
+            <p className="text-xs rounded-md bg-muted px-3 py-2 text-muted-foreground">
+              Dev : utilise <strong>000000</strong>
+            </p>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Code SMS
+            </label>
+            <OtpInput
+              value={code}
+              onChange={setCode}
+              disabled={loading}
+              autoFocus
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={loading || code.length !== 6}
+            className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md"
+          >
+            {loading ? "Vérification..." : "Continuer"}
+          </Button>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => setStep("identifier")}
+            className="w-full text-sm text-muted-foreground hover:text-foreground"
+          >
+            Changer de numéro
+          </button>
+        </form>
+      )}
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        Tu n&apos;as pas de compte ?{" "}
+        Première fois ?{" "}
         <Link
           href="/inscription"
           className="font-semibold text-primary hover:underline"
         >
           S&apos;inscrire
-        </Link>
+        </Link>{" "}
+        utilise le même flux OTP.
       </p>
     </div>
   );

@@ -1,0 +1,185 @@
+/**
+ * Nest API client (FripCash-API fe-integration guides).
+ * Base URL must include /api/v1 (deployed gateway).
+ * Relative paths: Auth /auth/* · Product /* · Health /health
+ */
+
+export { ApiError, type ApiErrorBody, type AuthErrorBody } from "./errors";
+export {
+  api,
+  readToken,
+  writeToken,
+  clearToken,
+  setToken,
+  removeToken,
+  getToken,
+  TOKEN_COOKIE,
+} from "./client";
+
+export {
+  sendOtp,
+  verifyOtp,
+  signOut,
+  getSession,
+  adminSignInEmail,
+  signInEmail,
+  type AuthUser,
+  type VerifyOtpResponse,
+} from "./auth";
+
+export { fetchMe, updateMe, type Me } from "./me";
+
+export {
+  fetchCategories,
+  fetchZones,
+  fetchBestSellers,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  createZone,
+  updateZone,
+  deleteZone,
+  type CatalogCategory,
+  type CatalogZone,
+  type ListingDestination,
+} from "./catalog";
+
+export {
+  fetchListings,
+  fetchListing,
+  createListing,
+  updateListing,
+  deleteListing,
+  listingImageUrl,
+  attachListingMedia,
+  replaceListingMedia,
+  deleteListingMedia,
+  fetchListingComments,
+  createListingComment,
+  fetchListingReviews,
+  fetchSellerReviews,
+  createOrderReview,
+  type Listing,
+  type ListingMedia,
+  type ListingStatus,
+} from "./listings";
+
+export {
+  presignMedia,
+  uploadListingMedia,
+  cloudinarySign,
+  uploadCatalogueImage,
+  type CloudinaryFolder,
+  type CloudinarySign,
+  type CloudinaryUploadResult,
+} from "./media";
+
+export {
+  becomeParticulier,
+  applyForShop,
+  fetchSellerVerification,
+  closeParticulier,
+  closeShop,
+  downgradeToParticulier,
+  updateBundleSettings,
+  setVacation,
+  fetchProductLibrary,
+  createLibraryItem,
+  queueExcelImport,
+} from "./sellers";
+
+export {
+  fetchMyKyc,
+  submitMyKyc,
+  uploadMyKycDocument,
+  fetchOrgKyc,
+  submitOrgKyc,
+  uploadOrgKycDocument,
+} from "./kyc";
+
+export {
+  getCart,
+  clearCart as clearServerCart,
+  addCartItem,
+  updateCartItem,
+  removeCartItem,
+  checkout,
+  type Cart,
+} from "./cart";
+
+export {
+  fetchPurchases,
+  fetchSales,
+  fetchOrder,
+  transitionOrderStatus,
+  openDispute,
+  fetchInvoiceReceipt,
+  type OrderStatus,
+} from "./orders";
+
+export {
+  fetchWalletBalance,
+  fetchWalletLedger,
+  requestWithdraw,
+} from "./wallet";
+
+export { fetchFavorites, addFavorite, removeFavorite } from "./favorites";
+
+export {
+  fetchNotifications,
+  markNotificationRead,
+  registerDevice,
+  fetchNotificationPreferences,
+  upsertNotificationPreference,
+} from "./notifications";
+
+export {
+  fetchMyOffers,
+  fetchListingOffers,
+  createOffer,
+  acceptOffer,
+  refuseOffer,
+} from "./offers";
+
+export {
+  fetchConversations,
+  createConversation,
+  fetchMessages,
+  sendMessage,
+} from "./messaging";
+
+export {
+  fetchAdminMe,
+  fetchPlatformSettings,
+  fetchAuditLogs,
+  provisionAudience,
+  hideReview,
+  hideComment,
+  fetchSellerVerifications,
+  approveSellerVerification,
+  rejectSellerVerification,
+  fetchAdminOrgKyc,
+  fetchAdminIndividualKyc,
+  approveOrgKyc,
+  rejectOrgKyc,
+  requestOrgKycResubmission,
+  approveIndividualKyc,
+  rejectIndividualKyc,
+  resolveDispute,
+  fetchAdminListings,
+  type AdminListing,
+} from "./admin";
+
+export {
+  fetchCourierMe,
+  updateCourierAvailability,
+  fetchCourierMissions,
+  fetchOpenMissions,
+  acceptMission,
+  progressMission,
+  transferMission,
+} from "./courier";
+
+export { authorizePusher, authorizeBeams } from "./pusher";
+
+export { fetchHealth, fetchReady } from "./health";

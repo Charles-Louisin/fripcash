@@ -171,7 +171,7 @@ export const mockBrowseCategories: MockConsumerCategory[] = [
     _id: "cat_femme",
     name: "Femme",
     slug: "femme",
-    image: "/images/woman.png",
+    image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&h=400&fit=crop",
     enabled: true,
     subGroups: [
       {
@@ -197,7 +197,7 @@ export const mockBrowseCategories: MockConsumerCategory[] = [
     _id: "cat_homme",
     name: "Homme",
     slug: "homme",
-    image: "/images/man.png",
+    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&h=400&fit=crop",
     enabled: true,
     subGroups: [
       {
@@ -255,7 +255,7 @@ export const mockBrowseCategories: MockConsumerCategory[] = [
     _id: "cat_elec",
     name: "Électronique",
     slug: "electronique",
-    image: "/images/electronics.png",
+    image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=600&h=400&fit=crop",
     enabled: true,
     subGroups: [
       {
@@ -272,7 +272,7 @@ export const mockBrowseCategories: MockConsumerCategory[] = [
     _id: "cat_sport",
     name: "Sport",
     slug: "sport",
-    image: "/images/sports.png",
+    image: "https://images.unsplash.com/photo-1461896836934-ffe607ba6851?w=600&h=400&fit=crop",
     enabled: true,
     subGroups: [
       {

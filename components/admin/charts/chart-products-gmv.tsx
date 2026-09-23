@@ -13,50 +13,61 @@ import {
   ChartTooltip,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { productGmvChartData } from "@/lib/admin-chart-mock";
-import { formatGnf } from "@/lib/admin-platform";
 
 const chartConfig = {
-  gmv: { label: "GMV (GNF)", color: "var(--chart-1)" },
+  gmv: { label: "Volume", color: "var(--chart-1)" },
 } satisfies ChartConfig;
 
-export function ChartProductsGmv() {
+type Point = { name: string; gmv: number };
+
+type Props = {
+  data?: Point[];
+  title?: string;
+  description?: string;
+  valueLabel?: string;
+};
+
+export function ChartProductsGmv({
+  data = [],
+  title = "Top produits",
+  description = "Volume",
+  valueLabel = "Volume",
+}: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Top produits (GMV)</CardTitle>
-        <CardDescription>Chiffre d&apos;affaires par article</CardDescription>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="aspect-auto h-[280px] w-full">
-          <BarChart data={[...productGmvChartData]} layout="vertical" margin={{ left: 8 }}>
-            <CartesianGrid horizontal={false} />
-            <YAxis
-              dataKey="name"
-              type="category"
-              tickLine={false}
-              axisLine={false}
-              width={90}
-              tick={{ fontSize: 12 }}
-            />
-            <XAxis type="number" hide />
-            <ChartTooltip
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null;
-                const row = payload[0].payload as { name: string };
-                return (
-                  <div className="rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
-                    <p className="font-medium">{row.name}</p>
-                    <p className="text-muted-foreground">
-                      {formatGnf(Number(payload[0].value ?? 0))}
-                    </p>
-                  </div>
-                );
-              }}
-            />
-            <Bar dataKey="gmv" fill="var(--color-gmv)" radius={[0, 4, 4, 0]} />
-          </BarChart>
-        </ChartContainer>
+        {data.length === 0 ? (
+          <div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
+            Aucune donnée
+          </div>
+        ) : (
+          <ChartContainer
+            config={{
+              ...chartConfig,
+              gmv: { ...chartConfig.gmv, label: valueLabel },
+            }}
+            className="aspect-auto h-[280px] w-full"
+          >
+            <BarChart data={data} layout="vertical" margin={{ left: 8 }}>
+              <CartesianGrid horizontal={false} />
+              <YAxis
+                dataKey="name"
+                type="category"
+                tickLine={false}
+                axisLine={false}
+                width={90}
+                tick={{ fontSize: 12 }}
+              />
+              <XAxis type="number" hide />
+              <ChartTooltip />
+              <Bar dataKey="gmv" fill="var(--color-gmv)" radius={4} />
+            </BarChart>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   );

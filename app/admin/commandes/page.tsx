@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import { DataTable } from "@/components/admin/data-table";
 import { Badge } from "@/components/ui/badge";
 import { useAdminOrders } from "@/hooks/use-admin";
-import { mockAdminOrders, filterMockOrders } from "@/lib/admin-mock-data";
 import {
   fulfillmentModeLabels,
   normalizeOrderStatus,
@@ -43,18 +42,18 @@ export default function CommandesPage() {
     status: statusFilter === "all" ? undefined : statusFilter,
   });
 
-  const orders = useMemo(() => {
-    const api = data?.data ?? [];
-    if (api.length > 0) return api;
-    return filterMockOrders(
-      mockAdminOrders,
-      search,
-      statusFilter,
-      fulfillmentFilter
-    );
-  }, [data, search, statusFilter, fulfillmentFilter]);
+  const orders = useMemo(() => data?.data ?? [], [data]);
 
-  const filtered = orders;
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return orders.filter((o: any) => {
+      if (!q) return true;
+      return (
+        String(o._id || o.id || "").toLowerCase().includes(q) ||
+        String(o.article?.title || "").toLowerCase().includes(q)
+      );
+    });
+  }, [orders, search]);
 
   const totalAmount = filtered.reduce(
     (sum: number, o: any) => sum + (o.amount || 0),
@@ -196,9 +195,10 @@ export default function CommandesPage() {
           Pipeline aligné avec l&apos;app — livreur, retrait boutique, livraison
           locale
         </p>
-        {(isError || !data?.data?.length) && (
-          <p className="text-xs text-amber-600 mt-1">Données de démonstration</p>
-        )}
+        <p className="text-xs text-amber-700 dark:text-amber-500 mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+          {data?.unavailableReason ||
+            "Liste vide : GET /admin/orders n’existe pas encore (seed ~20 commandes)."}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">

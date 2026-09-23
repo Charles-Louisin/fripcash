@@ -36,6 +36,7 @@ import { useArticleReviews, usePostReview } from "@/hooks/use-reviews";
 import { useCreateOffer } from "@/hooks/use-offers";
 import { useStartConversation } from "@/hooks/use-messages";
 import { useCheckFavorite, useToggleFavorite } from "@/hooks/use-favorites";
+import { useAddCartItem } from "@/hooks/use-cart";
 import { useMe } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
 
@@ -76,6 +77,7 @@ export default function ArticleDetailPage() {
   const startConversation = useStartConversation();
   const { data: isFavorite, isLoading: favLoading } = useCheckFavorite(id);
   const toggleFavorite = useToggleFavorite();
+  const addCartItem = useAddCartItem();
 
   const reviews = reviewsData?.data || [];
   const avgRating = reviewsData?.avgRating || 0;
@@ -89,7 +91,7 @@ export default function ArticleDetailPage() {
   const images = article?.images || [];
   const seller = typeof article?.seller === "object" ? article.seller : null;
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!article) return;
     addItem({
       id: article._id,
@@ -101,6 +103,13 @@ export default function ArticleDetailPage() {
       priceWithShipping: article.price + (article.shippingCost || 0),
       href: `/article/${article._id}`,
     });
+    if (isLoggedIn) {
+      try {
+        await addCartItem.mutateAsync({ listingId: article._id, quantity: 1 });
+      } catch {
+        /* keep local cart; checkout will retry sync */
+      }
+    }
     toast("Article ajouté au panier !", "success");
     openCart();
   };

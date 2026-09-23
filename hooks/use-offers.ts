@@ -1,30 +1,58 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { delay } from "@/lib/consumer-mock-data";
+import {
+  fetchMyOffers,
+  fetchListingOffers,
+  createOffer,
+  acceptOffer,
+  refuseOffer,
+  readToken,
+} from "@/lib/api";
 
-type MockOffer = {
-  _id: string;
-  articleId: string;
-  amount: number;
-  message?: string;
-  status: "pending" | "accepted" | "refused";
-  createdAt: string;
-};
+function hasToken(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!readToken();
+}
 
-let offers: MockOffer[] = [];
+function asArray(data: unknown): any[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object" && Array.isArray((data as any).items)) {
+    return (data as any).items;
+  }
+  return [];
+}
 
-export function useMyOffers(type?: "sent" | "received") {
+function normalizeOffer(o: any) {
+  return {
+    _id: o.id || o._id,
+    id: o.id || o._id,
+    articleId: o.listingId || o.articleId,
+    amount: o.amountGnf ?? o.amount ?? 0,
+    message: o.message,
+    status: (o.status || "pending").toLowerCase(),
+    createdAt: o.createdAt,
+    ...o,
+  };
+}
+
+export function useMyOffers(_type?: "sent" | "received") {
   return useQuery({
-    queryKey: ["offers", "me", type],
-    queryFn: () => delay(offers),
+    queryKey: ["offers", "me", _type],
+    queryFn: async () => asArray(await fetchMyOffers()).map(normalizeOffer),
+    enabled: hasToken(),
   });
 }
 
 export function useArticleOffers(articleId: string) {
   return useQuery({
     queryKey: ["offers", "article", articleId],
-    queryFn: () => delay(offers.filter((o) => o.articleId === articleId)),
-    enabled: !!articleId,
+    queryFn: async () =>
+      asArray(await fetchListingOffers(articleId)).map(normalizeOffer),
+    enabled: !!articleId && hasToken(),
   });
+}
+
+export function useListingOffers(listingId: string) {
+  return useArticleOffers(listingId);
 }
 
 export function useCreateOffer() {
@@ -32,20 +60,20 @@ export function useCreateOffer() {
 
   return useMutation({
     mutationFn: async (body: {
-      articleId: string;
-      amount: number;
+      articleId?: string;
+      listingId?: string;
+      amount?: number;
+      amountGnf?: number;
       message?: string;
     }) => {
-      const created: MockOffer = {
-        _id: `off_${Date.now()}`,
-        articleId: body.articleId,
-        amount: body.amount,
+      const listingId = body.listingId || body.articleId;
+      if (!listingId) throw new Error("listingId required");
+      const amountGnf = Math.round(body.amountGnf ?? body.amount ?? 0);
+      const created = await createOffer(listingId, {
+        amountGnf,
         message: body.message,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      };
-      offers = [created, ...offers];
-      return delay({ success: true, data: created });
+      });
+      return { success: true, data: normalizeOffer(created) };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["offers"] });
@@ -65,20 +93,9 @@ export function useRespondToOffer() {
       action: "accept" | "reject" | "counter";
       counterAmount?: number;
     }) => {
-      offers = offers.map((o) =>
-        o._id === id
-          ? {
-              ...o,
-              status:
-                action === "accept"
-                  ? "accepted"
-                  : action === "reject"
-                    ? "refused"
-                    : o.status,
-            }
-          : o
-      );
-      return delay({ success: true });
+      if (action === "accept") return acceptOffer(id);
+      if (action === "reject") return refuseOffer(id);
+      throw new Error("Counter-offers are not supported by the API");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["offers"] });
@@ -86,16 +103,26 @@ export function useRespondToOffer() {
   });
 }
 
-export function useCancelOffer() {
+export function useAcceptOffer() {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: async (id: string) => {
-      offers = offers.filter((o) => o._id !== id);
-      return delay({ success: true });
-    },
+    mutationFn: (id: string) => acceptOffer(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["offers"] });
     },
   });
+}
+
+export function useRefuseOffer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => refuseOffer(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["offers"] });
+    },
+  });
+}
+
+export function useOffers() {
+  return useMyOffers();
 }

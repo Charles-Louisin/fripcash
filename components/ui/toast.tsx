@@ -46,7 +46,7 @@ const icons: Record<ToastType, ReactNode> = {
 };
 
 const bgColors: Record<ToastType, string> = {
-  success: "bg-primary text-primary-foreground",
+  success: "bg-emerald-600 text-white",
   error: "bg-destructive text-white",
   info: "bg-foreground text-background",
   warning: "bg-yellow-500 text-white",
