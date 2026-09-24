@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "@/components/ui/toast";
@@ -28,7 +28,10 @@ import {
   FiCamera,
   FiX,
   FiChevronDown,
+  FiChevronLeft,
+  FiChevronRight,
   FiImage,
+  FiMaximize2,
 } from "react-icons/fi";
 import { IoStarSharp, IoStarOutline } from "react-icons/io5";
 import { useArticle, useArticles } from "@/hooks/use-articles";
@@ -39,6 +42,11 @@ import { useCheckFavorite, useToggleFavorite } from "@/hooks/use-favorites";
 import { useAddCartItem } from "@/hooks/use-cart";
 import { useMe } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
+import {
+  canAddToCart,
+  canMakeOffer,
+  canMessageSeller,
+} from "@/lib/marketplace-actions";
 
 function mapArticleToProduct(article: any): Product {
   return {
@@ -64,6 +72,14 @@ export default function ArticleDetailPage() {
   const router = useRouter();
   const { data: user } = useMe();
   const isLoggedIn = !!user;
+
+  const marketplaceActor = {
+    isLoggedIn,
+    canBuy: user?.canBuy,
+    isAdmin: user?.isAdmin,
+    sellerProfileId:
+      user?.seller?.profileId || user?.seller?.id || null,
+  };
 
   const { data: article, isLoading } = useArticle(id);
   const { data: reviewsData } = useArticleReviews(id);
@@ -91,6 +107,42 @@ export default function ArticleDetailPage() {
   const images = article?.images || [];
   const seller = typeof article?.seller === "object" ? article.seller : null;
 
+  const [selectedImage, setSelectedImage] = useState(0);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+
+  useEffect(() => {
+    setSelectedImage(0);
+    setGalleryOpen(false);
+  }, [id, images.length]);
+
+  useEffect(() => {
+    if (!galleryOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setGalleryOpen(false);
+      if (e.key === "ArrowLeft" && images.length > 1) {
+        setSelectedImage((i) => (i - 1 + images.length) % images.length);
+      }
+      if (e.key === "ArrowRight" && images.length > 1) {
+        setSelectedImage((i) => (i + 1) % images.length);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [galleryOpen, images.length]);
+
+  const activeSrc = images[selectedImage] || images[0] || "";
+
+  const openGallery = (index?: number) => {
+    if (!images.length) return;
+    if (typeof index === "number") setSelectedImage(index);
+    setGalleryOpen(true);
+  };
+
   const handleAddToCart = async () => {
     if (!article) return;
     addItem({
@@ -114,7 +166,6 @@ export default function ArticleDetailPage() {
     openCart();
   };
 
-  const [selectedImage, setSelectedImage] = useState(0);
   const [offerOpen, setOfferOpen] = useState(false);
   const [offerPrice, setOfferPrice] = useState("");
   const [offerSent, setOfferSent] = useState(false);
@@ -302,6 +353,15 @@ export default function ArticleDetailPage() {
     }, 300);
   };
 
+  const listingMeta = {
+    destination: article?.destination || article?.listingDestination,
+    sellerProfileId:
+      typeof article?.seller === "object" ? article.seller?._id : null,
+  };
+  const showOffer = canMakeOffer(marketplaceActor, listingMeta);
+  const showCart = canAddToCart(marketplaceActor);
+  const showMessage = canMessageSeller(marketplaceActor, listingMeta);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -359,52 +419,62 @@ export default function ArticleDetailPage() {
           </nav>
 
           <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
-            {/* Image Gallery */}
+            {/* Image Gallery — big preview + clickable thumbs */}
             <div>
-              <div className="grid grid-cols-3 grid-rows-2 gap-2 rounded-lg overflow-hidden">
-                <div className="col-span-2 row-span-2 relative aspect-[3/4] bg-muted">
-                  {images[selectedImage] && (
-                    /* eslint-disable-next-line @next/next/no-img-element */
+              <div className="flex gap-2 sm:gap-3">
+                <div className="group relative flex-1 min-w-0 aspect-[3/4] rounded-lg overflow-hidden bg-muted">
+                  {activeSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={images[selectedImage]}
+                      src={activeSrc}
                       alt={article.brand || article.title}
-                      className="absolute inset-0 w-full h-full object-cover cursor-pointer"
+                      className="absolute inset-0 w-full h-full object-cover cursor-zoom-in"
+                      onClick={() => openGallery()}
                     />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                      <FiImage className="h-10 w-10 opacity-40" />
+                    </div>
+                  )}
+                  {activeSrc && (
+                    <button
+                      type="button"
+                      onClick={() => openGallery()}
+                      className="absolute top-2.5 right-2.5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-foreground shadow-sm backdrop-blur-sm transition-all hover:bg-white hover:scale-105 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                      aria-label="Agrandir l'image"
+                    >
+                      <FiMaximize2 className="h-4 w-4" />
+                    </button>
                   )}
                 </div>
-                {images.slice(0, 3).map((img: string, i: number) =>
-                  i > 0 ? (
-                    <button
-                      key={i}
-                      onClick={() => setSelectedImage(i)}
-                      className={`relative aspect-square bg-muted overflow-hidden ${
-                        selectedImage === i ? "ring-2 ring-primary" : ""
-                      }`}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img} alt={`${article.title} ${i + 1}`} className="absolute inset-0 w-full h-full object-cover" />
-                    </button>
-                  ) : null
+
+                {images.length > 1 && (
+                  <div className="flex flex-col gap-2 w-16 sm:w-20 shrink-0 max-h-[min(100%,32rem)] overflow-y-auto">
+                    {images.map((img: string, i: number) => (
+                      <button
+                        key={`${img}-${i}`}
+                        type="button"
+                        onClick={() => setSelectedImage(i)}
+                        onDoubleClick={() => openGallery(i)}
+                        className={`relative aspect-square rounded-md overflow-hidden bg-muted shrink-0 transition-all ${
+                          selectedImage === i
+                            ? "ring-2 ring-primary ring-offset-1"
+                            : "opacity-80 hover:opacity-100"
+                        }`}
+                        aria-label={`Voir l'image ${i + 1}`}
+                        aria-pressed={selectedImage === i}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img}
+                          alt={`${article.title} ${i + 1}`}
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
-
-              {images.length > 3 && (
-                <div className="flex gap-2 mt-2 overflow-x-auto">
-                  {images.map((img: string, i: number) => (
-                    <button
-                      key={i}
-                      onClick={() => setSelectedImage(i)}
-                      className={`relative w-16 h-16 rounded-md overflow-hidden shrink-0 ${
-                        selectedImage === i ? "ring-2 ring-primary" : "opacity-70 hover:opacity-100"
-                      }`}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img} alt={`Thumbnail ${i + 1}`} className="absolute inset-0 w-full h-full object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
-
             </div>
 
             {/* Product Info */}
@@ -442,12 +512,12 @@ export default function ArticleDetailPage() {
                     }}
                     className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium transition-all duration-200 disabled:opacity-50 ${
                       isFavorite
-                        ? "bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20"
+                        ? "bg-red-50 text-red-500 border border-red-200 hover:bg-red-100"
                         : "bg-muted hover:bg-muted/80 text-foreground border border-border hover:border-primary/30"
                     }`}
                   >
-                    <FiHeart className={`h-4 w-4 transition-all duration-200 ${isFavorite ? "fill-primary text-primary scale-110" : ""}`} />
-                    <span>{article.favoritesCount || 0}</span>
+                    <FiHeart className={`h-4 w-4 transition-all duration-200 ${isFavorite ? "fill-red-500 text-red-500 scale-110" : ""}`} />
+                    <span>{Math.max(article.favoritesCount || 0, isFavorite ? 1 : 0)}</span>
                   </button>
                   <button
                     onClick={() => { navigator.clipboard.writeText(window.location.href); toast("Lien copié !", "info"); }}
@@ -522,19 +592,43 @@ export default function ArticleDetailPage() {
                 </div>
               </div>
 
-              <div className="hidden lg:flex gap-3">
-                <button onClick={() => { if (!isLoggedIn) { toast("Connecte-toi pour faire une offre", "error"); router.push("/connexion"); return; } setOfferOpen(true); }} className="flex-1 h-12 rounded-full border-2 border-primary text-primary font-semibold text-base hover:bg-primary/5 transition-colors">
-                  Faire une offre
-                </button>
-                <button onClick={handleAddToCart} className="flex-1 h-12 rounded-full bg-primary text-primary-foreground font-semibold text-base hover:bg-primary/90 transition-colors">
-                  Ajouter au panier
-                </button>
-              </div>
+              {(showOffer || showCart) && (
+                <div className="hidden lg:flex gap-3">
+                  {showOffer && (
+                    <button
+                      onClick={() => {
+                        if (!isLoggedIn) {
+                          toast("Connecte-toi pour faire une offre", "error");
+                          router.push("/connexion");
+                          return;
+                        }
+                        setOfferOpen(true);
+                      }}
+                      className="flex-1 h-12 rounded-full border-2 border-primary text-primary font-semibold text-base hover:bg-primary/5 transition-colors"
+                    >
+                      Faire une offre
+                    </button>
+                  )}
+                  {showCart && (
+                    <button
+                      onClick={handleAddToCart}
+                      className="flex-1 h-12 rounded-full bg-primary text-primary-foreground font-semibold text-base hover:bg-primary/90 transition-colors"
+                    >
+                      Ajouter au panier
+                    </button>
+                  )}
+                </div>
+              )}
 
-              <button onClick={handleOpenMessage} className="hidden lg:flex items-center justify-center gap-2 w-full mt-3 h-10 rounded-full border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors">
-                <FiMessageCircle className="h-4 w-4" />
-                Envoyer un message
-              </button>
+              {showMessage && (
+                <button
+                  onClick={handleOpenMessage}
+                  className="hidden lg:flex items-center justify-center gap-2 w-full mt-3 h-10 rounded-full border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                >
+                  <FiMessageCircle className="h-4 w-4" />
+                  Envoyer un message
+                </button>
+              )}
             </div>
           </div>
 
@@ -749,33 +843,71 @@ export default function ArticleDetailPage() {
       </main>
 
       {/* Mobile sticky bottom bar */}
+      {(showOffer || showCart || showMessage || isLoggedIn) && (
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border p-3 flex gap-2 lg:hidden">
-        <button onClick={() => { if (!isLoggedIn) { toast("Connecte-toi pour faire une offre", "error"); router.push("/connexion"); return; } setOfferOpen(true); }} className="flex-1 h-12 rounded-full border-2 border-primary text-primary font-semibold text-sm hover:bg-primary/5 transition-colors">
-          Faire une offre
-        </button>
-        <button onClick={handleAddToCart} className="flex-1 h-12 rounded-full bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors">
-          Ajouter au panier
-        </button>
+        {showOffer && (
+          <button
+            onClick={() => {
+              if (!isLoggedIn) {
+                toast("Connecte-toi pour faire une offre", "error");
+                router.push("/connexion");
+                return;
+              }
+              setOfferOpen(true);
+            }}
+            className="flex-1 h-12 rounded-full border-2 border-primary text-primary font-semibold text-sm hover:bg-primary/5 transition-colors"
+          >
+            Faire une offre
+          </button>
+        )}
+        {showCart && (
+          <button
+            onClick={handleAddToCart}
+            className="flex-1 h-12 rounded-full bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors"
+          >
+            Ajouter au panier
+          </button>
+        )}
         <button
           disabled={toggleFavorite.isPending || favLoading}
           onClick={() => {
-            if (!isLoggedIn) { toast("Connecte-toi pour ajouter aux favoris.", "info"); router.push("/connexion"); return; }
+            if (!isLoggedIn) {
+              toast("Connecte-toi pour ajouter aux favoris.", "info");
+              router.push("/connexion");
+              return;
+            }
             toggleFavorite.mutate(
               { articleId: id, isFavorite: !!isFavorite },
               {
-                onSuccess: () => toast(isFavorite ? "Retiré des favoris." : "Ajouté aux favoris.", isFavorite ? "info" : "success"),
+                onSuccess: () =>
+                  toast(
+                    isFavorite ? "Retiré des favoris." : "Ajouté aux favoris.",
+                    isFavorite ? "info" : "success"
+                  ),
                 onError: () => toast("Erreur.", "error"),
               }
             );
           }}
-          className="h-12 w-12 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-colors shrink-0 disabled:opacity-50"
+          className={`h-12 w-12 rounded-full border flex items-center justify-center transition-colors shrink-0 disabled:opacity-50 ${
+            isFavorite
+              ? "border-red-200 bg-red-50 text-red-500"
+              : "border-border text-foreground hover:bg-muted"
+          }`}
         >
-          <FiHeart className={`h-5 w-5 ${isFavorite ? "fill-primary text-primary" : ""}`} />
+          <FiHeart
+            className={`h-5 w-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`}
+          />
         </button>
-        <button onClick={handleOpenMessage} className="h-12 w-12 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-colors shrink-0">
-          <FiMessageCircle className="h-5 w-5" />
-        </button>
+        {showMessage && (
+          <button
+            onClick={handleOpenMessage}
+            className="h-12 w-12 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-colors shrink-0"
+          >
+            <FiMessageCircle className="h-5 w-5" />
+          </button>
+        )}
       </div>
+      )}
 
       {/* Offer Dialog */}
       <Dialog open={offerOpen} onOpenChange={(open) => !open && handleCloseOffer()}>
@@ -861,7 +993,92 @@ export default function ArticleDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Image lightbox */}
+      {/* Product gallery lightbox */}
+      {galleryOpen && activeSrc && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/95 flex flex-col"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Aperçu de l'image"
+        >
+          <div className="flex items-center justify-between px-4 py-3 shrink-0">
+            <p className="text-sm text-white/70 truncate max-w-[60%]">
+              {article?.brand || article?.title}
+              {images.length > 1 ? ` · ${selectedImage + 1}/${images.length}` : ""}
+            </p>
+            <button
+              type="button"
+              onClick={() => setGalleryOpen(false)}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+              aria-label="Fermer"
+            >
+              <FiX className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="relative flex-1 flex items-center justify-center min-h-0 px-4 pb-4">
+            {images.length > 1 && (
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedImage((i) => (i - 1 + images.length) % images.length)
+                }
+                className="absolute left-2 sm:left-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+                aria-label="Image précédente"
+              >
+                <FiChevronLeft className="h-6 w-6" />
+              </button>
+            )}
+
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={activeSrc}
+              alt={article?.brand || article?.title || "Photo agrandie"}
+              className="max-w-full max-h-full w-auto h-auto object-contain select-none"
+            />
+
+            {images.length > 1 && (
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedImage((i) => (i + 1) % images.length)
+                }
+                className="absolute right-2 sm:right-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+                aria-label="Image suivante"
+              >
+                <FiChevronRight className="h-6 w-6" />
+              </button>
+            )}
+          </div>
+
+          {images.length > 1 && (
+            <div className="flex justify-center gap-2 px-4 pb-5 overflow-x-auto shrink-0">
+              {images.map((img: string, i: number) => (
+                <button
+                  key={`lb-${i}`}
+                  type="button"
+                  onClick={() => setSelectedImage(i)}
+                  className={`relative h-14 w-14 rounded-md overflow-hidden shrink-0 transition-all ${
+                    selectedImage === i
+                      ? "ring-2 ring-white"
+                      : "opacity-50 hover:opacity-90"
+                  }`}
+                  aria-label={`Aller à l'image ${i + 1}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Review image lightbox */}
       {lightboxImage && (
         <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4" onClick={() => setLightboxImage(null)}>
           <button type="button" onClick={() => setLightboxImage(null)} className="absolute top-4 right-4 flex items-center justify-center h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors">

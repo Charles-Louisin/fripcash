@@ -28,6 +28,177 @@ export async function provisionAudience(
   return data;
 }
 
+/** Better Auth admin plugin — GET /auth/admin/list-users */
+export type AuthAdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified?: boolean;
+  image?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  phoneNumber?: string | null;
+  phoneNumberVerified?: boolean;
+  role?: string | null;
+  banned?: boolean;
+  banReason?: string | null;
+  banExpires?: string | null;
+  preferredLocale?: string;
+  userKind?: string;
+  authAudience?: string;
+};
+
+export async function fetchAuthAdminUsers(params?: {
+  limit?: number;
+  offset?: number;
+  searchValue?: string;
+  searchField?: "email" | "name";
+  searchOperator?: "contains" | "starts_with" | "ends_with";
+}) {
+  const { data } = await api.get<{
+    users: AuthAdminUser[];
+    total: number;
+    limit?: number;
+    offset?: number;
+  }>("/auth/admin/list-users", {
+    params: {
+      limit: params?.limit ?? 100,
+      offset: params?.offset ?? 0,
+      ...(params?.searchValue
+        ? {
+            searchValue: params.searchValue,
+            searchField: params.searchField || "email",
+            searchOperator: params.searchOperator || "contains",
+          }
+        : {}),
+    },
+  });
+  return data;
+}
+
+export async function banAuthUser(userId: string, banReason?: string) {
+  const { data } = await api.post("/auth/admin/ban-user", {
+    userId,
+    banReason: banReason || "Banned by admin",
+  });
+  return data;
+}
+
+export async function unbanAuthUser(userId: string) {
+  const { data } = await api.post("/auth/admin/unban-user", { userId });
+  return data;
+}
+
+export async function fetchAuthAdminUser(id: string) {
+  const { data } = await api.get<AuthAdminUser>("/auth/admin/get-user", {
+    params: { id },
+  });
+  return data;
+}
+
+export async function createAuthAdminUser(body: {
+  email: string;
+  password: string;
+  name: string;
+  role?: string | string[];
+  data?: Record<string, unknown>;
+}) {
+  const { data } = await api.post<{ user?: AuthAdminUser } | AuthAdminUser>(
+    "/auth/admin/create-user",
+    body
+  );
+  return data;
+}
+
+export async function updateAuthAdminUser(
+  userId: string,
+  data: Record<string, unknown>
+) {
+  const { data: res } = await api.post<AuthAdminUser | { user: AuthAdminUser }>(
+    "/auth/admin/update-user",
+    { userId, data }
+  );
+  return res;
+}
+
+export async function setAuthAdminRole(
+  userId: string,
+  role: string | string[]
+) {
+  const { data } = await api.post<{ user: AuthAdminUser }>(
+    "/auth/admin/set-role",
+    { userId, role }
+  );
+  return data;
+}
+
+export async function setAuthAdminPassword(
+  userId: string,
+  newPassword: string
+) {
+  const { data } = await api.post("/auth/admin/set-user-password", {
+    userId,
+    newPassword,
+  });
+  return data;
+}
+
+export async function removeAuthAdminUser(userId: string) {
+  const { data } = await api.post("/auth/admin/remove-user", { userId });
+  return data;
+}
+
+export type AuthAdminSession = {
+  id?: string;
+  token?: string;
+  userId?: string;
+  expiresAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+};
+
+export async function listAuthAdminUserSessions(userId: string) {
+  const { data } = await api.post<{ sessions: AuthAdminSession[] }>(
+    "/auth/admin/list-user-sessions",
+    { userId }
+  );
+  return data;
+}
+
+export async function revokeAuthAdminUserSession(sessionToken: string) {
+  const { data } = await api.post("/auth/admin/revoke-user-session", {
+    sessionToken,
+  });
+  return data;
+}
+
+export async function revokeAuthAdminUserSessions(userId: string) {
+  const { data } = await api.post("/auth/admin/revoke-user-sessions", {
+    userId,
+  });
+  return data;
+}
+
+export async function impersonateAuthAdminUser(userId: string) {
+  const { data } = await api.post("/auth/admin/impersonate-user", { userId });
+  return data;
+}
+
+export async function stopAuthAdminImpersonating() {
+  const { data } = await api.post("/auth/admin/stop-impersonating", {});
+  return data;
+}
+
+export async function authAdminHasPermission(permissions: Record<string, string[]>) {
+  const { data } = await api.post<{ success?: boolean; error?: unknown }>(
+    "/auth/admin/has-permission",
+    { permissions }
+  );
+  return data;
+}
+
 export async function hideReview(id: string) {
   const { data } = await api.post(`/admin/reviews/${id}/hide`);
   return data;

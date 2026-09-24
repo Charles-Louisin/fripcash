@@ -22,7 +22,11 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
-import { hasAdminSession } from "@/lib/admin-session";
+import {
+  clearAdminSession,
+  hasAdminSession,
+} from "@/lib/admin-session";
+import { fetchAdminMe, readToken } from "@/lib/api";
 import { ThemeProvider } from "next-themes";
 
 const pageLabels: Record<string, string> = {
@@ -92,11 +96,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!hasAdminSession()) {
-      router.replace("/admin-login");
-      return;
+    let cancelled = false;
+
+    async function gate() {
+      // Fast reject: no token / no local admin flag
+      if (!readToken() || !hasAdminSession()) {
+        clearAdminSession();
+        router.replace("/admin-login");
+        return;
+      }
+      try {
+        // Real gate: Nest /admin/me → 403 for seller/buyer
+        const me = await fetchAdminMe();
+        if (cancelled) return;
+        if (!me || (me as { isAdmin?: boolean }).isAdmin === false) {
+          clearAdminSession();
+          router.replace("/admin-login");
+          return;
+        }
+        setReady(true);
+      } catch {
+        if (cancelled) return;
+        clearAdminSession();
+        router.replace("/admin-login");
+      }
     }
-    setReady(true);
+
+    void gate();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   if (!ready) {

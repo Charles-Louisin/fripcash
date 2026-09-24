@@ -23,6 +23,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/toast";
 import { useProfileStore } from "@/stores/profile-store";
+import { useUnreadMessagesCount } from "@/hooks/use-messages";
 import {
   APP_STORE_URL,
   PLAY_STORE_URL,
@@ -95,6 +96,73 @@ function isNavActive(pathname: string, href: string, exact?: boolean) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function NavBadge({
+  count,
+  active,
+}: {
+  count: number;
+  active?: boolean;
+}) {
+  if (!count || count < 1) return null;
+  return (
+    <span
+      className={cn(
+        "ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
+        active
+          ? "bg-white/20 text-sidebar-primary-foreground"
+          : "bg-primary text-primary-foreground"
+      )}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
+function SidebarNavLink({
+  item,
+  pathname,
+  collapsed,
+  badge,
+  onClick,
+}: {
+  item: { href: string; icon: React.ComponentType<{ className?: string }>; label: string; exact?: boolean };
+  pathname: string;
+  collapsed?: boolean;
+  badge?: number;
+  onClick?: () => void;
+}) {
+  const isActive = isNavActive(pathname, item.href, item.exact);
+  return (
+    <Link
+      href={item.href}
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+        isActive
+          ? "bg-sidebar-primary text-sidebar-primary-foreground"
+          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        collapsed && "justify-center px-2"
+      )}
+      title={collapsed ? item.label : undefined}
+    >
+      <span className="relative shrink-0">
+        <item.icon className="h-5 w-5" />
+        {collapsed && badge && badge > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-0.5 text-[9px] font-bold text-primary-foreground">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        )}
+      </span>
+      {!collapsed && (
+        <>
+          <span className="truncate">{item.label}</span>
+          <NavBadge count={badge || 0} active={isActive} />
+        </>
+      )}
+    </Link>
+  );
+}
+
 // ---- Logout Confirmation Dialog ----
 function LogoutDialog({
   open,
@@ -158,6 +226,10 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const { showToast } = useToast();
   const { avatar, name, pseudo } = useProfileStore();
+  const unreadMessages = useUnreadMessagesCount();
+
+  const badgeFor = (href: string) =>
+    href === "/dashboard/messages" ? unreadMessages : 0;
 
   const filteredNav = search
     ? navItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase()))
@@ -223,26 +295,15 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
-        {(search ? filteredNav : accountNav).map((item) => {
-          const isActive = isNavActive(pathname, item.href, (item as { exact?: boolean }).exact);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                collapsed && "justify-center px-2"
-              )}
-              title={collapsed ? item.label : undefined}
-            >
-              <item.icon className="h-5 w-5 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
+        {(search ? filteredNav : accountNav).map((item) => (
+          <SidebarNavLink
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            collapsed={collapsed}
+            badge={badgeFor(item.href)}
+          />
+        ))}
 
         {!search && (
           <>
@@ -251,51 +312,29 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
                 Vente légère
               </p>
             )}
-            {sellNav.map((item) => {
-              const isActive = isNavActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    collapsed && "justify-center px-2"
-                  )}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <item.icon className="h-5 w-5 shrink-0" />
-                  {!collapsed && <span>{item.label}</span>}
-                </Link>
-              );
-            })}
+            {sellNav.map((item) => (
+              <SidebarNavLink
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                collapsed={collapsed}
+                badge={badgeFor(item.href)}
+              />
+            ))}
             {!collapsed && (
               <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 Réglages
               </p>
             )}
-            {settingsNav.map((item) => {
-              const isActive = isNavActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    collapsed && "justify-center px-2"
-                  )}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <item.icon className="h-5 w-5 shrink-0" />
-                  {!collapsed && <span>{item.label}</span>}
-                </Link>
-              );
-            })}
+            {settingsNav.map((item) => (
+              <SidebarNavLink
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                collapsed={collapsed}
+                badge={badgeFor(item.href)}
+              />
+            ))}
           </>
         )}
 
@@ -339,6 +378,10 @@ export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: (
   const [logoutOpen, setLogoutOpen] = useState(false);
   const { showToast } = useToast();
   const { avatar, name, pseudo } = useProfileStore();
+  const unreadMessages = useUnreadMessagesCount();
+
+  const badgeFor = (href: string) =>
+    href === "/dashboard/messages" ? unreadMessages : 0;
 
   const filteredNav = search
     ? navItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase()))
@@ -386,72 +429,42 @@ export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: (
         </p>
 
         <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
-          {(search ? filteredNav : accountNav).map((item) => {
-            const isActive = isNavActive(pathname, item.href, (item as { exact?: boolean }).exact);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onClose}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                )}
-              >
-                <item.icon className="h-5 w-5 shrink-0" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+          {(search ? filteredNav : accountNav).map((item) => (
+            <SidebarNavLink
+              key={item.href}
+              item={item}
+              pathname={pathname}
+              badge={badgeFor(item.href)}
+              onClick={onClose}
+            />
+          ))}
 
           {!search && (
             <>
               <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 Vente légère
               </p>
-              {sellNav.map((item) => {
-                const isActive = isNavActive(pathname, item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={onClose}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    )}
-                  >
-                    <item.icon className="h-5 w-5 shrink-0" />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
+              {sellNav.map((item) => (
+                <SidebarNavLink
+                  key={item.href}
+                  item={item}
+                  pathname={pathname}
+                  badge={badgeFor(item.href)}
+                  onClick={onClose}
+                />
+              ))}
               <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 Réglages
               </p>
-              {settingsNav.map((item) => {
-                const isActive = isNavActive(pathname, item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={onClose}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    )}
-                  >
-                    <item.icon className="h-5 w-5 shrink-0" />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
+              {settingsNav.map((item) => (
+                <SidebarNavLink
+                  key={item.href}
+                  item={item}
+                  pathname={pathname}
+                  badge={badgeFor(item.href)}
+                  onClick={onClose}
+                />
+              ))}
             </>
           )}
         </nav>

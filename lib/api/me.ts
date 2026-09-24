@@ -5,6 +5,7 @@ import { api } from "./client";
 export type Me = {
   id: string;
   phone: string | null;
+  email?: string | null;
   displayName: string;
   preferredLocale: "FR" | "EN";
   canBuy: boolean;

@@ -28,6 +28,17 @@ import {
   updateListing,
   listingImageUrl,
   fetchAdminListings,
+  fetchAuthAdminUsers,
+  createAuthAdminUser,
+  updateAuthAdminUser,
+  setAuthAdminRole,
+  setAuthAdminPassword,
+  removeAuthAdminUser,
+  listAuthAdminUserSessions,
+  revokeAuthAdminUserSession,
+  revokeAuthAdminUserSessions,
+  banAuthUser,
+  unbanAuthUser,
 } from "@/lib/api";
 
 function asArray(data: unknown): any[] {
@@ -244,7 +255,7 @@ export function useAdminDashboard() {
   return useQuery({
     queryKey: ["admin", "dashboard"],
     queryFn: async () => {
-      const [listings, verifications, settings, auditLogs, categories] =
+      const [listings, verifications, settings, auditLogs, categories, authUsers] =
         await Promise.all([
           fetchAdminListings({ status: "ALL" }).catch(
             () => [] as Awaited<ReturnType<typeof fetchAdminListings>>
@@ -257,6 +268,9 @@ export function useAdminDashboard() {
             .then(asArray)
             .catch(() => [] as any[]),
           fetchCategories().catch(() => [] as Awaited<ReturnType<typeof fetchCategories>>),
+          fetchAuthAdminUsers({ limit: 100 })
+            .then((r) => r.total ?? r.users?.length ?? 0)
+            .catch(() => null as number | null),
         ]);
 
       const pendingStatuses = new Set(["DRAFT", "FLAGGED"]);
@@ -357,7 +371,7 @@ export function useAdminDashboard() {
         openDisputeCount: 0,
         escrowGmv: 0,
         escrowHoldCount: 0,
-        totalUsers: null as number | null,
+        totalUsers: authUsers,
         totalRevenue: null as number | null,
         activeDeliveries: 0,
       };
@@ -458,13 +472,79 @@ export function useAdminUsers(params?: {
   return useQuery({
     queryKey: ["admin", "users", params],
     queryFn: async () => {
-      // BE seed has ~31 users but GET /admin/users is still 404.
-      return {
-        data: [] as any[],
-        total: 0,
-        unavailableReason:
-          "GET /admin/users n’existe pas encore (seed ~31 comptes). Demande cette route au BE.",
+      const q = params?.q?.trim();
+      const res = await fetchAuthAdminUsers({
+        limit: 100,
+        ...(q
+          ? {
+              searchValue: q,
+              searchField: q.includes("@") ? "email" : "name",
+              searchOperator: "contains" as const,
+            }
+          : {}),
+      });
+
+      const mapKindToRole = (u: {
+        userKind?: string;
+        authAudience?: string;
+        role?: string | null;
+      }) => {
+        const kind = String(u.userKind || u.authAudience || "").toUpperCase();
+        if (kind === "ADMIN" || u.role === "admin") return "admin";
+        if (kind === "COURIER") return "livreur";
+        return "acheteur";
       };
+
+      let rows = (res.users || []).map((u) => {
+        const parts = String(u.name || "").trim().split(/\s+/);
+        const firstName = parts[0] || u.name || "—";
+        const lastName = parts.slice(1).join(" ");
+        const pseudo =
+          u.email?.split("@")[0] ||
+          u.phoneNumber?.replace(/\D/g, "").slice(-6) ||
+          u.id.slice(-6);
+        return {
+          _id: u.id,
+          id: u.id,
+          firstName,
+          lastName,
+          pseudo,
+          email: u.email,
+          phone: u.phoneNumber || "—",
+          avatar: u.image || undefined,
+          status: u.banned ? "banned" : "active",
+          role: mapKindToRole(u),
+          authRole: u.role || "user",
+          userKind: u.userKind,
+          authAudience: u.authAudience,
+          articlesCount: 0,
+          createdAt: u.createdAt,
+          raw: u,
+        };
+      });
+
+      if (params?.status === "banned") {
+        rows = rows.filter((r) => r.status === "banned");
+      } else if (params?.status === "active") {
+        rows = rows.filter((r) => r.status === "active");
+      } else if (params?.status === "pending") {
+        rows = rows.filter((r) => r.status === "pending");
+      }
+
+      // Client search also covers phone when Better Auth search is email/name only
+      if (q && !q.includes("@")) {
+        const qq = q.toLowerCase();
+        rows = rows.filter(
+          (r) =>
+            r.firstName.toLowerCase().includes(qq) ||
+            r.lastName.toLowerCase().includes(qq) ||
+            r.pseudo.toLowerCase().includes(qq) ||
+            r.email.toLowerCase().includes(qq) ||
+            String(r.phone).includes(q)
+        );
+      }
+
+      return { data: rows, total: res.total ?? rows.length };
     },
   });
 }
@@ -474,11 +554,109 @@ export function useUpdateUserStatus() {
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      throw new Error("Endpoint admin users non disponible");
+      if (status === "banned") {
+        return banAuthUser(id);
+      }
+      if (status === "active") {
+        return unbanAuthUser(id);
+      }
+      throw new Error(`Statut non supporté: ${status}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    },
+  });
+}
+
+function invalidateUsers(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+  queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+}
+
+export function useCreateAuthAdminUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createAuthAdminUser,
+    onSuccess: () => invalidateUsers(queryClient),
+  });
+}
+
+export function useUpdateAuthAdminUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      userId,
+      data,
+    }: {
+      userId: string;
+      data: Record<string, unknown>;
+    }) => updateAuthAdminUser(userId, data),
+    onSuccess: () => invalidateUsers(queryClient),
+  });
+}
+
+export function useSetAuthAdminRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      userId,
+      role,
+    }: {
+      userId: string;
+      role: string | string[];
+    }) => setAuthAdminRole(userId, role),
+    onSuccess: () => invalidateUsers(queryClient),
+  });
+}
+
+export function useSetAuthAdminPassword() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      userId,
+      newPassword,
+    }: {
+      userId: string;
+      newPassword: string;
+    }) => setAuthAdminPassword(userId, newPassword),
+    onSuccess: () => invalidateUsers(queryClient),
+  });
+}
+
+export function useRemoveAuthAdminUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => removeAuthAdminUser(userId),
+    onSuccess: () => invalidateUsers(queryClient),
+  });
+}
+
+export function useAuthAdminUserSessions(userId: string | null) {
+  return useQuery({
+    queryKey: ["admin", "user-sessions", userId],
+    queryFn: () => listAuthAdminUserSessions(userId!),
+    enabled: !!userId,
+  });
+}
+
+export function useRevokeAuthAdminUserSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionToken: string) =>
+      revokeAuthAdminUserSession(sessionToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "user-sessions"] });
+    },
+  });
+}
+
+export function useRevokeAuthAdminUserSessions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => revokeAuthAdminUserSessions(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "user-sessions"] });
     },
   });
 }

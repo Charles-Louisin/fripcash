@@ -32,6 +32,12 @@ export function ProductCard({ product }: { product: Product }) {
     (f: any) => (f.article?._id || f.article) === String(product.id)
   );
 
+  // Listings API has no favoritesCount yet — bump locally when the viewer liked it.
+  const favoritesDisplay = Math.max(
+    product.favorites || 0,
+    isFavorited ? 1 : 0
+  );
+
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -76,19 +82,27 @@ export function ProductCard({ product }: { product: Product }) {
           disabled={toggleFavorite.isPending}
           className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-sm transition-all duration-200 ${
             isFavorited
-              ? "bg-white text-primary"
+              ? "bg-white text-red-500"
               : "bg-white/80 backdrop-blur-sm text-muted-foreground opacity-0 group-hover:opacity-100"
           } hover:scale-110 disabled:opacity-50`}
+          aria-pressed={isFavorited}
+          aria-label={isFavorited ? "Retirer des favoris" : "Ajouter aux favoris"}
         >
           <FiHeart
-            className={`h-4 w-4 ${isFavorited ? "fill-primary text-primary" : ""}`}
+            className={`h-4 w-4 ${isFavorited ? "fill-red-500 text-red-500" : ""}`}
           />
         </button>
 
         {/* Favorite count badge - bottom right */}
-        <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-white/90 backdrop-blur-sm px-2 py-1 text-xs text-muted-foreground shadow-sm">
-          <FiHeart className="h-3.5 w-3.5" />
-          <span>{product.favorites}</span>
+        <div
+          className={`absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-white/90 backdrop-blur-sm px-2 py-1 text-xs shadow-sm ${
+            isFavorited ? "text-red-500" : "text-muted-foreground"
+          }`}
+        >
+          <FiHeart
+            className={`h-3.5 w-3.5 ${isFavorited ? "fill-red-500 text-red-500" : ""}`}
+          />
+          <span>{favoritesDisplay}</span>
         </div>
       </div>
 

@@ -6,11 +6,16 @@ Checklist against Swagger + Better Auth. Status: **wired** = `lib/api` + hooks/U
 
 | Route | Status |
 |-------|--------|
-| POST `/auth/phone-number/send-otp` | wired — connexion / inscription |
+| POST `/auth/phone-number/send-otp` | wired — connexion / inscription (Guinée) |
 | POST `/auth/phone-number/verify` | wired |
 | GET `/auth/get-session` | wired — `getSession` |
 | POST `/auth/sign-out` | wired — logout |
-| POST `/auth/sign-in/email` | wired — admin login |
+| POST `/auth/sign-in/email` | wired — admin + connexion France |
+| POST `/auth/sign-up/email` | wired — inscription France |
+| POST `/auth/send-verification-email` | wired — needs BE email provider + trusted callback `/verifier-email` |
+| GET `/auth/verify-email` | wired — `/verifier-email?token=` |
+| POST `/auth/request-password-reset` | wired — mot-de-passe-oublie (France) |
+| POST `/auth/reset-password` | wired — token from email link |
 
 ## Health
 
@@ -75,7 +80,7 @@ Checklist against Swagger + Better Auth. Status: **wired** = `lib/api` + hooks/U
 |-------|--------|
 | `/admin/me`, platform-settings, audit-logs | wired hooks |
 | provision-audience | wired hook |
-| Users/articles/orders list APIs | **partial** — articles via `GET /admin/listings` (all statuses); users/orders/disputes **list** still 404 |
+| Users/articles/orders list APIs | **partial** — articles `GET /admin/listings`; users full Better Auth admin (`list/create/update/set-role/password/sessions/ban/remove`); orders/disputes list still 404 |
 | Seed vs UI counts | see [seed-vs-admin-ui.md](./seed-vs-admin-ui.md) |
 
 ## Remaining gaps (no matching Swagger list endpoint)

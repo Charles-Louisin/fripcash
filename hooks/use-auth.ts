@@ -107,13 +107,31 @@ export function useAdminLogin() {
 
   return useMutation({
     mutationFn: async (body: { email: string; password: string }) => {
-      const data = await adminSignInEmail(body.email, body.password);
+      await adminSignInEmail(body.email, body.password);
       const me = await fetchMe();
+      if (!me.isAdmin) {
+        // Valid consumer/seller credentials must not unlock the admin shell.
+        clearAdminSession();
+        removeToken();
+        throw new Error(
+          "Ce compte n’a pas les droits administrateur. Utilise /connexion pour vendre ou acheter."
+        );
+      }
+      // Double-check Nest admin audience (403 for non-admins).
+      try {
+        const { fetchAdminMe } = await import("@/lib/api");
+        await fetchAdminMe();
+      } catch {
+        clearAdminSession();
+        removeToken();
+        throw new Error(
+          "Accès admin refusé par l’API (audience). Compte non administrateur."
+        );
+      }
       return {
         success: true as const,
         user: mapMeToUiUser(me),
         email: body.email,
-        raw: data,
       };
     },
     onSuccess: (data, variables) => {

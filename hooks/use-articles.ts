@@ -26,7 +26,10 @@ export type DashboardArticle = {
   brand?: string;
   description: string;
   images: string[];
+  /** Display label (e.g. "Mode › Hommes") */
   category: string;
+  /** Root category nameFr for filters (e.g. "Mode") */
+  rootCategory: string;
   categoryId: string;
   subCategory?: string;
   price: number;
@@ -48,6 +51,8 @@ export type DashboardArticle = {
   };
   favoritesCount: number;
   listingDestination: UiDestination;
+  /** Nest destination enum (ENSEIGNES, …) for capability gates */
+  destination?: string;
   createdAt: string;
 };
 
@@ -74,18 +79,67 @@ function mapStatus(status: Listing["status"]): DashboardArticle["status"] {
   return "active";
 }
 
-function categoryLabel(
+function categoryParts(
   categoryId: string | null | undefined,
   byId: Map<string, CatalogCategory>
-): string {
-  if (!categoryId) return "Catalogue";
+): { label: string; root: string; sub?: string } {
+  if (!categoryId) return { label: "Catalogue", root: "Catalogue" };
   const cat = byId.get(categoryId);
-  if (!cat) return "Catalogue";
+  if (!cat) return { label: "Catalogue", root: "Catalogue" };
+  const name = cat.nameFr || cat.nameEn || cat.slug;
   if (cat.parentId) {
     const parent = byId.get(cat.parentId);
-    if (parent) return `${parent.nameFr} › ${cat.nameFr}`;
+    if (parent) {
+      const root = parent.nameFr || parent.nameEn || parent.slug;
+      return { label: `${root} › ${name}`, root, sub: name };
+    }
   }
-  return cat.nameFr || cat.nameEn || cat.slug;
+  return { label: name, root: name };
+}
+
+/** Resolve URL/filter category names to catalog IDs (parent expands to all children). */
+export function resolveCategoryFilterIds(
+  byId: Map<string, CatalogCategory>,
+  categoryName?: string,
+  subCategoryName?: string
+): string[] | undefined {
+  if (!categoryName && !subCategoryName) return undefined;
+  const all = [...byId.values()];
+  const matchName = (c: CatalogCategory, name: string) => {
+    const n = name.trim().toLowerCase();
+    return (
+      c.id === name ||
+      c.slug?.toLowerCase() === n ||
+      c.nameFr?.toLowerCase() === n ||
+      c.nameEn?.toLowerCase() === n
+    );
+  };
+
+  if (subCategoryName && categoryName) {
+    const parent = all.find((c) => !c.parentId && matchName(c, categoryName));
+    const leaf = all.find(
+      (c) =>
+        matchName(c, subCategoryName) &&
+        (!parent || c.parentId === parent.id)
+    );
+    if (leaf) return [leaf.id];
+  }
+
+  if (subCategoryName) {
+    const leaf = all.find((c) => matchName(c, subCategoryName));
+    if (leaf) return [leaf.id];
+  }
+
+  if (!categoryName) return undefined;
+
+  const hit = all.find((c) => matchName(c, categoryName));
+  if (!hit) return undefined;
+  if (!hit.parentId) {
+    const children = all.filter((c) => c.parentId === hit.id).map((c) => c.id);
+    // Parent + children so exact-parent listings also match
+    return [hit.id, ...children];
+  }
+  return [hit.id];
 }
 
 export function listingToArticle(
@@ -93,15 +147,27 @@ export function listingToArticle(
   categoriesById?: Map<string, CatalogCategory>
 ): DashboardArticle {
   const images = (l.media || [])
-    .map((m) => listingImageUrl(m))
+    .slice()
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .map((m) => {
+      // Prefer Cloudinary `url`. Skip legacy seed keys with no url (broken MinIO).
+      if (m.url) return m.url;
+      const key = m.storageKey || "";
+      if (!key || key.startsWith("seed/")) return null;
+      return listingImageUrl(m);
+    })
     .filter((u): u is string => !!u);
+
+  const parts = categoryParts(l.categoryId, categoriesById ?? new Map());
 
   return {
     _id: l.id,
     title: l.title,
     description: l.description || "",
     images,
-    category: categoryLabel(l.categoryId, categoriesById ?? new Map()),
+    category: parts.label,
+    rootCategory: parts.root,
+    subCategory: parts.sub,
     categoryId: l.categoryId || "",
     price: l.priceGnf,
     shippingCost: 0,
@@ -112,11 +178,16 @@ export function listingToArticle(
       _id: l.sellerProfileId || "",
       pseudo: "vendeur",
     },
-    favoritesCount: 0,
+    favoritesCount:
+      typeof (l as unknown as { favoritesCount?: number }).favoritesCount ===
+      "number"
+        ? (l as unknown as { favoritesCount: number }).favoritesCount
+        : 0,
     listingDestination:
       (l.destination &&
         (DEST_TO_UI[l.destination] as UiDestination)) ||
       "secondeMain",
+    destination: l.destination,
     createdAt: l.publishedAt || l.createdAt || new Date().toISOString(),
   };
 }
@@ -189,17 +260,38 @@ export function useArticles(filters: ArticleFilters = {}) {
       const dest =
         filters.destination &&
         (DEST_TO_API[filters.destination] || filters.destination);
-      const [rows, catMap] = await Promise.all([
-        fetchListings({
-          destination: dest,
-          categoryId: filters.category,
-        }),
-        loadCategoryMap(),
-      ]);
+      const catMap = await loadCategoryMap();
+      const categoryIds = resolveCategoryFilterIds(
+        catMap,
+        filters.category,
+        filters.subCategory
+      );
+
+      // API matches exact categoryId only — never pass a display name.
+      // For parent categories (Mode), fetch all then filter to children.
+      const apiCategoryId =
+        categoryIds && categoryIds.length === 1 ? categoryIds[0] : undefined;
+
+      const rows = await fetchListings({
+        destination: dest,
+        categoryId: apiCategoryId,
+      });
       let mapped = rows.map((l) => listingToArticle(l, catMap));
+
+      if (categoryIds && categoryIds.length > 0) {
+        const allowed = new Set(categoryIds);
+        mapped = mapped.filter((a) => allowed.has(a.categoryId));
+      }
+
       if (filters.q) {
         const q = filters.q.toLowerCase();
-        mapped = mapped.filter((a) => a.title.toLowerCase().includes(q));
+        mapped = mapped.filter(
+          (a) =>
+            a.title.toLowerCase().includes(q) ||
+            a.description.toLowerCase().includes(q) ||
+            a.category.toLowerCase().includes(q) ||
+            (a.subCategory || "").toLowerCase().includes(q)
+        );
       }
       if (filters.status === "active") {
         mapped = mapped.filter((a) => a.status === "active");
@@ -208,6 +300,37 @@ export function useArticles(filters: ArticleFilters = {}) {
       const data = mapped.slice(start, start + limit);
       return { data, total: mapped.length, page, limit };
     },
+  });
+}
+
+/** Live product search for the public navbar autocomplete. */
+export function useArticleSearch(q: string, limit = 8) {
+  const trimmed = q.trim();
+  return useQuery({
+    queryKey: ["articles", "search", trimmed, limit],
+    queryFn: async () => {
+      const [rows, catMap] = await Promise.all([
+        fetchListings(),
+        loadCategoryMap(),
+      ]);
+      const needle = trimmed.toLowerCase();
+      const mapped = rows
+        .map((l) => listingToArticle(l, catMap))
+        .filter((a) => a.status === "active")
+        .filter(
+          (a) =>
+            a.title.toLowerCase().includes(needle) ||
+            a.description.toLowerCase().includes(needle) ||
+            a.category.toLowerCase().includes(needle) ||
+            (a.subCategory || "").toLowerCase().includes(needle)
+        );
+      return {
+        data: mapped.slice(0, limit),
+        total: mapped.length,
+      };
+    },
+    enabled: trimmed.length >= 2,
+    staleTime: 30_000,
   });
 }
 

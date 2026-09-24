@@ -8,6 +8,7 @@ export type AuthUser = {
   email: string;
   phoneNumber: string;
   phoneNumberVerified: boolean;
+  emailVerified?: boolean;
   preferredLocale?: "FR" | "EN";
   userKind?: string;
   authAudience?: "CONSUMER" | "ADMIN" | "COURIER";
@@ -64,6 +65,61 @@ export async function signInEmail(email: string, password: string) {
 
   const token = data.token || data.session?.token;
   if (token) writeToken(token);
+  return data;
+}
+
+/** France — Better Auth email signup. */
+export async function signUpEmail(body: {
+  email: string;
+  password: string;
+  name: string;
+}) {
+  const { data } = await api.post<{
+    token?: string | null;
+    user: AuthUser;
+  }>("/auth/sign-up/email", body);
+
+  const token = data.token;
+  if (token) writeToken(token);
+  return data;
+}
+
+/** Trigger verification email (requires BE email provider + trusted callbackURL). */
+export async function sendVerificationEmail(
+  email: string,
+  callbackURL?: string
+) {
+  const { data } = await api.post("/auth/send-verification-email", {
+    email,
+    ...(callbackURL ? { callbackURL } : {}),
+  });
+  return data;
+}
+
+/** Confirm email from link token — GET /auth/verify-email?token= */
+export async function verifyEmail(token: string) {
+  const { data } = await api.get("/auth/verify-email", {
+    params: { token },
+  });
+  return data;
+}
+
+export async function requestPasswordReset(
+  email: string,
+  redirectTo?: string
+) {
+  const { data } = await api.post("/auth/request-password-reset", {
+    email,
+    ...(redirectTo ? { redirectTo } : {}),
+  });
+  return data;
+}
+
+export async function resetPassword(body: {
+  token: string;
+  newPassword: string;
+}) {
+  const { data } = await api.post("/auth/reset-password", body);
   return data;
 }
 

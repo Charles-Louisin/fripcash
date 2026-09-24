@@ -1,241 +1,261 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
-import { FiPhone, FiArrowRight } from "react-icons/fi";
+import { FiMail, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
+import {
+  ApiError,
+  requestPasswordReset,
+  resetPassword,
+} from "@/lib/api";
+import {
+  AUTH_COUNTRIES,
+  AUTH_COUNTRY_OPTIONS,
+  type AuthCountryId,
+  isValidEmail,
+} from "@/lib/auth-country";
 
-export default function MotDePasseOubliePage() {
-  const [step, setStep] = useState<"phone" | "code" | "reset">("phone");
-  const [phone, setPhone] = useState("");
-  const [code, setCode] = useState(["", "", "", "", "", ""]);
-  const [showPassword, setShowPassword] = useState(false);
+function MotDePasseOublieInner() {
+  const params = useSearchParams();
+  const tokenFromUrl = params.get("token") || "";
   const { toast } = useToast();
 
-  const handleCodeChange = (index: number, value: string) => {
-    if (value.length > 1) return;
-    const newCode = [...code];
-    newCode[index] = value;
-    setCode(newCode);
+  const [countryId, setCountryId] = useState<AuthCountryId>("FR");
+  const country = AUTH_COUNTRIES[countryId];
+  const [step, setStep] = useState<"request" | "sent" | "reset">(
+    tokenFromUrl ? "reset" : "request"
+  );
+  const [email, setEmail] = useState("");
+  const [token, setToken] = useState(tokenFromUrl);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-    if (value && index < 5) {
-      const next = document.getElementById(`reset-code-${index + 1}`);
-      next?.focus();
+  const handleRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (country.authMethod !== "email") {
+      toast(
+        "Réinitialisation email disponible pour la France. Guinée : utilise l’OTP SMS sur Connexion.",
+        "info"
+      );
+      return;
+    }
+    if (!isValidEmail(email)) {
+      toast("Adresse email invalide.", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      const redirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/mot-de-passe-oublie`
+          : undefined;
+      await requestPasswordReset(email.trim(), redirectTo);
+      setStep("sent");
+      toast("Si un compte existe, un email a été envoyé.", "success");
+    } catch (err) {
+      const code =
+        err instanceof ApiError
+          ? String(err.body.code || err.body.message || "")
+          : "";
+      if (
+        code.includes("NOT_ENABLED") ||
+        code.includes("Invalid") ||
+        code.includes("INVALID")
+      ) {
+        toast(
+          "Reset email non activé côté serveur — demande au BE d’activer request-password-reset.",
+          "warning"
+        );
+      } else {
+        toast(
+          err instanceof ApiError
+            ? err.body.message
+            : "Impossible d’envoyer l’email.",
+          "error"
+        );
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && !code[index] && index > 0) {
-      const prev = document.getElementById(`reset-code-${index - 1}`);
-      prev?.focus();
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token.trim()) {
+      toast("Token manquant.", "error");
+      return;
+    }
+    if (password.length < 8) {
+      toast("Mot de passe : 8 caractères minimum.", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      await resetPassword({ token: token.trim(), newPassword: password });
+      toast("Mot de passe mis à jour.", "success");
+      setStep("request");
+    } catch (err) {
+      toast(
+        err instanceof ApiError
+          ? err.body.message
+          : "Lien invalide ou expiré.",
+        "error"
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div>
-      {/* Step 1: Enter phone number */}
-      {step === "phone" && (
-        <>
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-foreground">
-              Mot de passe oublié
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Entre ton numéro de téléphone pour recevoir un code de
-              réinitialisation par SMS.
-            </p>
-          </div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-foreground">
+          {step === "reset" ? "Nouveau mot de passe" : "Mot de passe oublié"}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {step === "sent"
+            ? "Vérifie ta boîte mail."
+            : step === "reset"
+              ? "Choisis un nouveau mot de passe."
+              : "Réinitialisation par email — comptes France."}
+        </p>
+      </div>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              setStep("code");
-              toast("Code envoyé ! Vérifie tes SMS.", "info");
-            }}
-            className="space-y-4"
-          >
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                Numéro de téléphone
+      {step === "request" && (
+        <form onSubmit={handleRequest} className="space-y-4">
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="block text-sm font-medium text-foreground">
+                Adresse email
               </label>
-              <div className="relative">
-                <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="tel"
-                  placeholder="+224 6XX XXX XXX"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="pl-9 h-11"
-                />
-              </div>
+              <Select
+                value={countryId}
+                onValueChange={(v) => setCountryId(v as AuthCountryId)}
+              >
+                <SelectTrigger className="h-8 w-auto gap-1.5 border-0 bg-transparent px-1.5 shadow-none focus:ring-0 [&>svg]:h-3.5 [&>svg]:opacity-50">
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span>{country.flag}</span>
+                    <span>{country.name}</span>
+                  </span>
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {AUTH_COUNTRY_OPTIONS.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.flag} {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-
-            <Button
-              type="submit"
-              className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md gap-2"
-            >
-              Envoyer le code
-              <FiArrowRight className="h-4 w-4" />
-            </Button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            Tu te souviens ?{" "}
-            <Link
-              href="/connexion"
-              className="font-semibold text-primary hover:underline"
-            >
-              Se connecter
-            </Link>
-          </p>
-        </>
+            <div className="relative">
+              <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="email"
+                placeholder="toi@exemple.fr"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="pl-9 h-11"
+              />
+            </div>
+          </div>
+          <Button type="submit" disabled={loading} className="w-full h-11">
+            {loading ? "Envoi..." : "Envoyer le lien"}
+          </Button>
+        </form>
       )}
 
-      {/* Step 2: Enter SMS code */}
-      {step === "code" && (
-        <>
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-foreground">
-              Vérification SMS
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Un code à 6 chiffres a été envoyé au{" "}
-              <span className="font-semibold text-foreground">{phone}</span>
-            </p>
-          </div>
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              setStep("reset");
-              toast("Code vérifié. Choisis ton nouveau mot de passe.");
-            }}
-            className="space-y-6"
+      {step === "sent" && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground rounded-lg border border-border bg-muted/40 px-4 py-3">
+            Si un compte existe pour <strong>{email}</strong>, tu recevras un
+            lien. Ouvre-le pour choisir un nouveau mot de passe.
+          </p>
+          <Button
+            variant="outline"
+            className="w-full h-11"
+            onClick={() => setStep("request")}
           >
-            <div className="flex items-center justify-center gap-2">
-              {code.map((digit, i) => (
-                <input
-                  key={i}
-                  id={`reset-code-${i}`}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={digit}
-                  onChange={(e) => handleCodeChange(i, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(i, e)}
-                  className="h-13 w-11 rounded-md border border-input bg-background text-center text-lg font-bold text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/30 transition-colors"
-                />
-              ))}
+            Renvoyer
+          </Button>
+        </div>
+      )}
+
+      {step === "reset" && (
+        <form onSubmit={handleReset} className="space-y-4">
+          {!tokenFromUrl && (
+            <div>
+              <label className="block text-sm font-medium mb-1.5">Token</label>
+              <Input
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                required
+              />
             </div>
-
-            <Button
-              type="submit"
-              className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md"
-            >
-              Vérifier
-            </Button>
-
-            <div className="text-center">
+          )}
+          <div>
+            <label className="block text-sm font-medium mb-1.5">
+              Nouveau mot de passe
+            </label>
+            <div className="relative">
+              <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type={showPassword ? "text" : "password"}
+                className="pl-9 pr-11 h-11"
+                minLength={8}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
               <button
                 type="button"
-                onClick={() => toast("Code renvoyé ! Vérifie tes SMS.", "info")}
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                onClick={() => setShowPassword((v) => !v)}
               >
-                Renvoyer le code
+                {showPassword ? (
+                  <FiEyeOff className="h-4 w-4" />
+                ) : (
+                  <FiEye className="h-4 w-4" />
+                )}
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setStep("phone")}
-              className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              ← Modifier le numéro
-            </button>
-          </form>
-        </>
-      )}
-
-      {/* Step 3: Set new password */}
-      {step === "reset" && (
-        <>
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-foreground">
-              Nouveau mot de passe
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Choisis un nouveau mot de passe pour ton compte.
-            </p>
           </div>
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              toast("Mot de passe réinitialisé ! Tu peux te connecter.");
-            }}
-            className="space-y-4"
-          >
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                Nouveau mot de passe
-              </label>
-              <Input
-                type={showPassword ? "text" : "password"}
-                placeholder="Minimum 8 caractères"
-                required
-                className="h-11"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                Confirmer le mot de passe
-              </label>
-              <Input
-                type={showPassword ? "text" : "password"}
-                placeholder="Confirme ton mot de passe"
-                required
-                className="h-11"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="show-pw"
-                checked={showPassword}
-                onChange={(e) => setShowPassword(e.target.checked)}
-                className="h-4 w-4 rounded border-border accent-primary"
-              />
-              <label
-                htmlFor="show-pw"
-                className="text-sm text-muted-foreground"
-              >
-                Afficher le mot de passe
-              </label>
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md"
-            >
-              Réinitialiser le mot de passe
-            </Button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            <Link
-              href="/connexion"
-              className="font-semibold text-primary hover:underline"
-            >
-              Retour à la connexion
-            </Link>
-          </p>
-        </>
+          <Button type="submit" disabled={loading} className="w-full h-11">
+            {loading ? "Enregistrement..." : "Mettre à jour"}
+          </Button>
+        </form>
       )}
+
+      <p className="mt-6 text-center text-sm text-muted-foreground">
+        <Link href="/connexion" className="font-semibold text-primary">
+          Retour à la connexion
+        </Link>
+      </p>
     </div>
+  );
+}
+
+export default function MotDePasseOubliePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-16">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+        </div>
+      }
+    >
+      <MotDePasseOublieInner />
+    </Suspense>
   );
 }

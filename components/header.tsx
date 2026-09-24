@@ -13,7 +13,6 @@ import { CartSheet } from "@/components/cart-sheet";
 import {
   FiSearch,
   FiMenu,
-  FiChevronDown,
   FiChevronRight,
   // FiGlobe, // translate button commented
   FiBell,
@@ -39,25 +38,38 @@ import {
   useMarkNotificationAsRead,
   useMarkAllNotificationsAsRead,
 } from "@/hooks/use-notifications";
+import { useArticleSearch } from "@/hooks/use-articles";
 
 /* ─── Category types ─── */
 
-type SubGroup = { label: string; items: { label: string; href: string }[] };
+type SubGroup = {
+  label: string;
+  href: string;
+  image?: string;
+  items: { label: string; href: string }[];
+};
 type Category = {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  image?: string;
   subGroups: SubGroup[];
 };
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Mode: GiDress,
   Femme: GiDress,
+  Femmes: GiDress,
   Homme: GiPoloShirt,
+  Hommes: GiPoloShirt,
   Enfant: GiBabyFace,
+  Enfants: GiBabyFace,
   Maison: GiSofa,
   Électronique: GiCircuitry,
+  Electronique: GiCircuitry,
   Loisirs: GiBookshelf,
   Sport: GiTennisBall,
+  "Sports et Divertissement": GiTennisBall,
   Divertissement: GiGamepad,
 };
 
@@ -74,17 +86,143 @@ function mapDbCategories(raw: any[]): Category[] {
     label: cat.name,
     href: buildFilterHref(cat.name),
     icon: ICON_MAP[cat.name] || GiBookshelf,
+    image: cat.image || cat.imageUrl || undefined,
     subGroups: (cat.subGroups || []).map((sg: any) => ({
       label: sg.name,
-      items: [
-        { label: "Voir tout", href: buildFilterHref(cat.name, sg.name) },
-        ...(sg.items || []).map((it: any) => ({
-          label: it.name,
-          href: buildFilterHref(cat.name, sg.name, it.name),
-        })),
-      ],
+      href: buildFilterHref(cat.name, sg.name),
+      image: sg.image || sg.imageUrl || undefined,
+      items: (sg.items || []).map((it: any) => ({
+        label: it.name,
+        href: buildFilterHref(cat.name, sg.name, it.name),
+      })),
     })),
   }));
+}
+
+function NavbarSearch({ className }: { className?: string }) {
+  const router = useRouter();
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [query, setQuery] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(query.trim()), 280);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  const { data, isFetching } = useArticleSearch(debounced, 8);
+  const results = data?.data || [];
+  const total = data?.total || 0;
+  const showPanel = open && query.trim().length >= 2;
+
+  const goToResults = () => {
+    const q = query.trim();
+    if (!q) return;
+    setOpen(false);
+    router.push(`/produits?q=${encodeURIComponent(q)}`);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    goToResults();
+  };
+
+  return (
+    <div ref={wrapRef} className={`relative ${className || ""}`}>
+      <form onSubmit={handleSubmit} className="relative w-full">
+        <FiSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          type="search"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          placeholder="Rechercher des articles"
+          className="h-9 bg-muted/50 pl-9"
+          autoComplete="off"
+          aria-autocomplete="list"
+          aria-expanded={showPanel}
+        />
+      </form>
+
+      {showPanel && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-border bg-background shadow-lg">
+          {isFetching && results.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+              Recherche…
+            </p>
+          ) : results.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+              Aucun article pour « {query.trim()} »
+            </p>
+          ) : (
+            <ul className="max-h-[min(70vh,22rem)] overflow-y-auto py-1">
+              {results.map((item) => (
+                <li key={item._id}>
+                  <Link
+                    href={`/article/${item._id}`}
+                    onClick={() => {
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/60 transition-colors"
+                  >
+                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
+                      {item.images[0] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.images[0]}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                          <FiSearch className="h-4 w-4 opacity-40" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {item.title}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {item.category}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-sm font-semibold text-foreground tabular-nums">
+                      {item.price.toLocaleString("fr-FR")} GNF
+                    </p>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button
+            type="button"
+            onClick={goToResults}
+            className="flex w-full items-center justify-center gap-1 border-t border-border px-3 py-2.5 text-sm font-medium text-primary hover:bg-muted/50 transition-colors"
+          >
+            Voir tous les résultats
+            {total > results.length ? ` (${total})` : ""}
+            <FiChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function Header() {
@@ -121,35 +259,9 @@ export function Header() {
   };
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [activeSubGroup, setActiveSubGroup] = useState<string | null>(null);
+  /** null = parent "Voir tout" preview; string = subgroup label */
+  const [megaFocus, setMegaFocus] = useState<"voir-tout" | string>("voir-tout");
   const closeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchMode, setSearchMode] = useState<"articles" | "membres">("articles");
-  const [searchDropOpen, setSearchDropOpen] = useState(false);
-  const searchDropRef = useRef<HTMLDivElement>(null);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = searchQuery.trim();
-    if (!q) return;
-    if (searchMode === "articles") {
-      router.push(`/produits?q=${encodeURIComponent(q)}`);
-    } else {
-      router.push(`/produits?q=${encodeURIComponent(q)}&type=membres`);
-    }
-    setSearchQuery("");
-  };
-
-  // Close search dropdown on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (searchDropRef.current && !searchDropRef.current.contains(e.target as Node)) {
-        setSearchDropOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
 
   // Close notifications dropdown on outside click
   useEffect(() => {
@@ -165,16 +277,15 @@ export function Header() {
   const openMega = (catLabel: string) => {
     if (closeTimeout.current) clearTimeout(closeTimeout.current);
     setActiveCat(catLabel);
-    const cat = categories.find((c) => c.label === catLabel);
-    if (cat && cat.subGroups.length > 0) {
-      setActiveSubGroup(cat.subGroups[0].label);
-    }
+    setActiveSubGroup(null);
+    setMegaFocus("voir-tout");
   };
 
   const closeMega = () => {
     closeTimeout.current = setTimeout(() => {
       setActiveCat(null);
       setActiveSubGroup(null);
+      setMegaFocus("voir-tout");
     }, 150);
   };
 
@@ -206,48 +317,8 @@ export function Header() {
             />
           </Link>
 
-          {/* Search mode dropdown + Search bar */}
-          <form onSubmit={handleSearch} className="flex items-center flex-1 max-w-2xl">
-            <div ref={searchDropRef} className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setSearchDropOpen(!searchDropOpen)}
-                className="inline-flex items-center gap-1.5 text-sm font-medium h-9 px-3 rounded-l-md border border-r-0 border-input bg-background hover:bg-muted transition-colors"
-              >
-                {searchMode === "articles" ? "Articles" : "Membres"}
-                <FiChevronDown className={`h-3.5 w-3.5 transition-transform ${searchDropOpen ? "rotate-180" : ""}`} />
-              </button>
-              {searchDropOpen && (
-                <div className="absolute top-full left-0 mt-1 w-36 bg-background border border-border rounded-lg shadow-lg z-50 py-1 animate-in fade-in slide-in-from-top-1 duration-150">
-                  <button
-                    type="button"
-                    onClick={() => { setSearchMode("articles"); setSearchDropOpen(false); }}
-                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${searchMode === "articles" ? "font-semibold text-foreground bg-muted/50" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
-                  >
-                    Articles
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setSearchMode("membres"); setSearchDropOpen(false); }}
-                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${searchMode === "membres" ? "font-semibold text-foreground bg-muted/50" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
-                  >
-                    Membres
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="relative flex-1">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={searchMode === "articles" ? "Rechercher des articles" : "Rechercher des membres"}
-                className="pl-9 h-9 bg-muted/50 border-input rounded-l-none"
-              />
-            </div>
-          </form>
+          {/* Search bar with live product suggestions */}
+          <NavbarSearch className="flex-1 max-w-2xl" />
 
           {/* Right side actions */}
           <div className="flex items-center gap-2 ml-auto shrink-0">
@@ -461,26 +532,56 @@ export function Header() {
             onMouseEnter={keepOpen}
             onMouseLeave={closeMega}
           >
-            <div className="container mx-auto px-4 py-6 flex gap-0 min-h-[300px]">
+            <div className="container mx-auto px-4 py-6 flex gap-0 min-h-[260px]">
               {/* Left: sub-group sidebar */}
               <div className="w-56 border-r pr-4 shrink-0 space-y-0.5">
                 <Link
                   href={currentCat.href}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5 rounded-md transition-colors mb-1"
+                  onMouseEnter={() => {
+                    setMegaFocus("voir-tout");
+                    setActiveSubGroup(null);
+                  }}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors mb-1 ${
+                    megaFocus === "voir-tout"
+                      ? "text-primary bg-primary/5"
+                      : "text-primary hover:bg-primary/5"
+                  }`}
                 >
                   Voir tout
                 </Link>
                 {currentCat.subGroups.map((sg) => {
-                  const isActive = activeSubGroup === sg.label;
+                  const isActive = megaFocus === sg.label;
+                  const isLeaf = sg.items.length === 0;
+                  const className = `w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors ${
+                    isActive
+                      ? "bg-muted font-medium text-foreground"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  }`;
+                  if (isLeaf) {
+                    return (
+                      <Link
+                        key={sg.label}
+                        href={sg.href}
+                        onMouseEnter={() => {
+                          setActiveSubGroup(sg.label);
+                          setMegaFocus(sg.label);
+                        }}
+                        className={className}
+                      >
+                        {sg.label}
+                        <FiChevronRight className="h-3.5 w-3.5" />
+                      </Link>
+                    );
+                  }
                   return (
                     <button
                       key={sg.label}
-                      onMouseEnter={() => setActiveSubGroup(sg.label)}
-                      className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors ${
-                        isActive
-                          ? "bg-muted font-medium text-foreground"
-                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                      }`}
+                      type="button"
+                      onMouseEnter={() => {
+                        setActiveSubGroup(sg.label);
+                        setMegaFocus(sg.label);
+                      }}
+                      className={className}
                     >
                       {sg.label}
                       <FiChevronRight className="h-3.5 w-3.5" />
@@ -489,10 +590,47 @@ export function Header() {
                 })}
               </div>
 
-              {/* Right: items grid for active sub-group */}
+              {/* Right: parent Voir tout | deeper items | leaf preview */}
               <div className="flex-1 pl-8">
-                {currentSubGroup && (
+                {megaFocus === "voir-tout" ? (
+                  <Link
+                    href={currentCat.href}
+                    className="group flex items-stretch gap-6 max-w-xl rounded-lg border border-transparent hover:border-border hover:bg-muted/40 p-2 -m-2 transition-colors"
+                  >
+                    <div className="relative h-36 w-36 shrink-0 overflow-hidden rounded-md bg-muted">
+                      {currentCat.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={currentCat.image}
+                          alt={currentCat.label}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                          <currentCat.icon className="h-10 w-10 opacity-40" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col justify-center gap-2 py-1">
+                      <p className="text-base font-medium text-foreground">
+                        {currentCat.label}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Tous les articles {currentCat.label.toLowerCase()}
+                      </p>
+                      <span className="text-sm font-medium text-primary group-hover:underline">
+                        Voir tout
+                      </span>
+                    </div>
+                  </Link>
+                ) : currentSubGroup && currentSubGroup.items.length > 0 ? (
                   <div className="grid grid-cols-2 gap-x-12 gap-y-1">
+                    <Link
+                      href={currentSubGroup.href}
+                      className="text-sm font-medium text-primary hover:underline py-1.5 col-span-2"
+                    >
+                      Voir tout — {currentSubGroup.label}
+                    </Link>
                     {currentSubGroup.items.map((item) => (
                       <Link
                         key={item.href}
@@ -503,7 +641,38 @@ export function Header() {
                       </Link>
                     ))}
                   </div>
-                )}
+                ) : currentSubGroup ? (
+                  <Link
+                    href={currentSubGroup.href}
+                    className="group flex items-stretch gap-6 max-w-xl rounded-lg border border-transparent hover:border-border hover:bg-muted/40 p-2 -m-2 transition-colors"
+                  >
+                    <div className="relative h-36 w-36 shrink-0 overflow-hidden rounded-md bg-muted">
+                      {currentSubGroup.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={currentSubGroup.image}
+                          alt={currentSubGroup.label}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                          <currentCat.icon className="h-10 w-10 opacity-40" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col justify-center gap-2 py-1">
+                      <p className="text-base font-medium text-foreground">
+                        {currentSubGroup.label}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Parcourir les articles {currentSubGroup.label.toLowerCase()}
+                      </p>
+                      <span className="text-sm font-medium text-primary group-hover:underline">
+                        Voir tout
+                      </span>
+                    </div>
+                  </Link>
+                ) : null}
               </div>
             </div>
           </div>
@@ -646,48 +815,10 @@ export function Header() {
           </div>
         </div>
 
-        {/* Row 2: Search mode dropdown + Search bar */}
-        <form onSubmit={handleSearch} className="flex items-center px-4 py-2 border-b">
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => setSearchDropOpen(!searchDropOpen)}
-              className="inline-flex items-center gap-1 text-sm font-medium h-9 px-3 rounded-l-md border border-r-0 border-input bg-background hover:bg-muted transition-colors"
-            >
-              {searchMode === "articles" ? "Articles" : "Membres"}
-              <FiChevronDown className={`h-3.5 w-3.5 transition-transform ${searchDropOpen ? "rotate-180" : ""}`} />
-            </button>
-            {searchDropOpen && (
-              <div className="absolute top-full left-0 mt-1 w-36 bg-background border border-border rounded-lg shadow-lg z-50 py-1 animate-in fade-in slide-in-from-top-1 duration-150">
-                <button
-                  type="button"
-                  onClick={() => { setSearchMode("articles"); setSearchDropOpen(false); }}
-                  className={`w-full text-left px-3 py-2 text-sm transition-colors ${searchMode === "articles" ? "font-semibold text-foreground bg-muted/50" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
-                >
-                  Articles
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setSearchMode("membres"); setSearchDropOpen(false); }}
-                  className={`w-full text-left px-3 py-2 text-sm transition-colors ${searchMode === "membres" ? "font-semibold text-foreground bg-muted/50" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
-                >
-                  Membres
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="relative flex-1">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={searchMode === "articles" ? "Rechercher des articles" : "Rechercher des membres"}
-              className="pl-9 h-9 bg-muted/50 border-input rounded-l-none"
-            />
-          </div>
-        </form>
+        {/* Row 2: Search bar with live product suggestions */}
+        <div className="px-4 py-2 border-b">
+          <NavbarSearch className="w-full" />
+        </div>
 
         {/* Row 3: Horizontal scrollable category pills */}
         <div className="border-b">

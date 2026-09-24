@@ -383,9 +383,19 @@ export default function ConnexionPage() {
           className="font-semibold text-primary hover:underline"
         >
           S&apos;inscrire
-        </Link>{" "}
-        utilise le même flux OTP.
+        </Link>
+        {isEmailAuth ? " — compte France (email)." : " — OTP SMS Guinée."}
       </p>
+      {isEmailAuth && (
+        <p className="mt-2 text-center text-sm text-muted-foreground">
+          <Link
+            href="/mot-de-passe-oublie"
+            className="font-semibold text-primary hover:underline"
+          >
+            Mot de passe oublié ?
+          </Link>
+        </p>
+      )}
     </div>
   );
 }

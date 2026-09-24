@@ -123,20 +123,33 @@ function ProduitsContent() {
   const total = data?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
 
-  let products = articles.map(mapArticleToProduct);
+  let filteredArticles = articles;
 
-  // Client-side multi-filter for categories/conditions/sizes when multiple selected
+  // Client-side multi-filter when sidebar has multiple selections
   if (filters.categories.length > 1) {
-    products = products.filter((p) => filters.categories.includes(p.category ?? ""));
-  }
-  if (filters.conditions.length > 1) {
-    products = products.filter((p) => filters.conditions.includes(p.condition));
-  }
-  if (filters.sizes.length > 1) {
-    products = products.filter((p) =>
-      p.size ? filters.sizes.some((s) => p.size!.toUpperCase().includes(s)) : false
+    filteredArticles = filteredArticles.filter((a: any) =>
+      filters.categories.some(
+        (c) =>
+          a.rootCategory === c ||
+          a.subCategory === c ||
+          String(a.category ?? "").startsWith(c)
+      )
     );
   }
+  if (filters.conditions.length > 1) {
+    filteredArticles = filteredArticles.filter((a: any) =>
+      filters.conditions.includes(a.condition)
+    );
+  }
+  if (filters.sizes.length > 1) {
+    filteredArticles = filteredArticles.filter((a: any) =>
+      a.size
+        ? filters.sizes.some((s) => String(a.size).toUpperCase().includes(s))
+        : false
+    );
+  }
+
+  const products = filteredArticles.map(mapArticleToProduct);
 
   const handleFiltersChange = (f: Filters) => {
     setFilters(f);

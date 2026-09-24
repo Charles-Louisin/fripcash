@@ -39,6 +39,12 @@ export type Listing = {
   createdAt: string;
   updatedAt?: string;
   media?: ListingMedia[];
+  sellerProfile?: {
+    id: string;
+    userId: string;
+    displayName?: string | null;
+    bio?: string | null;
+  } | null;
 };
 
 /**

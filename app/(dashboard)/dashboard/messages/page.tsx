@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { FiSend, FiArrowLeft } from "react-icons/fi";
-import { useConversations, useMessages, useSendMessage } from "@/hooks/use-messages";
+import { useConversations, useMessages, useSendMessage, useMarkConversationRead } from "@/hooks/use-messages";
 import { useMe } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,7 @@ export default function MessagesPage() {
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sendMessage = useSendMessage();
+  const markConversationRead = useMarkConversationRead();
 
   const { data: messages = [] } = useMessages(activeConvoId || "");
 
@@ -28,34 +29,61 @@ export default function MessagesPage() {
     }
   }, [searchParams, conversations]);
 
+  // Mark as read when opening a thread
+  useEffect(() => {
+    if (activeConvoId) markConversationRead(activeConvoId);
+  }, [activeConvoId, markConversationRead]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  const userId = user?.id || user?._id || "";
+  const userId = String(user?.id || user?._id || "");
+
+  const isMyMessage = (msg: any) => {
+    const from = String(
+      msg.senderId || msg.sender?.id || msg.sender?._id || msg.sender || ""
+    );
+    return !!userId && from === userId;
+  };
 
   // Derive participant info from conversation
   const getParticipant = (convo: any) => {
-    if (!convo) return { name: "", avatar: "" };
-    // The backend returns participants array or otherParticipant
-    if (convo.otherParticipant) {
-      return { name: convo.otherParticipant.pseudo || "Utilisateur", avatar: convo.otherParticipant.avatar || "" };
+    if (!convo) return { name: "", avatar: "", email: "" };
+    const fallbacks = new Set(["Membre", "Acheteur", "Vendeur", "Utilisateur", "…"]);
+    const pick = (name?: string | null, email?: string | null, displayName?: string | null, pseudo?: string | null) => {
+      const label = name || displayName || pseudo || "";
+      const mail = email || "";
+      if (label && !fallbacks.has(label)) return { name: label, email: mail, avatar: "" };
+      if (mail) return { name: mail, email: mail, avatar: "" };
+      return { name: label || "Membre", email: mail, avatar: "" };
+    };
+    const other = convo.otherParticipant;
+    if (other && (other.name || other.pseudo || other.email || other.displayName)) {
+      return {
+        ...pick(other.name, other.email, other.displayName, other.pseudo),
+        avatar: other.avatar || "",
+      };
     }
-    // Fallback: find the participant who isn't the current user
-    const other = (convo.participants || []).find((p: any) => {
-      const pId = typeof p === "object" ? (p._id || p.id) : p;
-      return pId !== userId;
+    const otherRow = (convo.participants || []).find((p: any) => {
+      const pId = typeof p === "object" ? p.userId || p._id || p.id : p;
+      return String(pId) !== userId;
     });
-    if (typeof other === "object") {
-      return { name: other.pseudo || "Utilisateur", avatar: other.avatar || "" };
+    if (typeof otherRow === "object") {
+      return {
+        ...pick(otherRow.name, otherRow.email, otherRow.displayName, otherRow.pseudo),
+        avatar: otherRow.avatar || "",
+      };
     }
-    return { name: "Utilisateur", avatar: "" };
+    return { name: "Membre", avatar: "", email: "" };
   };
 
   const getArticleInfo = (convo: any) => {
-    if (!convo?.article) return { title: "", image: "" };
-    if (typeof convo.article === "object") {
-      return { title: convo.article.title || "", image: convo.article.images?.[0] || "" };
+    if (convo?.article && typeof convo.article === "object") {
+      return {
+        title: convo.article.title || "",
+        image: convo.article.image || convo.article.images?.[0] || "",
+      };
     }
     return { title: "", image: "" };
   };
@@ -116,10 +144,14 @@ export default function MessagesPage() {
                     )}
                   >
                     <div className="relative shrink-0">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-muted">
-                        {participant.avatar && (
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-muted flex items-center justify-center">
+                        {participant.avatar ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
                           <img src={participant.avatar} alt={participant.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-xs font-bold text-muted-foreground">
+                            {(participant.name || "?").charAt(0).toUpperCase()}
+                          </span>
                         )}
                       </div>
                       {convo.unreadCount > 0 && (
@@ -135,6 +167,9 @@ export default function MessagesPage() {
                           {convo.lastMessageAt ? new Date(convo.lastMessageAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : ""}
                         </p>
                       </div>
+                      {participant.email && participant.email !== participant.name && (
+                        <p className="text-[11px] text-muted-foreground truncate">{participant.email}</p>
+                      )}
                       {articleInfo.title && <p className="text-xs text-muted-foreground truncate mt-0.5">{articleInfo.title}</p>}
                       <p className={cn("text-xs truncate mt-0.5", convo.unreadCount > 0 ? "font-medium text-foreground" : "text-muted-foreground")}>{convo.lastMessage || ""}</p>
                     </div>
@@ -161,14 +196,22 @@ export default function MessagesPage() {
                 >
                   <FiArrowLeft className="h-5 w-5" />
                 </button>
-                <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-muted">
-                  {getParticipant(activeConvo).avatar && (
+                <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-muted flex items-center justify-center">
+                  {getParticipant(activeConvo).avatar ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img src={getParticipant(activeConvo).avatar} alt={getParticipant(activeConvo).name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xs font-bold text-muted-foreground">
+                      {(getParticipant(activeConvo).name || "?").charAt(0).toUpperCase()}
+                    </span>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground">{getParticipant(activeConvo).name}</p>
+                  {getParticipant(activeConvo).email &&
+                    getParticipant(activeConvo).email !== getParticipant(activeConvo).name && (
+                    <p className="text-xs text-muted-foreground truncate">{getParticipant(activeConvo).email}</p>
+                  )}
                   {getArticleInfo(activeConvo).title && (
                     <p className="text-xs text-muted-foreground truncate">{getArticleInfo(activeConvo).title}</p>
                   )}
@@ -184,18 +227,40 @@ export default function MessagesPage() {
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {messages.map((msg: any) => {
-                  const isMine = (msg.sender?._id || msg.sender) === userId;
+                  const isMine = isMyMessage(msg);
                   return (
-                    <div key={msg._id} className={cn("flex", isMine ? "justify-end" : "justify-start")}>
-                      <div className={cn(
-                        "max-w-[75%] px-4 py-2.5 rounded-2xl text-sm",
-                        isMine
-                          ? "bg-primary text-white rounded-br-md"
-                          : "bg-muted text-foreground rounded-bl-md"
-                      )}>
-                        <p>{msg.text || msg.content}</p>
-                        <p className={cn("text-[10px] mt-1", isMine ? "text-white/60" : "text-muted-foreground")}>
-                          {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : ""}
+                    <div
+                      key={msg._id}
+                      className={cn(
+                        "flex w-full",
+                        isMine ? "justify-end" : "justify-start"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "max-w-[75%] px-4 py-2.5 rounded-2xl text-sm shadow-sm",
+                          isMine
+                            ? "bg-primary text-primary-foreground rounded-br-md"
+                            : "bg-muted text-foreground rounded-bl-md"
+                        )}
+                      >
+                        <p className="whitespace-pre-wrap break-words">
+                          {msg.text || msg.body || msg.content}
+                        </p>
+                        <p
+                          className={cn(
+                            "text-[10px] mt-1",
+                            isMine
+                              ? "text-primary-foreground/70"
+                              : "text-muted-foreground"
+                          )}
+                        >
+                          {msg.createdAt
+                            ? new Date(msg.createdAt).toLocaleTimeString(
+                                "fr-FR",
+                                { hour: "2-digit", minute: "2-digit" }
+                              )
+                            : ""}
                         </p>
                       </div>
                     </div>

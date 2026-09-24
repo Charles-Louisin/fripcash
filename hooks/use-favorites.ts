@@ -22,8 +22,19 @@ function normalizeFavorites(raw: unknown): Array<{ _id: string; article: any }> 
   return rows.map((item: any) => {
     const listing = item.listing || item.article || item;
     const id = listing.id || listing._id || item.listingId || item.id;
-    const media = listing.media?.[0];
-    const img = listingImageUrl(media ?? listing.media?.[0]?.storageKey);
+    const mediaList = Array.isArray(listing.media) ? listing.media : [];
+    const sorted = mediaList
+      .slice()
+      .sort(
+        (a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+      );
+    const media =
+      sorted.find((m: any) => m?.url) ||
+      sorted.find(
+        (m: any) => m?.storageKey && !String(m.storageKey).startsWith("seed/")
+      ) ||
+      sorted[0];
+    const img = listingImageUrl(media ?? null);
     return {
       _id: id,
       article: {

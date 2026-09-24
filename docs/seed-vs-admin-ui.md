@@ -98,7 +98,7 @@ For admin “all listings” / pending moderation:
 
 1. **Listings 51 vs 33** — **Fixed on FE**: admin uses `GET /admin/listings?status=ALL` (all statuses). Public catalogue stays ACTIVE-only (`GET /listings` → ~33).
 2. **Categories “4 vs 11”** — Not a data loss: **4 roots + 7 subs = 11**. Admin tree is correct; seed log is row count.
-3. **Users / orders / disputes empty in admin** — Seed has the rows; **BE still missing** `GET /admin/users`, `GET /admin/orders`, `GET /admin/disputes` (404). FE shows an explicit banner, no mock data.
+3. **Users / orders / disputes empty in admin** — Users: **wired** to Better Auth `GET /auth/admin/list-users` (not Nest `/admin/users`). Orders/disputes list routes still 404; resolve-only for disputes.
 
 ---
 

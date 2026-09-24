@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed:catalogue-images": "node scripts/seed-catalogue-images.mjs"
+    "seed:catalogue-images": "node scripts/seed-catalogue-images.mjs",
+    "seed:listing-images": "node scripts/seed-listing-images.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",

@@ -112,7 +112,7 @@ export default function AdminDashboardPage() {
           value={
             totalUsers == null ? "—" : totalUsers.toLocaleString("fr-FR")
           }
-          description="Compteur utilisateurs indisponible"
+          description="Comptes Better Auth (list-users)"
           href="/admin/utilisateurs"
           actionLabel="Voir les utilisateurs"
           icon={FiUsers}
