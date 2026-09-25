@@ -68,6 +68,22 @@ export async function signInEmail(email: string, password: string) {
   return data;
 }
 
+/** Staff only — Nest `POST /auth/admin/login` → `aud: admin` session. */
+export async function adminLogin(email: string, password: string) {
+  const { data } = await api.post<{
+    token?: string;
+    user?: AuthUser;
+    redirect?: boolean;
+  }>("/auth/admin/login", { email, password });
+
+  const token = data.token;
+  if (!token) {
+    throw new Error("No admin session token returned");
+  }
+  writeToken(token);
+  return data;
+}
+
 /** France — Better Auth email signup. */
 export async function signUpEmail(body: {
   email: string;
@@ -123,5 +139,5 @@ export async function resetPassword(body: {
   return data;
 }
 
-/** @deprecated Prefer signInEmail — same Better Auth endpoint */
-export const adminSignInEmail = signInEmail;
+/** @deprecated Prefer `adminLogin` — staff must use `/auth/admin/login`. */
+export const adminSignInEmail = adminLogin;

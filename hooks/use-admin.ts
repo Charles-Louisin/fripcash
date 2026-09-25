@@ -25,9 +25,10 @@ import {
   deleteZone,
   fetchCategories,
   fetchZones,
-  updateListing,
   listingImageUrl,
   fetchAdminListings,
+  updateAdminListing,
+  fetchAuthAdminUser,
   fetchAuthAdminUsers,
   createAuthAdminUser,
   updateAuthAdminUser,
@@ -699,27 +700,72 @@ export function useAdminArticles(params?: {
         _id: l.id,
         id: l.id,
         title: l.title,
+        description: l.description || "",
         price: l.priceGnf,
+        quantity: l.quantity,
         status: mapUiStatus(String(l.status || "")),
         apiStatus: String(l.status || "").toUpperCase(),
         destination: l.destination,
+        listingDestination: l.destination,
+        condition: l.conditionNote || "",
         images: (l.media || [])
           .map((m) => listingImageUrl(m))
           .filter(Boolean) as string[],
         seller: {
+          id: l.sellerProfile?.id || l.sellerProfileId,
+          userId: l.sellerProfile?.userId,
+          kind: l.sellerProfile?.sellerKind || null,
           pseudo:
             l.sellerProfile?.sellerKind ||
             l.sellerProfileId?.slice(-6) ||
             "Vendeur",
+          verificationStatus: l.sellerProfile?.verificationStatus || null,
         },
         category: l.category?.nameFr || null,
         createdAt: l.createdAt,
+        publishedAt: l.publishedAt,
         raw: l,
       }));
 
+      // Resolve seller display names (list payload only has sellerKind).
+      const userIds = [
+        ...new Set(
+          rows
+            .map((r) => r.seller.userId)
+            .filter((id): id is string => !!id)
+        ),
+      ];
+      if (userIds.length > 0) {
+        const nameByUserId = new Map<string, string>();
+        await Promise.all(
+          userIds.map(async (userId) => {
+            try {
+              const user = await fetchAuthAdminUser(userId);
+              if (user?.name) nameByUserId.set(userId, user.name);
+            } catch {
+              /* keep kind fallback */
+            }
+          })
+        );
+        rows = rows.map((r) => {
+          const name = r.seller.userId
+            ? nameByUserId.get(r.seller.userId)
+            : undefined;
+          if (!name) return r;
+          return {
+            ...r,
+            seller: { ...r.seller, pseudo: name },
+          };
+        });
+      }
+
       if (params?.q) {
         const q = params.q.toLowerCase();
-        rows = rows.filter((r) => r.title.toLowerCase().includes(q));
+        rows = rows.filter(
+          (r) =>
+            r.title.toLowerCase().includes(q) ||
+            r.seller.pseudo.toLowerCase().includes(q)
+        );
       }
       return { data: rows, total: rows.length };
     },
@@ -740,7 +786,7 @@ export function useUpdateArticleStatus() {
         sold: "SOLD",
       };
       const apiStatus = STATUS_MAP[status.toLowerCase()] || status.toUpperCase();
-      return updateListing(id, { status: apiStatus as any });
+      return updateAdminListing(id, { status: apiStatus });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "articles"] });

@@ -55,7 +55,16 @@ export function useFavorites() {
     queryKey: ["favorites"],
     queryFn: async () => normalizeFavorites(await fetchFavorites()),
     enabled: hasToken(),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    staleTime: 5_000,
   });
+}
+
+/** Favorites badge count from GET /favorites (DB). */
+export function useFavoritesCount() {
+  const { data: favorites = [] } = useFavorites();
+  return favorites.length;
 }
 
 export function useCheckFavorite(articleId: string) {
@@ -87,6 +96,29 @@ export function useToggleFavorite() {
       }
       await addFavorite(articleId);
       return { success: true, isFavorite: true };
+    },
+    onMutate: async ({ articleId, isFavorite }) => {
+      await queryClient.cancelQueries({ queryKey: ["favorites"] });
+      const prev = queryClient.getQueryData<any[]>(["favorites"]);
+      if (Array.isArray(prev)) {
+        if (isFavorite) {
+          queryClient.setQueryData(
+            ["favorites"],
+            prev.filter(
+              (f) => f._id !== articleId && f.article?._id !== articleId
+            )
+          );
+        } else if (!prev.some((f) => f._id === articleId || f.article?._id === articleId)) {
+          queryClient.setQueryData(["favorites"], [
+            ...prev,
+            { _id: articleId, article: { _id: articleId } },
+          ]);
+        }
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(["favorites"], ctx.prev);
     },
     onSettled: (_data, _err, variables) => {
       queryClient.invalidateQueries({ queryKey: ["favorites"] });

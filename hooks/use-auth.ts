@@ -6,7 +6,7 @@ import {
   fetchMe,
   updateMe,
   signOut,
-  adminSignInEmail,
+  adminLogin,
   becomeParticulier,
   ApiError,
   type Me,
@@ -107,7 +107,7 @@ export function useAdminLogin() {
 
   return useMutation({
     mutationFn: async (body: { email: string; password: string }) => {
-      await adminSignInEmail(body.email, body.password);
+      await adminLogin(body.email, body.password);
       const me = await fetchMe();
       if (!me.isAdmin) {
         // Valid consumer/seller credentials must not unlock the admin shell.

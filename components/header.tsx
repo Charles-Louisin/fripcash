@@ -31,7 +31,7 @@ import {
   GiGamepad,
 } from "react-icons/gi";
 import { useCategories } from "@/hooks/use-categories";
-import { useFavorites } from "@/hooks/use-favorites";
+import { useFavoritesCount } from "@/hooks/use-favorites";
 import {
   useNotifications,
   useUnreadNotificationsCount,
@@ -236,12 +236,16 @@ export function Header() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const cartCount = mounted ? itemCount() : 0;
-  const { data: favorites = [] } = useFavorites();
-  const favoritesCount = mounted && isLoggedIn ? favorites.length : 0;
+  const favoritesCount = useFavoritesCount();
   const { data: notificationsData } = useNotifications(1, 10);
   const { data: unreadCount = 0 } = useUnreadNotificationsCount();
   const markAsRead = useMarkNotificationAsRead();
   const markAllAsRead = useMarkAllNotificationsAsRead();
+  // Live DB badges once mounted; prefer session user, else show when API already returned counts
+  const showBadges =
+    mounted && (isLoggedIn || favoritesCount > 0 || unreadCount > 0);
+  const notifBadge = showBadges ? unreadCount : 0;
+  const likeBadge = showBadges ? favoritesCount : 0;
   const [notifOpen, setNotifOpen] = useState(false);
   const notifHoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -345,9 +349,9 @@ export function Header() {
                     onClick={() => setNotifOpen((o) => !o)}
                   >
                     <FiBell className="h-5 w-5" />
-                    {unreadCount > 0 && (
+                    {notifBadge > 0 && (
                       <span className="absolute -top-1 -right-1 flex items-center justify-center h-4.5 w-4.5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                        {unreadCount > 99 ? "99+" : unreadCount}
+                        {notifBadge > 99 ? "99+" : notifBadge}
                       </span>
                     )}
                     <span className="sr-only">Notifications</span>
@@ -356,7 +360,7 @@ export function Header() {
                     <div className="absolute right-0 top-full mt-1 w-80 max-h-[360px] overflow-hidden rounded-lg border border-border bg-background shadow-lg z-50 flex flex-col">
                       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
                         <span className="font-semibold text-sm">Notifications</span>
-                        {unreadCount > 0 && (
+                        {notifBadge > 0 && (
                           <button
                             type="button"
                             onClick={() => markAllAsRead.mutate()}
@@ -371,15 +375,35 @@ export function Header() {
                           notificationsData.data.map((n: any) => (
                             <Link
                               key={n._id}
-                              href={n.link || "/dashboard"}
+                              href={n.link || "/dashboard/notifications"}
                               onClick={() => {
                                 if (!n.read) markAsRead.mutate(n._id);
                                 setNotifOpen(false);
                               }}
                               className={`block px-4 py-3 text-left hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0 ${!n.read ? "bg-primary/5" : ""}`}
                             >
-                              <p className="text-sm font-medium text-foreground">{n.title}</p>
-                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm font-medium text-foreground">
+                                  {n.title}
+                                </p>
+                                {n.createdAt && (
+                                  <span className="text-[10px] text-muted-foreground shrink-0">
+                                    {new Date(n.createdAt).toLocaleTimeString("fr-FR", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                )}
+                              </div>
+                              <p
+                                className={`text-xs mt-0.5 line-clamp-2 ${
+                                  n.previewKind === "chat"
+                                    ? "text-foreground/80"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {n.message || n.body}
+                              </p>
                             </Link>
                           ))
                         ) : (
@@ -389,11 +413,11 @@ export function Header() {
                         )}
                       </div>
                       <Link
-                        href="/dashboard/messages"
+                        href="/dashboard/notifications"
                         onClick={() => setNotifOpen(false)}
                         className="px-4 py-2 text-center text-sm text-primary border-t border-border hover:bg-muted/50"
                       >
-                        Voir les messages
+                        Voir toutes les notifications
                       </Link>
                     </div>
                   )}
@@ -402,9 +426,9 @@ export function Header() {
                 <Button variant="ghost" size="icon-sm" className="relative" asChild>
                   <Link href="/dashboard/favoris">
                     <FiHeart className="h-5 w-5" />
-                    {favoritesCount > 0 && (
+                    {likeBadge > 0 && (
                       <span className="absolute -top-1 -right-1 flex items-center justify-center h-4.5 w-4.5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                        {favoritesCount > 99 ? "99+" : favoritesCount}
+                        {likeBadge > 99 ? "99+" : likeBadge}
                       </span>
                     )}
                     <span className="sr-only">Favoris</span>
@@ -463,11 +487,6 @@ export function Header() {
                 <Button variant="ghost" size="icon-sm" className="relative" asChild>
                   <Link href="/dashboard/favoris">
                     <FiHeart className="h-5 w-5" />
-                    {favoritesCount > 0 && (
-                      <span className="absolute -top-1 -right-1 flex items-center justify-center h-4.5 w-4.5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                        {favoritesCount > 99 ? "99+" : favoritesCount}
-                      </span>
-                    )}
                     <span className="sr-only">Favoris</span>
                   </Link>
                 </Button>
@@ -706,9 +725,9 @@ export function Header() {
                   onClick={() => setNotifOpen(!notifOpen)}
                 >
                   <FiBell className="h-5 w-5" />
-                  {unreadCount > 0 && (
+                  {notifBadge > 0 && (
                     <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4.5 w-4.5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                      {unreadCount > 99 ? "99+" : unreadCount}
+                      {notifBadge > 99 ? "99+" : notifBadge}
                     </span>
                   )}
                   <span className="sr-only">Notifications</span>
@@ -717,7 +736,7 @@ export function Header() {
                   <div className="fixed left-4 right-4 top-20 max-w-md mx-auto max-h-[360px] overflow-hidden rounded-lg border border-border bg-background shadow-lg z-[100] flex flex-col sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-1 sm:w-80 sm:max-w-none sm:mx-0">
                     <div className="flex items-center justify-between px-4 py-2 border-b border-border">
                       <span className="font-semibold text-sm">Notifications</span>
-                      {unreadCount > 0 && (
+                      {notifBadge > 0 && (
                         <button
                           type="button"
                           onClick={() => markAllAsRead.mutate()}
@@ -732,15 +751,35 @@ export function Header() {
                         notificationsData.data.map((n: any) => (
                           <Link
                             key={n._id}
-                            href={n.link || "/dashboard"}
+                            href={n.link || "/dashboard/notifications"}
                             onClick={() => {
                               if (!n.read) markAsRead.mutate(n._id);
                               setNotifOpen(false);
                             }}
                             className={`block px-4 py-3 text-left hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0 ${!n.read ? "bg-primary/5" : ""}`}
                           >
-                            <p className="text-sm font-medium text-foreground">{n.title}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-medium text-foreground">
+                                {n.title}
+                              </p>
+                              {n.createdAt && (
+                                <span className="text-[10px] text-muted-foreground shrink-0">
+                                  {new Date(n.createdAt).toLocaleTimeString("fr-FR", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              )}
+                            </div>
+                            <p
+                              className={`text-xs mt-0.5 line-clamp-2 ${
+                                n.previewKind === "chat"
+                                  ? "text-foreground/80"
+                                  : "text-muted-foreground"
+                              }`}
+                            >
+                              {n.message || n.body}
+                            </p>
                           </Link>
                         ))
                       ) : (
@@ -764,9 +803,9 @@ export function Header() {
             <Button variant="ghost" size="icon" className="relative" asChild>
               <Link href="/dashboard/favoris">
                 <FiHeart className="h-5 w-5" />
-                {favoritesCount > 0 && (
+                {likeBadge > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4.5 w-4.5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                    {favoritesCount > 99 ? "99+" : favoritesCount}
+                    {likeBadge > 99 ? "99+" : likeBadge}
                   </span>
                 )}
                 <span className="sr-only">Favoris</span>

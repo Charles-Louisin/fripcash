@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAdminArticles, useUpdateArticleStatus } from "@/hooks/use-admin";
+import { fetchListing, listingImageUrl } from "@/lib/api";
 import {
   LISTING_DESTINATIONS,
   listingDestinationLabels,
@@ -35,6 +36,8 @@ export default function ArticlesPage() {
   const [tab, setTab] = useState("all");
   const [destinationFilter, setDestinationFilter] = useState("all");
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
+  const [detailImageIndex, setDetailImageIndex] = useState(0);
+  const [detailLoadingMedia, setDetailLoadingMedia] = useState(false);
 
   const statusParam = tab === "all" ? undefined : tab;
   const { data, isLoading, isError } = useAdminArticles({ status: statusParam, q: search || undefined });
@@ -48,6 +51,36 @@ export default function ArticlesPage() {
     return rows;
   }, [data, destinationFilter]);
 
+  const openArticleDetail = async (article: any) => {
+    setDetailImageIndex(0);
+    setSelectedArticle(article);
+    setDetailLoadingMedia(true);
+    try {
+      // List endpoints only return the cover image; detail has the full gallery.
+      const full = await fetchListing(article.id || article._id);
+      const images = (full.media || [])
+        .slice()
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+        .map((m) => listingImageUrl(m))
+        .filter((u): u is string => !!u);
+      setSelectedArticle((prev: any) => {
+        if (!prev || (prev.id || prev._id) !== (article.id || article._id)) {
+          return prev;
+        }
+        return {
+          ...prev,
+          images: images.length > 0 ? images : prev.images,
+          description: full.description ?? prev.description,
+          condition: full.conditionNote || prev.condition,
+          quantity: full.quantity ?? prev.quantity,
+        };
+      });
+    } catch {
+      /* keep cover-only from list */
+    } finally {
+      setDetailLoadingMedia(false);
+    }
+  };
   const handleApprove = (article: any) => {
     updateStatus.mutate(
       { id: article.id || article._id, status: "active" },
@@ -168,7 +201,7 @@ export default function ArticlesPage() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onClick={() => setSelectedArticle(a)} className="cursor-pointer">
+            <DropdownMenuItem onClick={() => openArticleDetail(a)} className="cursor-pointer">
               <FiEye className="h-4 w-4 mr-2" />
               Voir détail
             </DropdownMenuItem>
@@ -263,42 +296,100 @@ export default function ArticlesPage() {
 
       {selectedArticle && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setSelectedArticle(null)} />
-          <div className="relative bg-background rounded-xl border border-border shadow-lg w-full max-w-md p-6 z-10">
+          <div
+            className="fixed inset-0 bg-black/50"
+            onClick={() => {
+              setSelectedArticle(null);
+              setDetailImageIndex(0);
+            }}
+          />
+          <div className="relative bg-background rounded-xl border border-border shadow-lg w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 z-10">
             <button
-              onClick={() => setSelectedArticle(null)}
+              onClick={() => {
+                setSelectedArticle(null);
+                setDetailImageIndex(0);
+              }}
               className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground"
             >
               &times;
             </button>
-            {selectedArticle.images?.[0] && (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={selectedArticle.images[0]}
-                alt={selectedArticle.title}
-                className="w-full h-48 object-cover rounded-lg mb-4"
-              />
+            {(selectedArticle.images?.length ?? 0) > 0 && (
+              <div className="mb-4 space-y-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={
+                    selectedArticle.images[detailImageIndex] ||
+                    selectedArticle.images[0]
+                  }
+                  alt={selectedArticle.title}
+                  className="w-full h-48 object-cover rounded-lg"
+                />
+                {detailLoadingMedia && (
+                  <p className="text-xs text-muted-foreground">
+                    Chargement des photos…
+                  </p>
+                )}
+                {selectedArticle.images.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {selectedArticle.images.map((src: string, i: number) => (
+                      <button
+                        key={`${src}-${i}`}
+                        type="button"
+                        onClick={() => setDetailImageIndex(i)}
+                        className={`h-14 w-14 shrink-0 rounded overflow-hidden border transition-colors ${
+                          detailImageIndex === i
+                            ? "border-primary ring-1 ring-primary"
+                            : "border-border"
+                        }`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={src}
+                          alt={`${selectedArticle.title} ${i + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
             <h2 className="text-lg font-bold text-foreground mb-1">{selectedArticle.title}</h2>
             <Badge variant={statusConfig[selectedArticle.status]?.variant || "warning"} className="mb-4">
               {statusConfig[selectedArticle.status]?.label || selectedArticle.status}
             </Badge>
+            {selectedArticle.description ? (
+              <p className="text-sm text-muted-foreground mb-4 whitespace-pre-wrap">
+                {selectedArticle.description}
+              </p>
+            ) : null}
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between py-2 border-b border-border">
-                <span className="text-muted-foreground">Vendeur</span>
-                <span className="font-medium">{getSeller(selectedArticle)}</span>
+              <div className="flex justify-between gap-4 py-2 border-b border-border">
+                <span className="text-muted-foreground shrink-0">Vendeur</span>
+                <span className="font-medium text-right">
+                  {getSeller(selectedArticle)}
+                  {typeof selectedArticle.seller === "object" &&
+                    selectedArticle.seller?.kind && (
+                      <span className="block text-xs font-normal text-muted-foreground">
+                        {selectedArticle.seller.kind}
+                      </span>
+                    )}
+                </span>
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">Catégorie</span>
-                <span className="font-medium">{selectedArticle.category}</span>
+                <span className="font-medium">{selectedArticle.category || "—"}</span>
               </div>
-              {selectedArticle.listingDestination && (
+              {(selectedArticle.destination || selectedArticle.listingDestination) && (
                 <div className="flex justify-between py-2 border-b border-border">
-                  <span className="text-muted-foreground">Univers accueil</span>
+                  <span className="text-muted-foreground">Univers</span>
                   <span className="font-medium">
                     {listingDestinationLabels[
-                      selectedArticle.listingDestination as ListingDestination
-                    ] ?? selectedArticle.listingDestination}
+                      (selectedArticle.destination ||
+                        selectedArticle.listingDestination) as ListingDestination
+                    ] ??
+                      (selectedArticle.destination ||
+                        selectedArticle.listingDestination)}
                   </span>
                 </div>
               )}
@@ -308,8 +399,14 @@ export default function ArticlesPage() {
               </div>
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground">État</span>
-                <span className="font-medium">{selectedArticle.condition}</span>
+                <span className="font-medium">{selectedArticle.condition || "—"}</span>
               </div>
+              {selectedArticle.quantity != null && (
+                <div className="flex justify-between py-2 border-b border-border">
+                  <span className="text-muted-foreground">Quantité</span>
+                  <span className="font-medium">{selectedArticle.quantity}</span>
+                </div>
+              )}
               <div className="flex justify-between py-2">
                 <span className="text-muted-foreground">Publié le</span>
                 <span className="font-medium">{new Date(selectedArticle.createdAt).toLocaleDateString("fr-FR")}</span>

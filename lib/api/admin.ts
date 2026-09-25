@@ -338,3 +338,22 @@ export async function fetchAdminListings(params?: {
   });
   return data;
 }
+
+/** Admin moderation — staff audience only (not owner PATCH /listings/:id). */
+export async function updateAdminListing(
+  id: string,
+  body: Partial<{
+    title: string;
+    description: string;
+    priceGnf: number;
+    quantity: number;
+    destination: string;
+    categoryId: string;
+    zoneId: string;
+    conditionNote: string;
+    status: string;
+  }>
+) {
+  const { data } = await api.patch<AdminListing>(`/admin/listings/${id}`, body);
+  return data;
+}

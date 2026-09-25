@@ -20,8 +20,9 @@ import {
   useCreateArticle,
   useUpdateArticle,
   useDeleteArticle,
+  listingToArticle,
 } from "@/hooks/use-articles";
-import { fetchCategories, type CatalogCategory } from "@/lib/api";
+import { fetchCategories, fetchListing, type CatalogCategory } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
@@ -158,7 +159,7 @@ export default function MyArticlesPage() {
     setSheetOpen(true);
   };
 
-  const openEditSheet = (item: any) => {
+  const openEditSheet = async (item: any) => {
     setEditingItem(item);
     setFormData({
       title: item.title || "",
@@ -170,9 +171,28 @@ export default function MyArticlesPage() {
       size: item.size || "",
       color: item.color || "",
     });
+    // List APIs only return the cover; hydrate full gallery from detail.
     setImagePreviews(item.images || []);
     setImageFiles([]);
     setSheetOpen(true);
+    try {
+      const full = await fetchListing(item._id || item.id);
+      const article = listingToArticle(full);
+      setImagePreviews(
+        article.images.length > 0 ? article.images : item.images || []
+      );
+      setFormData((prev) => ({
+        ...prev,
+        title: article.title || prev.title,
+        description: article.description || prev.description,
+        condition: article.condition || prev.condition,
+        price: String(article.price ?? prev.price),
+        categoryId: article.categoryId || prev.categoryId,
+      }));
+      setEditingItem({ ...item, ...article, images: article.images });
+    } catch {
+      /* keep cover-only from list */
+    }
   };
 
   const closeSheet = () => {

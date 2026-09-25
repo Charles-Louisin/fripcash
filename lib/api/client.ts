@@ -84,7 +84,8 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const isAnonAuth =
     url.includes("/auth/phone-number/send-otp") ||
     url.includes("/auth/phone-number/verify") ||
-    url.includes("/auth/sign-in/");
+    url.includes("/auth/sign-in/") ||
+    url.includes("/auth/admin/login");
 
   if (!isAnonAuth) {
     const token = readToken();

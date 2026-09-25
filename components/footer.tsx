@@ -184,7 +184,7 @@ export function Footer() {
                 <div className="font-bold text-xs text-muted-foreground">
                   TÉLÉPHONE
                 </div>
-                <div className="text-foreground">+237 673 74 61 33</div>
+                <div className="text-foreground">+224 6XX XXX XXX</div>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -193,7 +193,7 @@ export function Footer() {
                 <div className="font-bold text-xs text-muted-foreground">
                   ADRESSE
                 </div>
-                <div className="text-foreground">Cameroun</div>
+                <div className="text-foreground">Conakry, Guinée</div>
               </div>
             </div>
           </div>
