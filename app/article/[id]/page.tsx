@@ -57,6 +57,8 @@ function mapArticleToProduct(article: any): Product {
     size: article.size,
     price: article.price || 0,
     priceWithShipping: (article.price || 0) + (article.shippingCost || 0),
+    compareAtPrice: article.compareAtPrice ?? null,
+    discountEnabled: article.discountEnabled === true,
     favorites: article.favoritesCount || 0,
     href: `/article/${article._id}`,
     category: article.category,
@@ -297,6 +299,11 @@ export default function ArticleDetailPage() {
           toast("Offre envoyée ! Le vendeur a été notifié.");
         },
         onError: (err: any) => {
+          const code = err?.code || err?.body?.code;
+          if (code === "LISTING_NOT_NEGOTIABLE") {
+            toast("Cet article n’accepte pas les offres.", "error");
+            return;
+          }
           const msg = err?.message || "Erreur lors de l'envoi de l'offre";
           toast(msg, "error");
         },
@@ -357,6 +364,7 @@ export default function ArticleDetailPage() {
     destination: article?.destination || article?.listingDestination,
     sellerProfileId:
       typeof article?.seller === "object" ? article.seller?._id : null,
+    negotiable: article?.negotiable === true,
   };
   const showOffer = canMakeOffer(marketplaceActor, listingMeta);
   const showCart = canAddToCart(marketplaceActor);
@@ -481,7 +489,16 @@ export default function ArticleDetailPage() {
             <div>
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <p className="text-3xl font-bold text-foreground">{(article.price || 0).toLocaleString("fr-FR")} GNF</p>
+                  <p className="text-3xl font-bold text-foreground">
+                    {(article.price || 0).toLocaleString("fr-FR")} GNF
+                  </p>
+                  {article.discountEnabled &&
+                    article.compareAtPrice != null &&
+                    article.compareAtPrice > (article.price || 0) && (
+                      <p className="text-base text-muted-foreground line-through mt-0.5">
+                        {article.compareAtPrice.toLocaleString("fr-FR")} GNF
+                      </p>
+                    )}
                   <p className="text-sm text-primary font-medium mt-0.5">
                     {((article.price || 0) + (article.shippingCost || 0)).toLocaleString("fr-FR")} GNF frais de port inclus
                   </p>

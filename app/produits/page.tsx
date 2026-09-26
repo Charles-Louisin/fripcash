@@ -49,6 +49,8 @@ function mapArticleToProduct(article: any): Product {
     size: article.size,
     price: article.price || 0,
     priceWithShipping: (article.price || 0) + (article.shippingCost || 0),
+    compareAtPrice: article.compareAtPrice ?? null,
+    discountEnabled: article.discountEnabled === true,
     favorites: article.favoritesCount || 0,
     href: `/article/${article._id}`,
     category: article.category,

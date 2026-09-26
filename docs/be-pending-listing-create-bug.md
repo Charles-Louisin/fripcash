@@ -350,3 +350,37 @@ So the 403 is **expected** with current AuthZ: admin must not use seller owner r
 ## FE note (after BE)
 
 **FE updated (2026-09-25):** `useUpdateArticleStatus` now calls `PATCH /admin/listings/:id` via `updateAdminListing`. Owner `PATCH /listings/:id` remains seller-only.
+
+---
+
+# BE note: courier login on marketplace `/connexion` → `FORBIDDEN_AUDIENCE` on `GET /me`
+
+**From:** Web feedback (QA / testers)  
+**Date:** 2026-09-26  
+**Seed account:** `courier@fripcash.test` / `Password123!`
+
+## What testers see
+
+On `fripcash.vercel.app/connexion` (France email), login as courier → toast:
+
+> You do not have access to this application area.  
+> (`FORBIDDEN_AUDIENCE` on `GET /me`)
+
+## Diagnosis (expected AuthZ)
+
+1. `POST /auth/sign-in/email` **succeeds** and returns `userKind: COURIER`, `authAudience: COURIER`.  
+2. Web then calls `GET /me` (consumer) → **403** — correct: courier token must not use marketplace `/me`.  
+3. `GET /courier/me` works with that token.  
+4. `POST /auth/courier/login` → **404** (not implemented / not exposed).
+
+Product rule (SRS): livreur = **mobile “Espace livreur” only**; web `/connexion` is consumer (buyer/seller).
+
+## FE mitigation (done)
+
+`/connexion` now detects `COURIER` / `ADMIN` from the sign-in payload (and maps `FORBIDDEN_AUDIENCE` fallback) → clears token and shows a clear “use the app / admin-login” message instead of the raw audience error.
+
+## Optional BE follow-ups
+
+1. Implement `POST /auth/courier/login` for the mobile livreur shell (contract already documented).  
+2. Optionally **reject** courier (and staff) on consumer `POST /auth/sign-in/email` the same way staff must use `/auth/admin/login` — clearer than issuing a token that immediately fails `/me`.  
+3. Keep web without a livreur dashboard (CTA to app only).

@@ -21,6 +21,8 @@ import {
   verifyOtp,
   fetchMe,
   signInEmail,
+  clearToken,
+  type AuthUser,
 } from "@/lib/api";
 import { mapMeToUiUser } from "@/hooks/use-auth";
 import {
@@ -37,6 +39,47 @@ import { recordLoginSession } from "@/lib/admin-session-tracker";
 const DEV_OTP =
   process.env.NODE_ENV === "development" ? "000000" : "";
 
+/** Marketplace /connexion is consumer-only (SRS auth surfaces). */
+function rejectNonConsumerSession(user?: AuthUser | null): void {
+  const audience = user?.authAudience?.toUpperCase();
+  const kind = user?.userKind?.toUpperCase();
+  if (audience === "COURIER" || kind === "COURIER") {
+    clearToken();
+    throw new Error(
+      "Compte livreur — utilise l’app FripCash (Espace livreur). Ce site web est réservé aux acheteurs et vendeurs."
+    );
+  }
+  if (audience === "ADMIN" || kind === "ADMIN") {
+    clearToken();
+    throw new Error(
+      "Compte administrateur — connecte-toi sur la page Admin (lien ci-dessous)."
+    );
+  }
+}
+
+function connexionErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && !(err instanceof ApiError)) {
+    return err.message;
+  }
+  if (!(err instanceof ApiError)) return fallback;
+
+  const msg = (err.body.message || "").toLowerCase();
+  const code = (err.body.code || "").toUpperCase();
+
+  if (
+    msg.includes("admin/login") ||
+    msg.includes("staff account") ||
+    msg.includes("staff accounts") ||
+    code === "FORBIDDEN_AUDIENCE"
+  ) {
+    if (msg.includes("staff") || msg.includes("admin")) {
+      return "Compte administrateur — ce n’est pas la bonne page. Utilise la connexion Admin.";
+    }
+    return "Ce compte n’a pas accès à l’espace acheteur/vendeur. Livreurs : app FripCash. Admins : page Admin.";
+  }
+
+  return err.body.message || fallback;
+}
 export default function ConnexionPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -66,25 +109,35 @@ export default function ConnexionPage() {
   };
 
   const finishLogin = async (fallbackContact: string) => {
-    const me = await fetchMe();
-    const user = mapMeToUiUser(me);
-    queryClient.setQueryData(["me"], user);
-    recordLoginSession({
-      email: me.phone ?? fallbackContact,
-      displayName: me.displayName,
-      role: me.seller ? "particulier" : "acheteur",
-      userId: me.id,
-    });
-    toast("Connexion réussie !");
-    if (!me.displayName || me.displayName === me.phone) {
-      try {
-        sessionStorage.setItem("fripcash_need_profile", "1");
-      } catch {
-        /* ignore */
+    try {
+      const me = await fetchMe();
+      const user = mapMeToUiUser(me);
+      queryClient.setQueryData(["me"], user);
+      recordLoginSession({
+        email: me.phone ?? fallbackContact,
+        displayName: me.displayName,
+        role: me.seller ? "particulier" : "acheteur",
+        userId: me.id,
+      });
+      toast("Connexion réussie !");
+      if (!me.displayName || me.displayName === me.phone) {
+        try {
+          sessionStorage.setItem("fripcash_need_profile", "1");
+        } catch {
+          /* ignore */
+        }
+        router.push("/inscription");
+      } else {
+        router.push("/dashboard");
       }
-      router.push("/inscription");
-    } else {
-      router.push("/dashboard");
+    } catch (err) {
+      clearToken();
+      if (err instanceof ApiError && err.body.code === "FORBIDDEN_AUDIENCE") {
+        throw new Error(
+          "Ce compte n’a pas accès à l’espace web acheteur/vendeur. Livreurs : utilise l’app (Espace livreur). Admins : /admin-login."
+        );
+      }
+      throw err;
     }
   };
 
@@ -134,15 +187,11 @@ export default function ConnexionPage() {
     }
     setLoading(true);
     try {
-      await signInEmail(email.trim(), password);
+      const session = await signInEmail(email.trim(), password);
+      rejectNonConsumerSession(session.user);
       await finishLogin(email.trim());
     } catch (err) {
-      toast(
-        err instanceof ApiError
-          ? err.body.message
-          : "Email ou mot de passe incorrect.",
-        "error"
-      );
+      toast(connexionErrorMessage(err, "Email ou mot de passe incorrect."), "error");
     } finally {
       setLoading(false);
     }
@@ -156,17 +205,15 @@ export default function ConnexionPage() {
     }
     setLoading(true);
     try {
-      await verifyOtp(phoneSent, code.replace(/\D/g, ""));
+      const session = await verifyOtp(phoneSent, code.replace(/\D/g, ""));
+      rejectNonConsumerSession(session.user);
       await finishLogin(fullPhoneFromLocal(phoneSent, country));
     } catch (err) {
       if (err instanceof ApiError && err.body.code === "TOO_MANY_ATTEMPTS") {
         toast("Trop d'essais. Renvoie un code.", "error");
         setStep("identifier");
       } else {
-        toast(
-          err instanceof ApiError ? err.body.message : "Code invalide.",
-          "error"
-        );
+        toast(connexionErrorMessage(err, "Code invalide."), "error");
       }
     } finally {
       setLoading(false);
@@ -396,6 +443,15 @@ export default function ConnexionPage() {
           </Link>
         </p>
       )}
+      <p className="mt-4 text-center text-xs text-muted-foreground">
+        Administrateur ?{" "}
+        <Link
+          href="/admin-login"
+          className="font-semibold text-primary hover:underline"
+        >
+          Connexion Admin
+        </Link>
+      </p>
     </div>
   );
 }

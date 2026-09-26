@@ -30,8 +30,17 @@ export type Listing = {
   zoneId: string | null;
   title: string;
   description: string | null;
+  /** What the seller receives (net). */
+  netPriceGnf: number;
+  /** Buyer display / pay price (= net + commission). */
   priceGnf: number;
+  /** Snapshotted rate 0..1 at create / price update. */
+  commissionRate: number;
+  commissionAmountGnf: number;
   quantity: number;
+  negotiable: boolean;
+  discountEnabled: boolean;
+  compareAtPriceGnf: number | null;
   status: ListingStatus;
   destination: ListingDestination;
   conditionNote: string | null;
@@ -135,12 +144,16 @@ export async function fetchListing(id: string) {
 export async function createListing(body: {
   title: string;
   description?: string;
-  priceGnf: number;
-  quantity?: number;
+  /** Preferred: seller net. Response `priceGnf` is buyer display. */
+  netPriceGnf: number;
+  quantity: number;
   destination: ListingDestination;
   categoryId?: string;
   zoneId?: string;
   conditionNote?: string;
+  negotiable?: boolean;
+  discountEnabled?: boolean;
+  compareAtPriceGnf?: number | null;
 }) {
   const { data } = await api.post<Listing>("/listings", body);
   return data;
@@ -151,13 +164,16 @@ export async function updateListing(
   body: Partial<{
     title: string;
     description: string;
-    priceGnf: number;
+    netPriceGnf: number;
     quantity: number;
     destination: ListingDestination;
     categoryId: string;
     zoneId: string;
     conditionNote: string;
     status: ListingStatus;
+    negotiable: boolean;
+    discountEnabled: boolean;
+    compareAtPriceGnf: number | null;
   }>
 ) {
   const { data } = await api.patch<Listing>(`/listings/${id}`, body);

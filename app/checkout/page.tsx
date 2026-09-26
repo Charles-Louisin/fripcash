@@ -9,6 +9,13 @@ import { AppSheet } from "@/components/app-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useCartStore } from "@/stores/cart-store";
 import { useToast } from "@/components/ui/toast";
 import { useCheckout, useAddCartItem } from "@/hooks/use-cart";
@@ -27,31 +34,54 @@ import {
   FiPackage,
 } from "react-icons/fi";
 import { LuHandshake } from "react-icons/lu";
+
 type DeliveryMode = "main-propre" | "buyer-delivery" | "seller-delivery";
 
-type PaymentMethod = "mobile-money" | "card" | "wallet" | "wallet_on_delivery";
+type PaymentMethod = "mobile-money" | "card" | "wallet";
 
+const MOBILE_OPERATORS = [
+  {
+    id: "mtn",
+    label: "MTN MoMo",
+    logo: "/images/payments/mtn.svg",
+  },
+  {
+    id: "orange",
+    label: "Orange Money",
+    logo: "/images/payments/orange.svg",
+  },
+  {
+    id: "moov",
+    label: "Moov Money",
+    logo: "/images/payments/moov.svg",
+  },
+  {
+    id: "other",
+    label: "Autre",
+    logo: "/images/payments/autre.svg",
+  },
+] as const;
 const deliveryModes: { id: DeliveryMode; icon: React.ElementType; label: string; description: string; detail: string }[] = [
   {
     id: "main-propre",
     icon: LuHandshake,
     label: "Main propre",
     description: "Tu te déplaces chez le vendeur pour récupérer l'article.",
-    detail: "Le vendeur te donnera un code à 6 chiffres. Saisis-le pour libérer le paiement.",
+    detail: "À la remise, confirme la réception dans ton tableau de bord pour libérer le paiement au vendeur.",
   },
   {
     id: "buyer-delivery",
     icon: FiTruck,
     label: "Livraison à tes frais",
     description: "Un livreur sera envoyé récupérer l'article et te le livrer.",
-    detail: "Un code à 6 chiffres sera remis au livreur. Saisis-le pour libérer le paiement.",
+    detail: "À la livraison, confirme la réception dans ton tableau de bord pour libérer le paiement au vendeur.",
   },
   {
     id: "seller-delivery",
     icon: FiPackage,
     label: "Livraison par le vendeur",
     description: "Le vendeur organise lui-même la livraison. Les frais sont inclus dans le prix.",
-    detail: "Un code à 6 chiffres sera remis au livreur. Saisis-le pour confirmer la réception.",
+    detail: "À la livraison, confirme la réception dans ton tableau de bord pour libérer le paiement au vendeur.",
   },
 ];
 
@@ -126,15 +156,10 @@ export default function CheckoutPage() {
       return;
     }
 
-    // Wallet / Pay on delivery: check available balance before creating orders
+    // Wallet: check available balance before creating orders
     const orderTotal = mounted ? totalWithShipping() : 0;
-    if ((paymentMethod === "wallet" || paymentMethod === "wallet_on_delivery") && availableBalance < orderTotal) {
-      toast(
-        paymentMethod === "wallet_on_delivery"
-          ? "Solde disponible insuffisant. Top up ton porte-monnaie pour réserver le montant jusqu'à la livraison."
-          : "Solde insuffisant dans ton porte-monnaie.",
-        "error"
-      );
+    if (paymentMethod === "wallet" && availableBalance < orderTotal) {
+      toast("Solde insuffisant dans ton porte-monnaie.", "error");
       return;
     }
 
@@ -226,10 +251,10 @@ export default function CheckoutPage() {
             <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-8 text-left">
               <p className="text-sm font-semibold text-foreground mb-2">Comment ça fonctionne ?</p>
               <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
-                <li>Le vendeur est notifié de ta commande et reçoit un <span className="font-medium text-foreground">code à 6 chiffres</span></li>
-                <li>À la réception, le vendeur ou livreur te communique le code</li>
-                <li>Tu saisis ce code dans ton <span className="font-medium text-foreground">tableau de bord</span> pour confirmer</li>
-                <li>Le paiement est <span className="font-medium text-foreground">libéré vers le vendeur</span></li>
+                <li>Ton paiement est <span className="font-medium text-foreground">débité tout de suite</span> et bloqué en séquestre chez FripCash</li>
+                <li>Le vendeur prépare / envoie l&apos;article</li>
+                <li>À la réception, tu appuies sur <span className="font-medium text-foreground">Confirmer la réception</span> dans ton tableau de bord</li>
+                <li>Le paiement est alors <span className="font-medium text-foreground">libéré vers le vendeur</span> (ou tu ouvres un litige si problème)</li>
               </ol>
             </div>
 
@@ -469,8 +494,8 @@ export default function CheckoutPage() {
                   <div>
                     <p className="text-sm font-semibold text-foreground">Protection séquestre</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Ton paiement est bloqué jusqu&apos;à confirmation de la réception.
-                      Le vendeur ne reçoit l&apos;argent qu&apos;après ta validation par code à 6 chiffres.
+                      L&apos;argent est débité immédiatement et bloqué chez FripCash jusqu&apos;à ta confirmation.
+                      Le vendeur ne reçoit le paiement qu&apos;après que tu aies validé la réception (bouton dans tes commandes).
                     </p>
                   </div>
                 </div>
@@ -482,15 +507,15 @@ export default function CheckoutPage() {
                   Mode de paiement
                 </h2>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+                <div className="grid grid-cols-3 gap-2 mb-5">
                   {([
                     { id: "mobile-money" as PaymentMethod, icon: FiSmartphone, label: "Mobile Money" },
                     { id: "card" as PaymentMethod, icon: FiCreditCard, label: "Carte" },
-                    { id: "wallet" as PaymentMethod, icon: FiShield, label: "Payer maintenant" },
-                    { id: "wallet_on_delivery" as PaymentMethod, icon: FiPackage, label: "Payer à la livraison" },
+                    { id: "wallet" as PaymentMethod, icon: FiShield, label: "Solde FripCash" },
                   ]).map((pm) => (
                     <button
                       key={pm.id}
+                      type="button"
                       onClick={() => setPaymentMethod(pm.id)}
                       className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border transition-all text-sm font-medium ${
                         paymentMethod === pm.id
@@ -509,27 +534,44 @@ export default function CheckoutPage() {
                   <div className="space-y-4">
                     <div>
                       <Label className="text-sm font-medium">Opérateur</Label>
-                      <div className="grid grid-cols-3 gap-2 mt-2">
-                        {[
-                          { id: "mtn", label: "MTN MoMo" },
-                          { id: "orange", label: "Orange Money" },
-                          { id: "other", label: "Autre" },
-                        ].map((op) => (
-                          <button
-                            key={op.id}
-                            onClick={() =>
-                              updateField("mobileOperator", op.id)
-                            }
-                            className={`py-2 px-3 rounded-lg border text-xs font-medium transition-all ${
-                              form.mobileOperator === op.id
-                                ? "border-primary bg-primary/5 text-primary"
-                                : "border-border text-foreground hover:border-primary/30"
-                            }`}
-                          >
-                            {op.label}
-                          </button>
-                        ))}
-                      </div>
+                      <Select
+                        value={form.mobileOperator}
+                        onValueChange={(v) => updateField("mobileOperator", v)}
+                      >
+                        <SelectTrigger className="mt-2 h-12 rounded-xl px-3">
+                          <span className="flex items-center gap-3 min-w-0">
+                            {(() => {
+                              const op = MOBILE_OPERATORS.find(
+                                (o) => o.id === form.mobileOperator
+                              );
+                              return op ? (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img
+                                  src={op.logo}
+                                  alt=""
+                                  className="h-7 w-7 shrink-0 object-contain rounded-md bg-white border border-border"
+                                />
+                              ) : null;
+                            })()}
+                            <SelectValue placeholder="Choisir un opérateur" />
+                          </span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MOBILE_OPERATORS.map((op) => (
+                            <SelectItem key={op.id} value={op.id}>
+                              <span className="flex items-center gap-3 py-0.5">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={op.logo}
+                                  alt=""
+                                  className="h-7 w-7 object-contain rounded-md bg-white"
+                                />
+                                <span>{op.label}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <Label htmlFor="mobileNumber" className="text-sm font-medium">
@@ -600,26 +642,7 @@ export default function CheckoutPage() {
                         Solde FripCash : {walletBalance.toLocaleString("fr-FR")} GNF
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Le montant sera débité de ton porte-monnaie FripCash.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {paymentMethod === "wallet_on_delivery" && (
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                    <FiPackage className="h-4 w-4 text-primary shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        Disponible : {availableBalance.toLocaleString("fr-FR")} GNF
-                        {((walletData?.reservedBalance ?? 0) > 0) && (
-                          <span className="text-muted-foreground font-normal">
-                            {" "}(réservé : {(walletData?.reservedBalance ?? 0).toLocaleString("fr-FR")} GNF)
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Le montant sera réservé jusqu&apos;à ce que tu confirmes la réception avec le code à 6 chiffres. Tu ne peux pas le retirer en attendant.
+                        Débité de ton porte-monnaie, puis bloqué en séquestre jusqu&apos;à confirmation de réception.
                       </p>
                     </div>
                   </div>

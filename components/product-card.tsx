@@ -15,6 +15,9 @@ export interface Product {
   size?: string;
   price: number;
   priceWithShipping: number;
+  /** Strikethrough when discountEnabled */
+  compareAtPrice?: number | null;
+  discountEnabled?: boolean;
   favorites: number;
   href: string;
   category?: string;
@@ -123,6 +126,13 @@ export function ProductCard({ product }: { product: Product }) {
         <div>
           <p className="text-sm font-semibold text-foreground">
             {product.price.toLocaleString("fr-FR")} GNF
+            {product.discountEnabled &&
+              product.compareAtPrice != null &&
+              product.compareAtPrice > product.price && (
+                <span className="ml-2 text-xs font-normal text-muted-foreground line-through">
+                  {product.compareAtPrice.toLocaleString("fr-FR")} GNF
+                </span>
+              )}
           </p>
           <p className="text-xs text-primary font-medium">
             {product.priceWithShipping.toLocaleString("fr-FR")} GNF incl.

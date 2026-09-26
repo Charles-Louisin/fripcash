@@ -7,8 +7,39 @@ export async function fetchAdminMe() {
   return data;
 }
 
+export type PlatformSettings = {
+  id: string;
+  /** Decimal 0..1 (e.g. 0.08 = 8%) */
+  commissionRateStandard: number;
+  commissionRateProximite: number;
+  disputeWindowHours?: number;
+  minWithdrawalGnf?: number;
+  maxListingPhotos?: number;
+  maintenanceMode?: boolean;
+  updatedAt?: string;
+  /** Legacy — prefer commissionRateStandard */
+  defaultCommissionBps?: number;
+};
+
 export async function fetchPlatformSettings() {
-  const { data } = await api.get("/admin/platform-settings");
+  const { data } = await api.get<PlatformSettings>("/admin/platform-settings");
+  return data;
+}
+
+export async function updatePlatformSettings(
+  body: Partial<{
+    commissionRateStandard: number;
+    commissionRateProximite: number;
+    disputeWindowHours: number;
+    minWithdrawalGnf: number;
+    maxListingPhotos: number;
+    maintenanceMode: boolean;
+  }>
+) {
+  const { data } = await api.patch<PlatformSettings>(
+    "/admin/platform-settings",
+    body
+  );
   return data;
 }
 
@@ -301,8 +332,14 @@ export type AdminListing = {
   zoneId: string | null;
   title: string;
   description: string | null;
+  netPriceGnf?: number;
   priceGnf: number;
+  commissionRate?: number;
+  commissionAmountGnf?: number;
   quantity: number;
+  negotiable?: boolean;
+  discountEnabled?: boolean;
+  compareAtPriceGnf?: number | null;
   status: string;
   destination: string;
   conditionNote: string | null;

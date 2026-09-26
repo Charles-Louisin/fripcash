@@ -863,7 +863,7 @@ export function Header() {
         <div className="border-b">
           <nav className="flex items-center gap-2 overflow-x-auto scrollbar-hide px-4 py-2">
             <Link
-              href="/voir-tout"
+              href="/"
               className="whitespace-nowrap px-3 py-1.5 text-sm rounded-full border border-primary text-primary font-medium transition-colors"
             >
               Voir tout

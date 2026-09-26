@@ -4,9 +4,10 @@
  *
  * Rules (aligned with docs/backend/roles-and-capabilities.md):
  * - Admin / non-buyer accounts → no buy / offer / message-as-buyer
+ * - Offers only when listing.negotiable === true
  * - Enseigne listings → no offers (negotiation disabled)
  * - Own listings → no offer / message-to-self
- * - Guests → still show buy/offer (except enseigne offer) → login redirect
+ * - Guests → still show buy/offer (except enseigne / non-negotiable) → login redirect
  */
 
 export type MarketplaceActor = {
@@ -21,6 +22,8 @@ export type MarketplaceListing = {
   /** API destination e.g. ENSEIGNES, or UI slug enseignes */
   destination?: string | null;
   sellerProfileId?: string | null;
+  /** Offers only when true (default false on API) */
+  negotiable?: boolean | null;
 };
 
 function destKey(destination?: string | null): string {
@@ -43,11 +46,12 @@ export function canAddToCart(actor: MarketplaceActor): boolean {
   return true;
 }
 
-/** Price negotiation — not on enseigne, not on own listing */
+/** Price negotiation — negotiable flag, not enseigne, not own listing */
 export function canMakeOffer(
   actor: MarketplaceActor,
   listing: MarketplaceListing
 ): boolean {
+  if (listing.negotiable !== true) return false;
   if (isEnseigneListing(listing)) return false;
   if (!canAddToCart(actor)) return false;
   if (

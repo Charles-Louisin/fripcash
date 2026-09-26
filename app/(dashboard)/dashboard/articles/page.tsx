@@ -37,6 +37,11 @@ import {
 import { GetAppBanner } from "@/components/dashboard/get-app-banner";
 import { useMe } from "@/hooks/use-auth";
 import Link from "next/link";
+import { Switch } from "@/components/ui/switch";
+import {
+  previewBuyerPrice,
+  previewCommissionRate,
+} from "@/lib/pricing";
 
 const tabs = [
   { id: "active", label: "En vente" },
@@ -123,7 +128,12 @@ export default function MyArticlesPage() {
     description: "",
     categoryId: "",
     condition: conditions[0],
-    price: "",
+    /** Seller net — what they receive */
+    netPrice: "",
+    quantity: "1",
+    negotiable: false,
+    discountEnabled: false,
+    compareAtPrice: "",
     size: "",
     color: "",
   };
@@ -167,7 +177,13 @@ export default function MyArticlesPage() {
       description: item.description || "",
       categoryId: item.categoryId || categoryOptions[0]?.id || "",
       condition: item.condition || conditions[0],
-      price: String(item.price || ""),
+      netPrice: String(item.netPrice ?? item.price ?? ""),
+      quantity: String(item.stock ?? 1),
+      negotiable: item.negotiable === true,
+      discountEnabled: item.discountEnabled === true,
+      compareAtPrice: item.compareAtPrice
+        ? String(item.compareAtPrice)
+        : "",
       size: item.size || "",
       color: item.color || "",
     });
@@ -186,7 +202,13 @@ export default function MyArticlesPage() {
         title: article.title || prev.title,
         description: article.description || prev.description,
         condition: article.condition || prev.condition,
-        price: String(article.price ?? prev.price),
+        netPrice: String(article.netPrice ?? prev.netPrice),
+        quantity: String(article.stock ?? prev.quantity),
+        negotiable: article.negotiable,
+        discountEnabled: article.discountEnabled,
+        compareAtPrice: article.compareAtPrice
+          ? String(article.compareAtPrice)
+          : "",
         categoryId: article.categoryId || prev.categoryId,
       }));
       setEditingItem({ ...item, ...article, images: article.images });
@@ -281,8 +303,14 @@ export default function MyArticlesPage() {
       );
       return;
     }
-    if (!formData.title || !formData.price) {
-      showToast("Remplis le titre et le prix.", "error");
+    const net = parseInt(formData.netPrice, 10);
+    const qty = parseInt(formData.quantity, 10);
+    if (!formData.title || !Number.isFinite(net) || net < 1) {
+      showToast("Remplis le titre et ton prix (net ≥ 1 GNF).", "error");
+      return;
+    }
+    if (!Number.isFinite(qty) || qty < 1) {
+      showToast("La quantité doit être au moins 1.", "error");
       return;
     }
     if (!formData.categoryId) {
@@ -292,6 +320,23 @@ export default function MyArticlesPage() {
     if (imagePreviews.length === 0) {
       showToast("Ajoute au moins une photo.", "error");
       return;
+    }
+    let compareAt: number | null = null;
+    if (formData.discountEnabled) {
+      compareAt = parseInt(formData.compareAtPrice, 10);
+      if (!Number.isFinite(compareAt) || compareAt < 1) {
+        showToast("Indique l’ancien prix pour la remise.", "error");
+        return;
+      }
+      const previewRate = previewCommissionRate("SECONDE_MAIN");
+      const buyerPreview = previewBuyerPrice(net, previewRate);
+      if (compareAt <= buyerPreview) {
+        showToast(
+          "L’ancien prix doit être supérieur au prix acheteur (net + commission).",
+          "error"
+        );
+        return;
+      }
     }
 
     const body = {
@@ -304,7 +349,11 @@ export default function MyArticlesPage() {
       condition: formData.condition,
       size: formData.size || undefined,
       color: formData.color || undefined,
-      price: parseInt(formData.price),
+      netPrice: net,
+      stock: qty,
+      negotiable: formData.negotiable,
+      discountEnabled: formData.discountEnabled,
+      compareAtPrice: compareAt,
     };
 
     if (editingItem) {
@@ -320,8 +369,19 @@ export default function MyArticlesPage() {
       );
     } else {
       createArticle.mutate(body, {
-        onSuccess: () => {
-          showToast("Article publié avec succès !", "success");
+        onSuccess: (res) => {
+          const d = res?.data;
+          const buyer = d?.price?.toLocaleString("fr-FR");
+          const ratePct =
+            d?.commissionRate != null
+              ? Math.round(d.commissionRate * 100)
+              : null;
+          showToast(
+            buyer
+              ? `Article publié — prix acheteur ${buyer} GNF${ratePct != null ? ` (commission ${ratePct} %)` : ""}`
+              : "Article publié avec succès !",
+            "success"
+          );
           closeSheet();
         },
         onError: (err: any) => showToast(listingErrorMessage(err), "error"),
@@ -791,21 +851,122 @@ export default function MyArticlesPage() {
               />
             </div>
 
-            {/* ─── Price ─── */}
-            <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Prix (GNF) *</label>
-              <div className="relative">
+            {/* ─── Net price + buyer preview ─── */}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-1.5">
+                  Votre prix — ce que vous recevez (GNF) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={formData.netPrice}
+                    onChange={(e) =>
+                      setFormData({ ...formData, netPrice: e.target.value })
+                    }
+                    className="w-full h-12 pl-4 pr-16 rounded-xl border border-input bg-background text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    placeholder="45000"
+                    min="1"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+                    GNF
+                  </span>
+                </div>
+                {(() => {
+                  const net = parseInt(formData.netPrice, 10);
+                  const rate =
+                    typeof editingItem?.commissionRate === "number"
+                      ? editingItem.commissionRate
+                      : previewCommissionRate("SECONDE_MAIN");
+                  if (!Number.isFinite(net) || net < 1) return null;
+                  const display = previewBuyerPrice(net, rate);
+                  const ratePct = Math.round(rate * 100);
+                  return (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Prix que les acheteurs verront :{" "}
+                      <span className="font-semibold text-foreground">
+                        {display.toLocaleString("fr-FR")} GNF
+                      </span>{" "}
+                      (dont commission {ratePct} %)
+                    </p>
+                  );
+                })()}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-1.5">
+                  Quantité *
+                </label>
                 <input
                   type="number"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  className="w-full h-12 pl-4 pr-16 rounded-xl border border-input bg-background text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  placeholder="0"
-                  min="0"
+                  value={formData.quantity}
+                  onChange={(e) =>
+                    setFormData({ ...formData, quantity: e.target.value })
+                  }
+                  className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                  min="1"
+                  step="1"
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
-                  GNF
-                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    Accepter les offres
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Les acheteurs pourront négocier le prix
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.negotiable}
+                  onCheckedChange={(v) =>
+                    setFormData({ ...formData, negotiable: v })
+                  }
+                />
+              </div>
+
+              <div className="rounded-xl border border-border px-4 py-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      Appliquer une remise
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Affiche un ancien prix barré côté acheteur
+                    </p>
+                  </div>
+                  <Switch
+                    checked={formData.discountEnabled}
+                    onCheckedChange={(v) =>
+                      setFormData({
+                        ...formData,
+                        discountEnabled: v,
+                        compareAtPrice: v ? formData.compareAtPrice : "",
+                      })
+                    }
+                  />
+                </div>
+                {formData.discountEnabled && (
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1.5">
+                      Ancien prix (GNF)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.compareAtPrice}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          compareAtPrice: e.target.value,
+                        })
+                      }
+                      className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      placeholder="60000"
+                      min="1"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>

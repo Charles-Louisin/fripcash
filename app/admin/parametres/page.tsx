@@ -5,20 +5,27 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 import { FiSave } from "react-icons/fi";
-import { usePlatformSettings } from "@/hooks/use-admin";
+import {
+  usePlatformSettings,
+  useUpdatePlatformSettings,
+} from "@/hooks/use-admin";
 
 export default function ParametresPage() {
   const { toast } = useToast();
   const { data: settings, isLoading } = usePlatformSettings();
+  const updateSettings = useUpdatePlatformSettings();
 
   const [platformName, setPlatformName] = useState("FripCash");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
 
-  const [commissionRate, setCommissionRate] = useState(5);
-  const [proximityCommissionRate, setProximityCommissionRate] = useState(5);
-  const [minCommission, setMinCommission] = useState(0);
+  /** Percent UI (8 = 8%); API stores decimals 0..1 */
+  const [commissionRateStandardPct, setCommissionRateStandardPct] =
+    useState(8);
+  const [commissionRateProximitePct, setCommissionRateProximitePct] =
+    useState(5);
+  const [minWithdrawal, setMinWithdrawal] = useState(10000);
 
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [smsNotifs, setSmsNotifs] = useState(true);
@@ -28,12 +35,20 @@ export default function ParametresPage() {
   useEffect(() => {
     if (!settings || typeof settings !== "object") return;
     const s = settings as Record<string, unknown>;
-    if (typeof s.defaultCommissionBps === "number") {
-      setCommissionRate(s.defaultCommissionBps / 100);
-      setProximityCommissionRate(s.defaultCommissionBps / 100);
+    if (typeof s.commissionRateStandard === "number") {
+      setCommissionRateStandardPct(
+        Math.round(s.commissionRateStandard * 10000) / 100
+      );
+    } else if (typeof s.defaultCommissionBps === "number") {
+      setCommissionRateStandardPct(s.defaultCommissionBps / 100);
+    }
+    if (typeof s.commissionRateProximite === "number") {
+      setCommissionRateProximitePct(
+        Math.round(s.commissionRateProximite * 10000) / 100
+      );
     }
     if (typeof s.minWithdrawalGnf === "number") {
-      setMinCommission(s.minWithdrawalGnf);
+      setMinWithdrawal(s.minWithdrawalGnf);
     }
     if (typeof s.maintenanceMode === "boolean") {
       setMaintenanceMode(s.maintenanceMode);
@@ -41,16 +56,48 @@ export default function ParametresPage() {
   }, [settings]);
 
   const handleSaveGeneral = () => {
-    toast(
-      "Lecture seule — PATCH platform-settings non exposé par l’API",
-      "warning"
+    updateSettings.mutate(
+      { maintenanceMode },
+      {
+        onSuccess: () => toast("Paramètres généraux enregistrés", "success"),
+        onError: (err: unknown) => {
+          const msg =
+            err && typeof err === "object" && "message" in err
+              ? String((err as { message: string }).message)
+              : "Erreur lors de l’enregistrement";
+          toast(msg, "error");
+        },
+      }
     );
   };
 
   const handleSaveCommission = () => {
-    toast(
-      "Lecture seule — PATCH platform-settings non exposé par l’API",
-      "warning"
+    const standard = commissionRateStandardPct / 100;
+    const proximite = commissionRateProximitePct / 100;
+    if (standard < 0 || standard > 1 || proximite < 0 || proximite > 1) {
+      toast("Les taux doivent être entre 0 et 100 %", "error");
+      return;
+    }
+    updateSettings.mutate(
+      {
+        commissionRateStandard: standard,
+        commissionRateProximite: proximite,
+        minWithdrawalGnf: minWithdrawal,
+      },
+      {
+        onSuccess: () =>
+          toast(
+            "Commissions enregistrées — appliquées aux nouvelles annonces / prix modifiés",
+            "success"
+          ),
+        onError: (err: unknown) => {
+          const msg =
+            err && typeof err === "object" && "message" in err
+              ? String((err as { message: string }).message)
+              : "Erreur lors de l’enregistrement";
+          toast(msg, "error");
+        },
+      }
     );
   };
 
@@ -74,7 +121,7 @@ export default function ParametresPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Paramètres</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Configuration plateforme (GET /admin/platform-settings)
+          Configuration plateforme (GET/PATCH /admin/platform-settings)
           {!settings ? " — aucune ligne en base" : ""}
         </p>
       </div>
@@ -101,7 +148,11 @@ export default function ParametresPage() {
                   value={platformName}
                   onChange={(e) => setPlatformName(e.target.value)}
                   className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+                  disabled
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Non géré par l’API platform-settings
+                </p>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
@@ -113,6 +164,7 @@ export default function ParametresPage() {
                     value={contactEmail}
                     onChange={(e) => setContactEmail(e.target.value)}
                     placeholder="Non fourni par l’API"
+                    disabled
                     className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
                   />
                 </div>
@@ -125,6 +177,7 @@ export default function ParametresPage() {
                     value={contactPhone}
                     onChange={(e) => setContactPhone(e.target.value)}
                     placeholder="Non fourni par l’API"
+                    disabled
                     className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
                   />
                 </div>
@@ -144,7 +197,8 @@ export default function ParametresPage() {
               <button
                 type="button"
                 onClick={handleSaveGeneral}
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
+                disabled={updateSettings.isPending}
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60"
               >
                 <FiSave className="h-4 w-4" /> Enregistrer
               </button>
@@ -154,18 +208,32 @@ export default function ParametresPage() {
 
         <TabsContent value="commission">
           <div className="rounded-xl border border-border bg-card p-6 mt-4 max-w-2xl space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Les nouveaux taux s’appliquent aux{" "}
+              <span className="font-medium text-foreground">
+                nouvelles annonces
+              </span>{" "}
+              et aux annonces dont le prix net est modifié. Les listings
+              existants gardent leur commission snapshotée.
+            </p>
             <div>
               <label className="block text-sm font-medium mb-1.5">
                 Commission standard (%)
               </label>
               <input
                 type="number"
-                value={commissionRate}
-                onChange={(e) => setCommissionRate(Number(e.target.value))}
+                step="0.01"
+                min="0"
+                max="100"
+                value={commissionRateStandardPct}
+                onChange={(e) =>
+                  setCommissionRateStandardPct(Number(e.target.value))
+                }
                 className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Depuis defaultCommissionBps / 100
+                Particulier / boutique / enseigne — API:{" "}
+                {(commissionRateStandardPct / 100).toFixed(4)}
               </p>
             </div>
             <div>
@@ -174,12 +242,18 @@ export default function ParametresPage() {
               </label>
               <input
                 type="number"
-                value={proximityCommissionRate}
+                step="0.01"
+                min="0"
+                max="100"
+                value={commissionRateProximitePct}
                 onChange={(e) =>
-                  setProximityCommissionRate(Number(e.target.value))
+                  setCommissionRateProximitePct(Number(e.target.value))
                 }
                 className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                API: {(commissionRateProximitePct / 100).toFixed(4)}
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1.5">
@@ -187,15 +261,16 @@ export default function ParametresPage() {
               </label>
               <input
                 type="number"
-                value={minCommission}
-                onChange={(e) => setMinCommission(Number(e.target.value))}
+                value={minWithdrawal}
+                onChange={(e) => setMinWithdrawal(Number(e.target.value))}
                 className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
               />
             </div>
             <button
               type="button"
               onClick={handleSaveCommission}
-              className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
+              disabled={updateSettings.isPending}
+              className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60"
             >
               <FiSave className="h-4 w-4" /> Enregistrer
             </button>

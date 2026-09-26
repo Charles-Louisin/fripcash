@@ -32,7 +32,15 @@ export type DashboardArticle = {
   rootCategory: string;
   categoryId: string;
   subCategory?: string;
+  /** Buyer display price (API `priceGnf`) */
   price: number;
+  /** Seller net (API `netPriceGnf`) */
+  netPrice: number;
+  commissionRate: number;
+  commissionAmount: number;
+  negotiable: boolean;
+  discountEnabled: boolean;
+  compareAtPrice: number | null;
   shippingCost: number;
   condition: string;
   size?: string;
@@ -170,6 +178,12 @@ export function listingToArticle(
     subCategory: parts.sub,
     categoryId: l.categoryId || "",
     price: l.priceGnf,
+    netPrice: l.netPriceGnf ?? l.priceGnf,
+    commissionRate: l.commissionRate ?? 0,
+    commissionAmount: l.commissionAmountGnf ?? 0,
+    negotiable: l.negotiable === true,
+    discountEnabled: l.discountEnabled === true,
+    compareAtPrice: l.compareAtPriceGnf ?? null,
     shippingCost: 0,
     condition: l.conditionNote || "Bon état",
     stock: l.quantity ?? 1,
@@ -397,18 +411,33 @@ export function useCreateArticle() {
       body: Partial<DashboardArticle> & {
         categoryId?: string;
         imageFiles?: File[];
+        netPrice?: number;
+        negotiable?: boolean;
+        discountEnabled?: boolean;
+        compareAtPrice?: number | null;
       }
     ) => {
       const destination = (DEST_TO_API[body.listingDestination || "secondeMain"] ||
         "SECONDE_MAIN") as ListingDestination;
+      const net =
+        body.netPrice ??
+        (body as { netPriceGnf?: number }).netPriceGnf ??
+        body.price ??
+        0;
       const created = await createListing({
         title: body.title || "Nouvel article",
         description: body.description,
-        priceGnf: Math.round(body.price || 0),
-        quantity: body.stock ?? 1,
+        netPriceGnf: Math.round(net),
+        quantity: Math.max(1, body.stock ?? 1),
         destination,
         categoryId: body.categoryId || undefined,
         conditionNote: body.condition,
+        negotiable: body.negotiable === true,
+        discountEnabled: body.discountEnabled === true,
+        compareAtPriceGnf:
+          body.discountEnabled === true && body.compareAtPrice
+            ? Math.round(body.compareAtPrice)
+            : null,
       });
       if (created.sellerProfileId) {
         const me = await fetchMe().catch(() => null);
@@ -452,18 +481,28 @@ export function useUpdateArticle() {
       title?: string;
       description?: string;
       price?: number;
+      netPrice?: number;
       stock?: number;
       condition?: string;
       categoryId?: string;
       listingDestination?: string;
       status?: string;
+      negotiable?: boolean;
+      discountEnabled?: boolean;
+      compareAtPrice?: number | null;
       imageFiles?: File[];
       [key: string]: unknown;
     }) => {
+      const net =
+        body.netPrice !== undefined
+          ? body.netPrice
+          : body.price !== undefined
+            ? body.price
+            : undefined;
       const patch: Parameters<typeof updateListing>[1] = {
         title: body.title,
         description: body.description,
-        priceGnf: body.price !== undefined ? Math.round(body.price) : undefined,
+        netPriceGnf: net !== undefined ? Math.round(net) : undefined,
         quantity: body.stock,
         conditionNote: body.condition,
         categoryId: body.categoryId,
@@ -471,6 +510,20 @@ export function useUpdateArticle() {
           ? ((DEST_TO_API[body.listingDestination] ||
               body.listingDestination) as ListingDestination)
           : undefined,
+        negotiable:
+          body.negotiable !== undefined ? body.negotiable === true : undefined,
+        discountEnabled:
+          body.discountEnabled !== undefined
+            ? body.discountEnabled === true
+            : undefined,
+        compareAtPriceGnf:
+          body.discountEnabled === false
+            ? null
+            : body.compareAtPrice !== undefined && body.compareAtPrice !== null
+              ? Math.round(body.compareAtPrice)
+              : body.discountEnabled === true && body.compareAtPrice
+                ? Math.round(body.compareAtPrice)
+                : undefined,
       };
       if (body.status === "sold") patch.status = "SOLD";
       if (body.status === "pending") patch.status = "DRAFT";

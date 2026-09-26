@@ -157,6 +157,7 @@ export {
 export {
   fetchAdminMe,
   fetchPlatformSettings,
+  updatePlatformSettings,
   fetchAuditLogs,
   provisionAudience,
   hideReview,

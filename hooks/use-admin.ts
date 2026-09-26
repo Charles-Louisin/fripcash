@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchAdminMe,
   fetchPlatformSettings,
+  updatePlatformSettings,
   fetchAuditLogs,
   fetchSellerVerifications,
   approveSellerVerification,
@@ -61,6 +62,16 @@ export function usePlatformSettings() {
   return useQuery({
     queryKey: ["admin", "platform-settings"],
     queryFn: fetchPlatformSettings,
+  });
+}
+
+export function useUpdatePlatformSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updatePlatformSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "platform-settings"] });
+    },
   });
 }
 
