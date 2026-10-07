@@ -10,23 +10,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAdminDashboard } from "@/hooks/use-admin";
 import { formatGnf } from "@/lib/admin-platform";
 import { listingImageUrl } from "@/lib/api";
+import { useAdminDateRange } from "@/stores/admin-date-filter-store";
 
 export default function AdminAnalyticsPage() {
-  const { data, isLoading } = useAdminDashboard();
+  const range = useAdminDateRange();
+  const { data, isLoading } = useAdminDashboard(range.days);
 
-  const topListings = (data?.pendingListings?.length
-    ? data.pendingListings
-    : []
-  ).slice(0, 0);
-
-  // Top by price from live catalog value — use destination chart as proxy rankings
+  const topListings = (data?.topListingsByGmv ?? []).slice(0, 6);
   const topByDestination = data?.destinationChart ?? [];
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
         title="Rapports & analytics"
-        description="Indicateurs live catalogue — commandes/GMV dès que l’API les expose"
+        description={`GMV, commissions et livraisons — ${range.label}`}
       />
 
       {isLoading ? (
@@ -36,13 +33,13 @@ export default function AdminAnalyticsPage() {
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <ChartProductsGmv
-            data={(data?.categoryChart ?? []).slice(0, 8).map((c) => ({
-              name: c.category.slice(0, 18),
-              gmv: c.volume,
+            data={(data?.topListingsByGmv ?? []).slice(0, 8).map((c: any) => ({
+              name: String(c.title || "Article").slice(0, 18),
+              gmv: c.gmv,
             }))}
-            title="Articles par catégorie"
-            description="Volume d’annonces live (pas GMV commandes)"
-            valueLabel="Annonces"
+            title="GMV par article"
+            description="Somme des commandes non remboursées"
+            valueLabel="GMV"
           />
 
           <Card>
@@ -56,7 +53,7 @@ export default function AdminAnalyticsPage() {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {topByDestination.map((row, i) => (
+                  {topByDestination.map((row: any, i: number) => (
                     <div
                       key={row.category}
                       className="flex items-center justify-between py-2 border-b border-border last:border-0"
@@ -83,24 +80,25 @@ export default function AdminAnalyticsPage() {
             data={data?.categoryChart ?? []}
           />
 
-          <ChartPieDonutActive data={[]} />
+          <ChartPieDonutActive data={data?.ordersByZone ?? []} />
 
-          <ChartPieLegend data={[]} />
+          <ChartPieLegend data={data?.ordersByStatus ?? []} />
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Valeur catalogue</CardTitle>
+              <CardTitle className="text-base">Chiffre d&apos;affaires</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">
-                {formatGnf(data?.catalogValueGnf ?? 0)}
-              </p>
+              <p className="text-2xl font-bold">{formatGnf(data?.gmv ?? 0)}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Somme des prix × quantités des annonces actives
+                GMV total · commissions {formatGnf(data?.totalRevenue ?? 0)}
+              </p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Catalogue actif : {formatGnf(data?.catalogValueGnf ?? 0)}
               </p>
               {topListings.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  {topListings.map((a) => {
+                  {topListings.map((a: any) => {
                     const img = listingImageUrl(a.media?.[0]);
                     return (
                       <div key={a.id} className="flex items-center gap-3">
@@ -112,7 +110,10 @@ export default function AdminAnalyticsPage() {
                             className="h-8 w-8 rounded object-cover"
                           />
                         )}
-                        <span className="text-sm truncate">{a.title}</span>
+                        <span className="text-sm truncate flex-1">{a.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatGnf(a.gmv)}
+                        </span>
                       </div>
                     );
                   })}
@@ -122,7 +123,7 @@ export default function AdminAnalyticsPage() {
           </Card>
 
           <div className="xl:col-span-2">
-            <ChartCourierPerf data={[]} />
+            <ChartCourierPerf data={data?.courierPerf ?? []} />
           </div>
         </div>
       )}

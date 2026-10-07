@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -19,11 +19,21 @@ import {
   sendOtp,
   verifyOtp,
   fetchMe,
-  updateMe,
   signUpEmail,
-  sendVerificationEmail,
 } from "@/lib/api";
+import { EmailVerifyModal } from "@/components/auth/email-verify-modal";
+import type { Me } from "@/lib/api";
 import { mapMeToUiUser } from "@/hooks/use-auth";
+import {
+  applySessionFlags,
+  homeForAccount,
+  needsEmailVerification,
+} from "@/lib/auth-redirect";
+import { passwordError, passwordsMatchError } from "@/lib/password";
+import {
+  SIGNUP_ROLE_OPTIONS,
+  type SignupRole,
+} from "@/lib/signup-roles";
 import {
   FiUser,
   FiPhone,
@@ -33,7 +43,13 @@ import {
   FiLock,
   FiEye,
   FiEyeOff,
+  FiCheck,
+  FiArrowRight,
+  FiArrowLeft,
+  FiShoppingBag,
+  FiHome,
 } from "react-icons/fi";
+import { HiOutlineBuildingOffice2, HiOutlineBuildingStorefront } from "react-icons/hi2";
 import {
   AUTH_COUNTRIES,
   AUTH_COUNTRY_OPTIONS,
@@ -47,6 +63,14 @@ import { recordLoginSession } from "@/lib/admin-session-tracker";
 
 const DEV_OTP =
   process.env.NODE_ENV === "development" ? "000000" : "";
+
+const ROLE_ICONS: Record<SignupRole, ReactNode> = {
+  acheteur: <FiShoppingBag className="h-6 w-6" />,
+  particulier: <FiUser className="h-6 w-6" />,
+  boutique: <FiHome className="h-6 w-6" />,
+  commerceLocal: <HiOutlineBuildingStorefront className="h-6 w-6" />,
+  grandeSurface: <HiOutlineBuildingOffice2 className="h-6 w-6" />,
+};
 
 function generatePseudos(firstName: string, lastName: string): string[] {
   const f = firstName.toLowerCase().trim().replace(/\s+/g, "");
@@ -83,7 +107,71 @@ function generatePseudos(firstName: string, lastName: string): string[] {
   return [...new Set(suggestions)].slice(0, 4);
 }
 
-type Step = "identifier" | "code" | "verify-email" | "profile";
+type Step = "role" | "identifier" | "code" | "profile";
+
+function WizardHeader({ current }: { current: 1 | 2 | 3 }) {
+  const items = [
+    { n: 1, label: "Rôle", hint: "Qui tu es" },
+    { n: 2, label: "Tes infos", hint: "Profil" },
+    { n: 3, label: "Ton compte", hint: "Identifiants" },
+  ] as const;
+
+  return (
+    <div className="mb-8">
+      <h1 className="font-serif text-3xl font-semibold tracking-tight text-foreground">
+        Rejoins FripCash
+      </h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Deux questions, et c’est parti.
+      </p>
+      <ol className="mt-6 flex items-start gap-0">
+        {items.map((item, i) => {
+          const done = current > item.n;
+          const active = current === item.n;
+          return (
+            <li key={item.n} className="flex flex-1 flex-col items-center">
+              <div className="flex w-full items-center">
+                {i > 0 && (
+                  <div
+                    className={`h-px flex-1 ${
+                      done || active ? "bg-primary" : "bg-border"
+                    }`}
+                  />
+                )}
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+                    done
+                      ? "bg-primary text-primary-foreground"
+                      : active
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {done ? <FiCheck className="h-4 w-4" /> : item.n}
+                </span>
+                {i < items.length - 1 && (
+                  <div
+                    className={`h-px flex-1 ${
+                      done ? "bg-primary" : "bg-border"
+                    }`}
+                  />
+                )}
+              </div>
+              <p
+                className={`mt-2 text-xs font-medium ${
+                  active || done ? "text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {item.label}
+              </p>
+              <p className="text-[11px] text-muted-foreground">{item.hint}</p>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
 
 export default function InscriptionPage() {
   const router = useRouter();
@@ -94,19 +182,22 @@ export default function InscriptionPage() {
   const country = AUTH_COUNTRIES[countryId];
   const isEmailAuth = country.authMethod === "email";
 
-  const [step, setStep] = useState<Step>("identifier");
+  const [signupRole, setSignupRole] = useState<SignupRole | null>(null);
+  const [step, setStep] = useState<Step>("role");
   const [localPhone, setLocalPhone] = useState("");
   const [phoneSent, setPhoneSent] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [code, setCode] = useState(DEV_OTP);
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [pseudo, setPseudo] = useState("");
   const [loading, setLoading] = useState(false);
   const [suggestionKey, setSuggestionKey] = useState(0);
-  const [verifyHint, setVerifyHint] = useState<string | null>(null);
+  const [pendingVerify, setPendingVerify] = useState<Me | null>(null);
 
   useEffect(() => {
     try {
@@ -132,8 +223,16 @@ export default function InscriptionPage() {
     [firstName, lastName, suggestionKey]
   );
 
+  const wizardStep: 1 | 2 | 3 =
+    step === "role" ? 1 : step === "profile" ? 2 : 3;
+
   const cacheMe = (me: Awaited<ReturnType<typeof fetchMe>>) => {
     queryClient.setQueryData(["me"], mapMeToUiUser(me));
+  };
+
+  const goHome = (me: Awaited<ReturnType<typeof fetchMe>>) => {
+    applySessionFlags(me);
+    router.push(homeForAccount(me));
   };
 
   const handleCountryChange = (id: AuthCountryId) => {
@@ -143,8 +242,8 @@ export default function InscriptionPage() {
     setPhoneSent("");
     setEmail("");
     setPassword("");
+    setConfirmPassword("");
     setCode(DEV_OTP);
-    setVerifyHint(null);
   };
 
   const handleSendOtp = async (e: React.FormEvent) => {
@@ -154,6 +253,11 @@ export default function InscriptionPage() {
         `Numéro invalide — ${country.maxLocalDigits} chiffres requis.`,
         "error"
       );
+      return;
+    }
+    if (!firstName.trim() || !lastName.trim()) {
+      toast("Indique ton prénom et ton nom.", "error");
+      setStep("profile");
       return;
     }
     const phoneNumber = normalizeLocalPhone(localPhone, country);
@@ -181,53 +285,30 @@ export default function InscriptionPage() {
     }
   };
 
-  const trySendVerification = async (addr: string) => {
-    const callbackURL =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/verifier-email`
-        : undefined;
-    try {
-      await sendVerificationEmail(addr, callbackURL);
-      setVerifyHint(
-        "Un email de confirmation t’a été envoyé. Clique le lien pour valider ton adresse."
-      );
-      return true;
-    } catch (err) {
-      const code =
-        err instanceof ApiError
-          ? String(err.body.code || err.body.message || "")
-          : "";
-      if (
-        code.includes("VERIFICATION_EMAIL_NOT_ENABLED") ||
-        code.includes("Invalid callbackURL") ||
-        code.includes("INVALID_CALLBACK_URL")
-      ) {
-        setVerifyHint(
-          "Compte créé. La confirmation email n’est pas encore activée côté serveur — tu peux continuer. Demande au BE d’activer send-verification-email + whitelist de /verifier-email."
-        );
-        return false;
-      }
-      setVerifyHint(
-        err instanceof ApiError
-          ? err.body.message
-          : "Compte créé — envoi de confirmation impossible pour le moment."
-      );
-      return false;
-    }
-  };
-
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!signupRole) {
+      toast("Choisis d’abord ton rôle.", "error");
+      setStep("role");
+      return;
+    }
     if (!firstName.trim() || !lastName.trim()) {
       toast("Indique ton prénom et ton nom.", "error");
+      setStep("profile");
       return;
     }
     if (!isValidEmail(email)) {
       toast("Adresse email invalide.", "error");
       return;
     }
-    if (password.length < 8) {
-      toast("Mot de passe : 8 caractères minimum.", "error");
+    const pwdErr = passwordError(password);
+    if (pwdErr) {
+      toast(pwdErr, "error");
+      return;
+    }
+    const matchErr = passwordsMatchError(password, confirmPassword);
+    if (matchErr) {
+      toast(matchErr, "error");
       return;
     }
     const name = `${firstName.trim()} ${lastName.trim()}`.trim();
@@ -237,28 +318,34 @@ export default function InscriptionPage() {
         email: email.trim(),
         password,
         name,
+        signupRole,
       });
       const me = await fetchMe().catch(() => null);
       if (me) {
         cacheMe(me);
+        applySessionFlags(me);
         recordLoginSession({
           email: me.email || email.trim(),
           displayName: me.displayName || name,
-          role: "acheteur",
+          role: signupRole,
           userId: me.id,
         });
       } else if (auth.user) {
         recordLoginSession({
           email: auth.user.email,
           displayName: auth.user.name,
-          role: "acheteur",
+          role: signupRole,
           userId: auth.user.id,
         });
       }
 
-      await trySendVerification(email.trim());
-      setStep("verify-email");
-      toast("Compte créé — vérifie ton email.", "success");
+      if (me && needsEmailVerification(me)) {
+        setPendingVerify(me);
+        toast("Compte créé — confirme ton email.", "success");
+        return;
+      }
+      toast("Compte créé.", "success");
+      if (me) goHome(me);
     } catch (err) {
       toast(
         err instanceof ApiError
@@ -279,26 +366,25 @@ export default function InscriptionPage() {
     }
     setLoading(true);
     try {
-      const auth = await verifyOtp(phoneSent, code.replace(/\D/g, ""));
+      const displayName =
+        pseudo.trim() || `${firstName.trim()} ${lastName.trim()}`.trim();
+      await verifyOtp(
+        phoneSent,
+        code.replace(/\D/g, ""),
+        signupRole ?? undefined,
+        displayName ? { name: displayName, displayName } : undefined
+      );
       const me = await fetchMe();
       cacheMe(me);
+      applySessionFlags(me);
       recordLoginSession({
         email: me.phone ?? fullPhoneFromLocal(phoneSent, country),
-        displayName: me.displayName,
-        role: "acheteur",
+        displayName: me.displayName || displayName,
+        role: signupRole ?? "acheteur",
         userId: me.id,
       });
-      const looksLikePhone =
-        !me.displayName ||
-        me.displayName === me.phone ||
-        me.displayName.replace(/\D/g, "").includes(phoneSent) ||
-        auth.user.name === auth.user.phoneNumber;
-      if (looksLikePhone) {
-        setStep("profile");
-      } else {
-        toast("Bienvenue sur FripCash !");
-        router.push("/dashboard");
-      }
+      toast("Bienvenue sur FripCash !");
+      goHome(me);
     } catch (err) {
       if (err instanceof ApiError && err.body.code === "TOO_MANY_ATTEMPTS") {
         toast("Trop d'essais. Renvoie un code.", "error");
@@ -320,109 +406,116 @@ export default function InscriptionPage() {
       toast("Indique ton prénom et ton nom.", "error");
       return;
     }
-    const name =
-      pseudo.trim() || `${firstName.trim()} ${lastName.trim()}`.trim();
-    setLoading(true);
-    try {
-      const me = await updateMe({
-        name,
-        preferredLocale: isEmailAuth ? "FR" : "FR",
-      });
-      cacheMe(me);
-      toast("Compte créé ! Bienvenue sur FripCash.");
-      router.push("/dashboard");
-    } catch (err) {
-      toast(
-        err instanceof ApiError
-          ? err.body.message
-          : "Impossible d'enregistrer le profil.",
-        "error"
-      );
-    } finally {
-      setLoading(false);
-    }
+    setStep("identifier");
   };
-
-  const resendVerification = async () => {
-    if (!email.trim()) return;
-    setLoading(true);
-    try {
-      const ok = await trySendVerification(email.trim());
-      toast(
-        ok
-          ? "Email renvoyé."
-          : "Envoi impossible — vérifie la config email côté BE.",
-        ok ? "success" : "warning"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const title =
-    step === "profile"
-      ? "Ton profil"
-      : step === "verify-email"
-        ? "Confirme ton email"
-        : "Créer un compte";
-
-  const subtitle =
-    step === "profile"
-      ? "Comment veux-tu apparaître sur FripCash ?"
-      : step === "verify-email"
-        ? "Dernière étape pour activer ton compte France."
-        : isEmailAuth
-          ? "Inscription France — email + mot de passe."
-          : "Inscription Guinée — SMS, même compte que l'app.";
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
-      </div>
+      <EmailVerifyModal
+        open={Boolean(pendingVerify?.email)}
+        email={pendingVerify?.email || email}
+        onVerified={() => {
+          if (!pendingVerify) return;
+          const next = { ...pendingVerify, emailVerified: true };
+          cacheMe(next);
+          setPendingVerify(null);
+          goHome(next);
+        }}
+      />
+      <WizardHeader current={wizardStep} />
+
+      {step === "role" && (
+        <div className="space-y-5">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              Je m’inscris en tant que
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Ce choix décide où tes annonces apparaîtront. Pas d’étape
+              périmètre ensuite : boutique = toute la ville, commerce local =
+              quartiers.
+            </p>
+          </div>
+          <div className="space-y-3">
+            {SIGNUP_ROLE_OPTIONS.map((option) => {
+              const selected = signupRole === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setSignupRole(option.id)}
+                  className={`flex w-full items-start gap-4 rounded-2xl border px-4 py-4 text-left transition-colors ${
+                    selected
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-card hover:border-primary/40"
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
+                      selected
+                        ? "bg-primary/15 text-primary"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {ROLE_ICONS[option.id]}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold text-foreground">
+                      {option.title}
+                    </span>
+                    <span className="mt-0.5 block text-sm leading-relaxed text-muted-foreground">
+                      {option.description}
+                    </span>
+                  </span>
+                  <span
+                    className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                      selected
+                        ? "bg-primary text-primary-foreground"
+                        : "border border-border"
+                    }`}
+                  >
+                    {selected ? <FiCheck className="h-3.5 w-3.5" /> : null}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-3 pt-1">
+            <Link
+              href="/"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border text-foreground hover:bg-muted"
+              aria-label="Retour"
+            >
+              <FiArrowLeft className="h-5 w-5" />
+            </Link>
+            <Button
+              type="button"
+              disabled={!signupRole}
+              onClick={() => setStep("profile")}
+              className="h-12 flex-1 rounded-full bg-primary text-base font-semibold text-primary-foreground hover:bg-primary/90"
+            >
+              Continuer
+              <FiArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {step === "identifier" && (
         <form
           onSubmit={isEmailAuth ? handleEmailSignUp : handleSendOtp}
           className="space-y-4"
         >
-          {isEmailAuth && (
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Nom
-                </label>
-                <div className="relative">
-                  <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="Ton nom"
-                    required
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className="pl-9 h-11"
-                  />
-                </div>
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Prénom
-                </label>
-                <div className="relative">
-                  <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="Ton prénom"
-                    required
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    className="pl-9 h-11"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              Ton compte
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {isEmailAuth
+                ? "Inscription France — email et mot de passe."
+                : "Inscription Guinée — un code SMS suffit."}
+            </p>
+          </div>
 
           <div>
             <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -461,7 +554,7 @@ export default function InscriptionPage() {
 
             {isEmailAuth ? (
               <div className="relative">
-                <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <FiMail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="email"
                   placeholder="toi@exemple.fr"
@@ -469,7 +562,7 @@ export default function InscriptionPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
-                  className="pl-9 h-11"
+                  className="h-11 pl-9"
                 />
               </div>
             ) : (
@@ -480,7 +573,7 @@ export default function InscriptionPage() {
                     handleCountryChange(v as AuthCountryId)
                   }
                 >
-                  <SelectTrigger className="h-11 w-auto shrink-0 rounded-r-none border-r-0 bg-muted px-3 gap-1.5 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:opacity-60">
+                  <SelectTrigger className="h-11 w-auto shrink-0 gap-1.5 rounded-r-none border-r-0 bg-muted px-3 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:opacity-60">
                     <span className="flex items-center gap-1.5 text-sm font-medium">
                       <span className="text-base leading-none">{country.flag}</span>
                       <span>{country.code}</span>
@@ -501,7 +594,7 @@ export default function InscriptionPage() {
                   </SelectContent>
                 </Select>
                 <div className="relative flex-1">
-                  <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <FiPhone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     type="tel"
                     placeholder={country.placeholder}
@@ -514,7 +607,7 @@ export default function InscriptionPage() {
                     }
                     maxLength={country.maxLocalDigits}
                     inputMode="numeric"
-                    className="pl-9 h-11 rounded-l-none"
+                    className="h-11 rounded-l-none pl-9"
                   />
                 </div>
               </div>
@@ -522,55 +615,102 @@ export default function InscriptionPage() {
           </div>
 
           {isEmailAuth && (
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                Mot de passe
-              </label>
-              <div className="relative">
-                <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="8 caractères minimum"
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
-                  className="pl-9 pr-11 h-11"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={
-                    showPassword
-                      ? "Masquer le mot de passe"
-                      : "Afficher le mot de passe"
-                  }
-                >
-                  {showPassword ? (
-                    <FiEyeOff className="h-4 w-4" />
-                  ) : (
-                    <FiEye className="h-4 w-4" />
-                  )}
-                </button>
+            <>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">
+                  Mot de passe
+                </label>
+                <div className="relative">
+                  <FiLock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="8 caractères, lettre + chiffre"
+                    required
+                    minLength={8}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="new-password"
+                    className="h-11 pl-9 pr-11"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label={
+                      showPassword
+                        ? "Masquer le mot de passe"
+                        : "Afficher le mot de passe"
+                    }
+                  >
+                    {showPassword ? (
+                      <FiEyeOff className="h-4 w-4" />
+                    ) : (
+                      <FiEye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">
+                  Confirmer le mot de passe
+                </label>
+                <div className="relative">
+                  <FiLock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type={showConfirm ? "text" : "password"}
+                    placeholder="Retape le même mot de passe"
+                    required
+                    minLength={8}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                    className="h-11 pl-9 pr-11"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label={
+                      showConfirm
+                        ? "Masquer la confirmation"
+                        : "Afficher la confirmation"
+                    }
+                  >
+                    {showConfirm ? (
+                      <FiEyeOff className="h-4 w-4" />
+                    ) : (
+                      <FiEye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </>
           )}
 
-          <Button
-            type="submit"
-            disabled={loading}
-            className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md"
-          >
-            {loading
-              ? isEmailAuth
-                ? "Création..."
-                : "Envoi..."
-              : isEmailAuth
-                ? "Créer mon compte"
-                : "Recevoir le code"}
-          </Button>
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => setStep("profile")}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border text-foreground hover:bg-muted"
+              aria-label="Retour"
+            >
+              <FiArrowLeft className="h-5 w-5" />
+            </button>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="h-12 flex-1 rounded-full bg-primary text-base font-semibold text-primary-foreground hover:bg-primary/90"
+            >
+              {loading
+                ? isEmailAuth
+                  ? "Création..."
+                  : "Envoi..."
+                : isEmailAuth
+                  ? "Créer mon compte"
+                  : "Recevoir le code"}
+              <FiArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
         </form>
       )}
 
@@ -580,12 +720,12 @@ export default function InscriptionPage() {
             Code envoyé au {country.label} {phoneSent}
           </p>
           {process.env.NODE_ENV === "development" && (
-            <p className="text-xs rounded-md bg-muted px-3 py-2 text-muted-foreground">
+            <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
               Dev : utilise <strong>000000</strong>
             </p>
           )}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
               Code SMS
             </label>
             <OtpInput
@@ -598,7 +738,7 @@ export default function InscriptionPage() {
           <Button
             type="submit"
             disabled={loading || code.length !== 6}
-            className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md"
+            className="h-12 w-full rounded-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
           >
             {loading ? "Vérification..." : "Continuer"}
           </Button>
@@ -613,94 +753,71 @@ export default function InscriptionPage() {
         </form>
       )}
 
-      {step === "verify-email" && (
-        <div className="space-y-4">
-          <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-            {verifyHint ||
-              `Nous avons envoyé un lien à ${email}. Ouvre-le pour confirmer ton adresse.`}
-          </div>
-          <Button
-            type="button"
-            disabled={loading}
-            variant="outline"
-            className="w-full h-11"
-            onClick={resendVerification}
-          >
-            {loading ? "Envoi..." : "Renvoyer l’email"}
-          </Button>
-          <Button
-            type="button"
-            className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md"
-            onClick={() => setStep("profile")}
-          >
-            Continuer vers mon profil
-          </Button>
-          <p className="text-center text-xs text-muted-foreground">
-            Après le clic dans l’email tu arriveras sur{" "}
-            <code className="text-[10px]">/verifier-email</code>.
-          </p>
-        </div>
-      )}
-
       {step === "profile" && (
         <form onSubmit={handleProfile} className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Tes infos</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Comment tu apparais sur FripCash.
+            </p>
+          </div>
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-foreground mb-1.5">
+              <label className="mb-1.5 block text-sm font-medium text-foreground">
                 Nom
               </label>
               <div className="relative">
-                <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <FiUser className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="text"
                   placeholder="Ton nom"
                   required
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  className="pl-9 h-11"
+                  className="h-11 pl-9"
                 />
               </div>
             </div>
             <div className="flex-1">
-              <label className="block text-sm font-medium text-foreground mb-1.5">
+              <label className="mb-1.5 block text-sm font-medium text-foreground">
                 Prénom
               </label>
               <div className="relative">
-                <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <FiUser className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="text"
                   placeholder="Ton prénom"
                   required
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  className="pl-9 h-11"
+                  className="h-11 pl-9"
                 />
               </div>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
               Pseudo (optionnel)
             </label>
             <div className="relative">
-              <FiAtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <FiAtSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Comment tu apparais"
                 value={pseudo}
                 onChange={(e) => setPseudo(e.target.value)}
-                className="pl-9 h-11"
+                className="h-11 pl-9"
               />
             </div>
             {(firstName.trim() || lastName.trim()) && suggestions.length > 0 && (
               <div className="mt-2">
-                <div className="flex items-center gap-2 mb-1.5">
+                <div className="mb-1.5 flex items-center gap-2">
                   <p className="text-xs text-muted-foreground">Suggestions :</p>
                   <button
                     type="button"
                     onClick={() => setSuggestionKey((k) => k + 1)}
-                    className="text-muted-foreground hover:text-primary transition-colors"
+                    className="text-muted-foreground transition-colors hover:text-primary"
                     title="Nouvelles suggestions"
                   >
                     <FiRefreshCw className="h-3 w-3" />
@@ -712,10 +829,10 @@ export default function InscriptionPage() {
                       key={s}
                       type="button"
                       onClick={() => setPseudo(s)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-150 ${
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-150 ${
                         pseudo === s
                           ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground border border-border hover:border-primary/40 hover:text-foreground"
+                          : "border border-border bg-muted text-muted-foreground hover:border-primary/40 hover:text-foreground"
                       }`}
                     >
                       @{s}
@@ -726,13 +843,23 @@ export default function InscriptionPage() {
             )}
           </div>
 
-          <Button
-            type="submit"
-            disabled={loading}
-            className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md"
-          >
-            {loading ? "Enregistrement..." : "Terminer"}
-          </Button>
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => setStep("role")}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border text-foreground hover:bg-muted"
+              aria-label="Retour"
+            >
+              <FiArrowLeft className="h-5 w-5" />
+            </button>
+            <Button
+              type="submit"
+              className="h-12 flex-1 rounded-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
+            >
+              Continuer
+              <FiArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
         </form>
       )}
 

@@ -23,24 +23,33 @@ import {
 import { formatGnf } from "@/lib/admin-platform";
 
 const chartConfig = {
-  web: { label: "Web", color: "var(--chart-1)" },
-  mobile: { label: "App mobile", color: "var(--chart-2)" },
+  livraison: { label: "Livraison", color: "var(--chart-1)" },
+  retrait: { label: "Retrait", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
 type Props = {
+  livraison?: number;
+  retrait?: number;
   web?: number;
   mobile?: number;
 };
 
-export function ChartRadialStacked({ web = 0, mobile = 0 }: Props) {
-  const totalGmv = web + mobile;
+export function ChartRadialStacked({
+  livraison,
+  retrait,
+  web = 0,
+  mobile = 0,
+}: Props) {
+  const gmvLivraison = livraison ?? web;
+  const gmvRetrait = retrait ?? mobile;
+  const totalGmv = gmvLivraison + gmvRetrait;
   const hasData = totalGmv > 0;
 
   return (
     <Card className="flex flex-col">
       <CardHeader className="items-center pb-0">
         <CardTitle>GMV du mois</CardTitle>
-        <CardDescription>App mobile vs site web</CardDescription>
+        <CardDescription>Livraison FripCash vs retrait / local</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 items-center pb-0">
         {!hasData ? (
@@ -53,23 +62,23 @@ export function ChartRadialStacked({ web = 0, mobile = 0 }: Props) {
             className="mx-auto aspect-square w-full max-w-[250px]"
           >
             <RadialBarChart
-              data={[{ web, mobile }]}
+              data={[{ livraison: gmvLivraison, retrait: gmvRetrait }]}
               endAngle={180}
               innerRadius={80}
               outerRadius={110}
             >
               <RadialBar
-                dataKey="mobile"
-                fill="var(--color-mobile)"
+                dataKey="retrait"
+                fill="var(--color-retrait)"
                 stackId="a"
                 cornerRadius={5}
                 className="stroke-transparent stroke-2"
               />
               <RadialBar
-                dataKey="web"
+                dataKey="livraison"
                 stackId="a"
                 cornerRadius={5}
-                fill="var(--color-web)"
+                fill="var(--color-livraison)"
                 className="stroke-transparent stroke-2"
               />
               <ChartTooltip
@@ -108,7 +117,9 @@ export function ChartRadialStacked({ web = 0, mobile = 0 }: Props) {
       </CardContent>
       <CardFooter className="flex-col gap-2 text-sm">
         <div className="leading-none text-muted-foreground">
-          Données commandes indisponibles
+          {hasData
+            ? `Livraison ${formatGnf(gmvLivraison)} · Retrait ${formatGnf(gmvRetrait)}`
+            : "Aucune commande ce mois-ci"}
         </div>
       </CardFooter>
     </Card>

@@ -5,7 +5,7 @@ import { DataTable } from "@/components/admin/data-table";
 import { StatCard } from "@/components/admin/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { FiBriefcase, FiClock } from "react-icons/fi";
-import { useAdminCatalogZones } from "@/hooks/use-admin";
+import { useAdminCatalogZones, useAdminPartners } from "@/hooks/use-admin";
 
 type PartnerRow = {
   id: string;
@@ -16,16 +16,22 @@ type PartnerRow = {
   status: "active" | "pending";
 };
 
-const LIVE_PARTNERS: PartnerRow[] = [];
-
 export default function AdminPartnersPage() {
+  const { data: rawPartners = [] } = useAdminPartners();
+  const LIVE_PARTNERS: PartnerRow[] = rawPartners.map((p: any) => ({
+    id: p.id,
+    name: p.name,
+    contactEmail: p.contactEmail,
+    sla: p.note || "—",
+    status: p.status === "active" ? "active" : "pending",
+  }));
   const { data: zones = [] } = useAdminCatalogZones();
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
         title="Enseignes partenaires"
-        description={`${zones.length} zones catalogue · partenariats non exposés par l’API`}
+        description={`${zones.length} zones catalogue · enseignes validées et partenaires`}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -49,7 +55,7 @@ export default function AdminPartnersPage() {
       <DataTable
         data={LIVE_PARTNERS}
         getRowKey={(p) => p.id}
-        emptyMessage="Aucune enseigne partenaire — endpoint admin indisponible"
+        emptyMessage="Aucune enseigne partenaire"
         columns={[
           {
             key: "name",

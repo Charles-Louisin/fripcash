@@ -24,10 +24,10 @@ export const useProfileStore = create<ProfileState>()((set) => ({
   hydrateFromUser: (user) => {
     if (!user) return;
     set({
-      name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+      name: `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.pseudo || "",
       pseudo: user.pseudo || "",
       phone: user.phone || "",
-      email: "",
+      email: user.email || "",
       city: user.city || "",
       bio: user.bio || "",
       avatar: user.avatar || "",

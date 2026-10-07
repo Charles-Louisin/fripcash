@@ -9,6 +9,7 @@ import {
   listingImageUrl,
   uploadCatalogueImage,
   replaceListingMedia,
+  deleteListingMedia,
   fetchMe,
   fetchSales,
   fetchCategories,
@@ -26,6 +27,7 @@ export type DashboardArticle = {
   brand?: string;
   description: string;
   images: string[];
+  media: { id: string; url: string }[];
   /** Display label (e.g. "Mode › Hommes") */
   category: string;
   /** Root category nameFr for filters (e.g. "Mode") */
@@ -56,13 +58,18 @@ export type DashboardArticle = {
     rating?: number;
     reviewCount?: number;
     reviewsCount?: number;
+    shopKind?: string | null;
+    sellerKind?: string | null;
   };
+  listingRating?: number;
+  listingReviewsCount?: number;
   favoritesCount: number;
   listingDestination: UiDestination;
   /** Nest destination enum (ENSEIGNES, …) for capability gates */
   destination?: string;
   createdAt: string;
-};
+  zoneId?: string | null;
+}
 
 export type ArticleFilters = {
   category?: string;
@@ -154,17 +161,16 @@ export function listingToArticle(
   l: Listing,
   categoriesById?: Map<string, CatalogCategory>
 ): DashboardArticle {
-  const images = (l.media || [])
+  const media = (l.media || [])
     .slice()
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     .map((m) => {
-      // Prefer Cloudinary `url`. Skip legacy seed keys with no url (broken MinIO).
-      if (m.url) return m.url;
-      const key = m.storageKey || "";
-      if (!key || key.startsWith("seed/")) return null;
-      return listingImageUrl(m);
+      const url = listingImageUrl(m);
+      if (!url) return null;
+      return { id: m.id, url };
     })
-    .filter((u): u is string => !!u);
+    .filter((x): x is { id: string; url: string } => !!x);
+  const images = media.map((m) => m.url);
 
   const parts = categoryParts(l.categoryId, categoriesById ?? new Map());
 
@@ -173,6 +179,7 @@ export function listingToArticle(
     title: l.title,
     description: l.description || "",
     images,
+    media,
     category: parts.label,
     rootCategory: parts.root,
     subCategory: parts.sub,
@@ -189,9 +196,21 @@ export function listingToArticle(
     stock: l.quantity ?? 1,
     status: mapStatus(l.status),
     seller: {
-      _id: l.sellerProfileId || "",
-      pseudo: "vendeur",
+      _id: l.sellerProfileId || l.sellerProfile?.id || "",
+      pseudo:
+        l.sellerProfile?.shopName ||
+        l.sellerProfile?.displayName ||
+        "vendeur",
+      avatar: l.sellerProfile?.avatarUrl || undefined,
+      rating: l.sellerProfile?.rating,
+      reviewsCount: l.sellerProfile?.reviewsCount,
+      reviewCount: l.sellerProfile?.reviewsCount,
+      shopKind: l.sellerProfile?.shopKind || null,
+      sellerKind: l.sellerProfile?.sellerKind || null,
     },
+    listingRating: l.listingRating || 0,
+    listingReviewsCount: l.listingReviewsCount || 0,
+    zoneId: l.zoneId || null,
     favoritesCount:
       typeof (l as unknown as { favoritesCount?: number }).favoritesCount ===
       "number"
@@ -286,10 +305,12 @@ export function useArticles(filters: ArticleFilters = {}) {
       const apiCategoryId =
         categoryIds && categoryIds.length === 1 ? categoryIds[0] : undefined;
 
-      const rows = await fetchListings({
-        destination: dest,
-        categoryId: apiCategoryId,
-      });
+      const rows = asArraySafe(
+        await fetchListings({
+          destination: dest,
+          categoryId: apiCategoryId,
+        })
+      );
       let mapped = rows.map((l) => listingToArticle(l, catMap));
 
       if (categoryIds && categoryIds.length > 0) {
@@ -411,6 +432,7 @@ export function useCreateArticle() {
       body: Partial<DashboardArticle> & {
         categoryId?: string;
         imageFiles?: File[];
+        onUploadProgress?: (pct: number) => void;
         netPrice?: number;
         negotiable?: boolean;
         discountEnabled?: boolean;
@@ -451,7 +473,10 @@ export function useCreateArticle() {
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const uploaded = await uploadCatalogueImage(file, "listings");
+        const uploaded = await uploadCatalogueImage(file, "listings", (p) => {
+          const base = (i / files.length) * 100;
+          body.onUploadProgress?.(Math.round(base + p / files.length));
+        });
         await attachListingMedia(created.id, {
           publicId: uploaded.public_id,
           url: uploaded.secure_url,
@@ -459,6 +484,7 @@ export function useCreateArticle() {
           sortOrder: i,
         });
       }
+      body.onUploadProgress?.(100);
 
       const refreshed = await fetchListing(created.id).catch(() => created);
       return { success: true, data: listingToArticle(refreshed) };
@@ -491,6 +517,8 @@ export function useUpdateArticle() {
       discountEnabled?: boolean;
       compareAtPrice?: number | null;
       imageFiles?: File[];
+      imageSlots?: Array<{ mediaId?: string; file?: File }>;
+      onUploadProgress?: (pct: number) => void;
       [key: string]: unknown;
     }) => {
       const net =
@@ -530,29 +558,50 @@ export function useUpdateArticle() {
       if (body.status === "active") patch.status = "ACTIVE";
       await updateListing(id, patch);
 
-      const files = body.imageFiles?.filter(Boolean) ?? [];
-      if (files.length > 0) {
+      const slots = body.imageSlots;
+      const report = (pct: number) => body.onUploadProgress?.(pct);
+      if (slots && slots.length > 0) {
         const listing = await fetchListing(id);
-        const existing = listing.media || [];
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          const uploaded = await uploadCatalogueImage(file, "listings");
-          const target = existing[i];
-          if (target) {
-            await replaceListingMedia(id, target.id, {
-              publicId: uploaded.public_id,
-              url: uploaded.secure_url,
-              mimeType: file.type || "image/jpeg",
-              sortOrder: i,
+        const keep = new Set(slots.map((s) => s.mediaId).filter(Boolean) as string[]);
+        for (const m of listing.media || []) {
+          if (m.id && !keep.has(m.id)) {
+            await deleteListingMedia(id, m.id);
+          }
+        }
+        const newFiles = slots.filter((s) => s.file);
+        let done = 0;
+        for (let i = 0; i < slots.length; i++) {
+          const slot = slots[i];
+          if (slot.file) {
+            const uploaded = await uploadCatalogueImage(slot.file, "listings", (p) => {
+              const base = (done / Math.max(1, newFiles.length)) * 100;
+              report(Math.round(base + p / Math.max(1, newFiles.length)));
             });
-          } else {
             await attachListingMedia(id, {
               publicId: uploaded.public_id,
               url: uploaded.secure_url,
-              mimeType: file.type || "image/jpeg",
-              sortOrder: existing.length + i,
+              mimeType: slot.file.type || "image/jpeg",
+              sortOrder: i,
+            });
+            done += 1;
+          } else if (slot.mediaId) {
+            await replaceListingMedia(id, slot.mediaId, {
+              sortOrder: i,
             });
           }
+        }
+        report(100);
+      } else {
+        const files = body.imageFiles?.filter(Boolean) ?? [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const uploaded = await uploadCatalogueImage(file, "listings", report);
+          await attachListingMedia(id, {
+            publicId: uploaded.public_id,
+            url: uploaded.secure_url,
+            mimeType: file.type || "image/jpeg",
+            sortOrder: i,
+          });
         }
       }
 

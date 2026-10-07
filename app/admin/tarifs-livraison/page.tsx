@@ -1,47 +1,104 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatGnf } from "@/lib/admin-platform";
 import { FiGrid, FiTrendingDown, FiTrendingUp } from "react-icons/fi";
 import { ArrowRight } from "lucide-react";
-import { useAdminCatalogZones } from "@/hooks/use-admin";
+import {
+  useAdminCatalogZones,
+  useAdminTariffs,
+  useSaveAdminTariffs,
+} from "@/hooks/use-admin";
+import { useToast } from "@/components/ui/toast";
+import { ApiError } from "@/lib/api";
 
 export default function AdminShippingRatesPage() {
+  const { toast } = useToast();
   const { data: zones = [], isLoading, isError } = useAdminCatalogZones();
+  const { data: tariffs = [] } = useAdminTariffs();
+  const save = useSaveAdminTariffs();
 
   const activeZones = useMemo(
     () => zones.filter((z) => z.isActive),
     [zones]
   );
 
+  const [grid, setGrid] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const next: Record<string, string> = {};
+    const list = Array.isArray(tariffs) ? tariffs : [];
+    for (const t of list as any[]) {
+      next[`${t.fromZoneId}:${t.toZoneId}`] = String(t.amountGnf ?? "");
+    }
+    setGrid(next);
+  }, [tariffs]);
+
+  const amounts = Object.values(grid)
+    .map((v) => Number(v))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const avg = amounts.length
+    ? Math.round(amounts.reduce((a, b) => a + b, 0) / amounts.length)
+    : 0;
+  const min = amounts.length ? Math.min(...amounts) : 0;
+  const max = amounts.length ? Math.max(...amounts) : 0;
+
+  const handleSave = async () => {
+    const items: Array<{ fromZoneId: string; toZoneId: string; amountGnf: number }> =
+      [];
+    for (const from of activeZones) {
+      for (const to of activeZones) {
+        const raw = grid[`${from.id}:${to.id}`];
+        const n = Number(raw);
+        if (Number.isFinite(n) && n >= 0) {
+          items.push({ fromZoneId: from.id, toZoneId: to.id, amountGnf: n });
+        }
+      }
+    }
+    try {
+      await save.mutateAsync(items);
+      toast("Tarifs enregistrés", "success");
+    } catch (err) {
+      toast(
+        err instanceof ApiError ? err.body.message : "Enregistrement impossible",
+        "error"
+      );
+    }
+  };
+
   return (
     <div className="space-y-6">
       <AdminPageHeader
         title="Tarifs livraison"
-        description="Matrice des frais entre zones — tarifs non exposés par l’API pour l’instant"
+        description="Frais de course par zone, appliqués aux livraisons via livreur."
+        action={
+          <Button size="sm" onClick={handleSave} disabled={save.isPending}>
+            Enregistrer
+          </Button>
+        }
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           title="Tarif moyen"
-          value={formatGnf(0)}
-          change="Aucune grille live"
+          value={formatGnf(avg)}
+          change={amounts.length ? `${amounts.length} trajets` : "Aucune grille"}
           changeType="neutral"
           icon={FiGrid}
         />
         <StatCard
           title="Tarif minimum"
-          value={formatGnf(0)}
+          value={formatGnf(min)}
           change="—"
           changeType="positive"
           icon={FiTrendingDown}
         />
         <StatCard
           title="Tarif maximum"
-          value={formatGnf(0)}
+          value={formatGnf(max)}
           change="—"
           changeType="neutral"
           icon={FiTrendingUp}
@@ -99,6 +156,7 @@ export default function AdminShippingRatesPage() {
                       </div>
                     </td>
                     {activeZones.map((to) => {
+                      const key = `${from.id}:${to.id}`;
                       const same = from.id === to.id;
                       return (
                         <td key={to.id} className="px-3 py-2 text-center">
@@ -106,12 +164,22 @@ export default function AdminShippingRatesPage() {
                             className={`inline-flex items-center justify-center rounded-md border px-2 py-1.5 min-w-[100px] ${
                               same
                                 ? "bg-primary/10 border-primary/30"
-                                : "bg-amber-500/10 border-amber-500/30"
+                                : "bg-muted/30 border-border"
                             }`}
                           >
-                            <Badge variant="outline" className="font-normal">
-                              —
-                            </Badge>
+                            <input
+                              type="number"
+                              min={0}
+                              value={grid[key] ?? ""}
+                              onChange={(e) =>
+                                setGrid((prev) => ({
+                                  ...prev,
+                                  [key]: e.target.value,
+                                }))
+                              }
+                              placeholder="GNF"
+                              className="w-24 bg-transparent text-center text-sm outline-none"
+                            />
                           </div>
                         </td>
                       );
@@ -122,7 +190,8 @@ export default function AdminShippingRatesPage() {
             </tbody>
           </table>
           <p className="px-4 py-3 text-xs text-muted-foreground border-t">
-            Les cells resteront vides jusqu&apos;à un endpoint tarifs livraison.
+            Ces tarifs s&apos;affichent sur les livraisons via livreur. Les vendeurs ne
+            les définissent plus.
           </p>
         </div>
       )}

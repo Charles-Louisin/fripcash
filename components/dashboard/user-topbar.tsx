@@ -4,6 +4,9 @@ import { useState, useRef, useEffect } from "react";
 import { FiMenu, FiBell, FiSidebar, FiSearch, FiChevronDown } from "react-icons/fi";
 import { useConversations } from "@/hooks/use-messages";
 import { useProfileStore } from "@/stores/profile-store";
+import { useMe } from "@/hooks/use-auth";
+import { resolveAccountType } from "@/lib/account-type";
+import Link from "next/link";
 
 interface UserTopbarProps {
   onMenuClick: () => void;
@@ -15,6 +18,8 @@ export function UserTopbar({ onMenuClick, collapsed, onToggleCollapse }: UserTop
   const { data: conversations = [] } = useConversations();
   const totalUnread = conversations.reduce((sum: number, c: any) => sum + (c.unreadCount || 0), 0);
   const { avatar, name } = useProfileStore();
+  const { data: me } = useMe();
+  const account = resolveAccountType(me);
   const [searchMode, setSearchMode] = useState<"articles" | "membres">("articles");
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -100,8 +105,7 @@ export function UserTopbar({ onMenuClick, collapsed, onToggleCollapse }: UserTop
         )}
       </button>
 
-      {/* User avatar */}
-      <div className="flex items-center gap-2">
+      <Link href="/dashboard/profil" className="flex items-center gap-2 rounded-lg px-1 py-0.5 hover:bg-accent">
         <div className="w-8 h-8 rounded-full overflow-hidden bg-muted flex items-center justify-center">
           {avatar ? (
             /* eslint-disable-next-line @next/next/no-img-element */
@@ -112,9 +116,9 @@ export function UserTopbar({ onMenuClick, collapsed, onToggleCollapse }: UserTop
         </div>
         <div className="hidden sm:block">
           <p className="text-sm font-medium text-foreground leading-none">{name}</p>
-          <p className="text-[11px] text-muted-foreground">Mon compte</p>
+          <p className="text-[11px] font-medium text-primary">{account.shortLabel}</p>
         </div>
-      </div>
+      </Link>
     </header>
   );
 }

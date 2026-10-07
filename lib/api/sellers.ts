@@ -14,6 +14,14 @@ export async function applyForShop(body: {
   shopKind: "STANDARD" | "PROXIMITE" | "ENSEIGNE";
   name: string;
   description?: string;
+  coverUrl?: string;
+  documents?: Array<{
+    url: string;
+    storageKey?: string;
+    mimeType?: string;
+    name?: string;
+    documentType?: string;
+  }>;
 }) {
   const { data } = await api.post("/me/seller/shop", body);
   return data;
@@ -22,6 +30,40 @@ export async function applyForShop(body: {
 export async function fetchSellerVerification() {
   const { data } = await api.get("/me/seller/verification");
   return data;
+}
+
+export async function sendSellerVerificationMessage(body: {
+  body: string;
+  attachments?: Array<{
+    url: string;
+    storageKey?: string;
+    mimeType?: string;
+    name?: string;
+  }>;
+}) {
+  const { data } = await api.post("/me/seller/verification/messages", body);
+  return data;
+}
+
+export async function addSellerVerificationDocument(body: {
+  url: string;
+  storageKey?: string;
+  mimeType?: string;
+  name?: string;
+  documentType?: string;
+}) {
+  const { data } = await api.post("/me/seller/verification/documents", body);
+  return data;
+}
+
+export async function fetchPublicSeller(id: string) {
+  const { data } = await api.get(`/sellers/${id}/public`);
+  return data;
+}
+
+export async function toggleSellerLike(id: string) {
+  const { data } = await api.post(`/sellers/${id}/like`);
+  return data as { liked: boolean; likesCount: number };
 }
 
 export async function closeParticulier() {

@@ -5,29 +5,12 @@ import { EmptyStateLottie } from "@/components/empty-state-lottie";
 import {
   ProductCard,
   ProductCardSkeleton,
-  type Product,
+  mapArticleToProduct,
 } from "@/components/product-card";
 import { useArticles } from "@/hooks/use-articles";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 
 const ITEMS_PER_PAGE = 10;
-
-function mapArticleToProduct(article: any): Product {
-  return {
-    id: article._id,
-    image: article.images?.[0] || "",
-    brand: article.brand || article.title || "Article",
-    condition: article.condition || "",
-    size: article.size,
-    price: article.price || 0,
-    priceWithShipping: (article.price || 0) + (article.shippingCost || 0),
-    compareAtPrice: article.compareAtPrice ?? null,
-    discountEnabled: article.discountEnabled === true,
-    favorites: article.favoritesCount || 0,
-    href: `/article/${article._id}`,
-    category: article.category,
-  };
-}
 
 export function ProductGrid() {
   const [page, setPage] = useState(1);

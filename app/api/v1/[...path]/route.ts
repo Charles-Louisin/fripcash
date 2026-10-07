@@ -5,11 +5,12 @@ export const dynamic = "force-dynamic";
 
 const UPSTREAM =
   process.env.API_UPSTREAM_URL?.replace(/\/$/, "") ||
-  "http://62.84.179.126:3010";
+  "http://127.0.0.1:5000";
 
 const HOP_BY_HOP = new Set([
   "connection",
   "content-length",
+  "content-encoding",
   "host",
   "keep-alive",
   "proxy-authenticate",
@@ -18,9 +19,9 @@ const HOP_BY_HOP = new Set([
   "trailers",
   "transfer-encoding",
   "upgrade",
-  // Better Auth rejects browser Origin (localhost) even when Nest CORS allows it.
   "origin",
   "referer",
+  "accept-encoding",
 ]);
 
 async function proxy(req: NextRequest, path: string[]) {
@@ -35,6 +36,9 @@ async function proxy(req: NextRequest, path: string[]) {
   });
   // Deployed Better Auth trusts the API host origin, not localhost.
   headers.set("origin", UPSTREAM);
+  // Node fetch decompresses gzip; forwarding Content-Encoding: gzip would
+  // make the browser try to inflate already-plain JSON (empty homepage).
+  headers.set("accept-encoding", "identity");
 
   const init: RequestInit = {
     method: req.method,
@@ -46,7 +50,21 @@ async function proxy(req: NextRequest, path: string[]) {
     init.body = await req.arrayBuffer();
   }
 
-  const upstream = await fetch(url, init);
+  let upstream: Response;
+  try {
+    upstream = await fetch(url, init);
+  } catch {
+    return NextResponse.json(
+      {
+        statusCode: 502,
+        code: "API_UNREACHABLE",
+        message:
+          "Le backend n’est pas joignable sur le port 5000. Lance `npm run dev` dans /backend.",
+        locale: "FR",
+      },
+      { status: 502 }
+    );
+  }
   const outHeaders = new Headers();
   upstream.headers.forEach((value, key) => {
     if (HOP_BY_HOP.has(key.toLowerCase())) return;

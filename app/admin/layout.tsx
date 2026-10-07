@@ -31,7 +31,6 @@ import { ThemeProvider } from "next-themes";
 
 const pageLabels: Record<string, string> = {
   "/admin": "Dashboard",
-  "/admin/sessions": "Sessions",
   "/admin/rapports": "Rapports",
   "/admin/zones": "Zones",
   "/admin/tarifs-livraison": "Tarifs livraison",
@@ -102,7 +101,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       // Fast reject: no token / no local admin flag
       if (!readToken() || !hasAdminSession()) {
         clearAdminSession();
-        router.replace("/admin-login");
+        router.replace("/connexion");
         return;
       }
       try {
@@ -111,14 +110,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (cancelled) return;
         if (!me || (me as { isAdmin?: boolean }).isAdmin === false) {
           clearAdminSession();
-          router.replace("/admin-login");
+          router.replace("/connexion");
           return;
         }
         setReady(true);
       } catch {
         if (cancelled) return;
         clearAdminSession();
-        router.replace("/admin-login");
+        router.replace("/connexion");
       }
     }
 

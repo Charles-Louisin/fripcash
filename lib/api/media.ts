@@ -1,94 +1,102 @@
 "use client";
 
+import { uploadFiles, authHeaders } from "@/lib/uploadthing";
 import { api } from "./client";
 
-/* ── MinIO (KYC / excel / PDFs only) ─────────────────────────────── */
-
-export async function presignMedia(body: {
-  key: string;
-  contentType: string;
-  folder?: string;
-  expiresInSeconds?: number;
-}) {
-  const { data } = await api.post<{
-    uploadUrl: string;
-    objectKey: string;
-    expiresInSeconds?: number;
-  }>("/media/presign", body);
-  return data;
-}
-
-/** @deprecated Catalogue photos use Cloudinary — prefer uploadCatalogueImage. */
-export async function uploadListingMedia(
-  file: File,
-  folder = "listings"
-): Promise<string> {
-  const { uploadUrl, objectKey } = await presignMedia({
-    key: file.name,
-    contentType: file.type || "application/octet-stream",
-    folder,
-  });
-  const res = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": file.type || "application/octet-stream" },
-    body: file,
-  });
-  if (!res.ok) {
-    throw new Error(`Upload failed (${res.status})`);
-  }
-  return objectKey;
-}
-
-/* ── Cloudinary (category + listing catalogue images) ────────────── */
-
-export type CloudinaryFolder = "listings" | "categories";
-
-export type CloudinarySign = {
-  cloudName: string;
-  apiKey: string;
-  timestamp: number;
-  signature: string;
-  folder: string;
-  uploadUrl: string;
-};
+export type CloudinaryFolder = "listings" | "categories" | "excel" | "kyc" | "disputes";
 
 export type CloudinaryUploadResult = {
   secure_url: string;
   public_id: string;
 };
 
-export async function cloudinarySign(folder: CloudinaryFolder) {
-  const { data } = await api.post<CloudinarySign>("/media/cloudinary-sign", {
-    folder,
-  });
-  return data;
+export type UploadThingEndpoint =
+  | "profileImage"
+  | "listingImage"
+  | "categoryImage"
+  | "kycDocument"
+  | "excelCatalog"
+  | "disputeFile";
+
+function endpointForFolder(folder: CloudinaryFolder): UploadThingEndpoint {
+  if (folder === "categories") return "categoryImage";
+  if (folder === "excel") return "excelCatalog";
+  if (folder === "kyc") return "kycDocument";
+  if (folder === "disputes") return "disputeFile";
+  return "listingImage";
 }
 
-/**
- * Sign → multipart upload to Cloudinary.
- * Returns secure_url + public_id for Nest attach/patch.
- */
+export async function uploadViaUploadThing(
+  endpoint: UploadThingEndpoint,
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<CloudinaryUploadResult> {
+  try {
+    const uploaded = await uploadFiles(endpoint, {
+      files: [file],
+      headers: authHeaders(),
+      onUploadProgress: ({ progress }) => {
+        onProgress?.(Math.round(progress));
+      },
+    });
+    const fileRes = uploaded[0];
+    if (!fileRes) throw new Error("Upload échoué");
+    const url = fileRes.ufsUrl || fileRes.url;
+    if (!url) throw new Error("URL UploadThing manquante");
+    return {
+      secure_url: url,
+      public_id: fileRes.key,
+    };
+  } catch {
+    return uploadViaApi(file, "listings", onProgress);
+  }
+}
+
+async function uploadViaApi(
+  file: File,
+  folder: string,
+  onProgress?: (pct: number) => void
+): Promise<CloudinaryUploadResult> {
+  const dataBase64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+  const { data } = await api.post(
+    "/media/upload",
+    {
+      filename: file.name,
+      mimeType: file.type || "image/jpeg",
+      dataBase64,
+      folder,
+    },
+    {
+      onUploadProgress: (e) => {
+        if (e.total) onProgress?.(Math.round((e.loaded / e.total) * 100));
+      },
+    }
+  );
+  const url = data.secure_url || data.url;
+  if (!url) throw new Error("Upload échoué");
+  onProgress?.(100);
+  return {
+    secure_url: url,
+    public_id: data.public_id || data.publicId,
+  };
+}
+
 export async function uploadCatalogueImage(
   file: File,
-  folder: CloudinaryFolder
+  folder: CloudinaryFolder = "listings",
+  onProgress?: (pct: number) => void
 ): Promise<CloudinaryUploadResult> {
-  const sign = await cloudinarySign(folder);
+  return uploadViaUploadThing(endpointForFolder(folder), file, onProgress);
+}
 
-  const form = new FormData();
-  form.append("file", file);
-  form.append("api_key", sign.apiKey);
-  form.append("timestamp", String(sign.timestamp));
-  form.append("signature", sign.signature);
-  form.append("folder", sign.folder);
-
-  const res = await fetch(sign.uploadUrl, { method: "POST", body: form });
-  if (!res.ok) {
-    throw new Error(`Cloudinary upload failed: ${res.status}`);
-  }
-
-  const uploaded = (await res.json()) as CloudinaryUploadResult;
-  return {
-    secure_url: uploaded.secure_url,
-    public_id: uploaded.public_id,
-  };
+export async function uploadProfileImage(
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<CloudinaryUploadResult> {
+  return uploadViaUploadThing("profileImage", file, onProgress);
 }

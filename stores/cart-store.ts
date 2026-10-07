@@ -11,11 +11,15 @@ export interface CartItem {
   priceWithShipping: number;
   href: string;
   quantity: number;
+  zoneId?: string | null;
+  sellerId?: string | null;
+  negotiable?: boolean;
 }
 
 interface CartState {
   items: CartItem[];
   cartOpen: boolean;
+  checkoutOpen: boolean;
 
   // Actions
   addItem: (item: Omit<CartItem, "quantity">) => void;
@@ -24,6 +28,8 @@ interface CartState {
   clearCart: () => void;
   openCart: () => void;
   closeCart: () => void;
+  openCheckout: () => void;
+  closeCheckout: () => void;
 
   // Computed helpers
   itemCount: () => number;
@@ -36,6 +42,7 @@ export const useCartStore = create<CartState>()(
     (set, get) => ({
       items: [],
       cartOpen: false,
+      checkoutOpen: false,
 
       addItem: (item) =>
         set((state) => {
@@ -69,6 +76,8 @@ export const useCartStore = create<CartState>()(
 
       openCart: () => set({ cartOpen: true }),
       closeCart: () => set({ cartOpen: false }),
+      openCheckout: () => set({ checkoutOpen: true, cartOpen: false }),
+      closeCheckout: () => set({ checkoutOpen: false }),
 
       itemCount: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
       subtotal: () =>
@@ -80,7 +89,7 @@ export const useCartStore = create<CartState>()(
         ),
     }),
     {
-      name: "fripcash-cart-v4",
+      name: "fripcash-cart-v5",
       partialize: (state) => ({ items: state.items }),
     }
   )

@@ -41,17 +41,77 @@ export async function fetchZones() {
   return data;
 }
 
-export async function fetchBestSellers() {
-  const { data } = await api.get("/catalog/best-sellers");
+export type CatalogTariff = {
+  id: string;
+  fromZoneId: string;
+  toZoneId: string;
+  amountGnf: number;
+};
+
+export async function fetchTariffs() {
+  const { data } = await api.get<CatalogTariff[]>("/catalog/tariffs");
   return data;
+}
+
+export type PublicShop = {
+  id: string;
+  shopName: string;
+  sellerKind?: "particulier" | "boutique" | null;
+  shopKind: string | null;
+  avatarUrl?: string;
+  coverUrl?: string;
+  bio?: string;
+  rating?: number;
+  reviewsCount?: number;
+  likesCount?: number;
+  createdAt?: string;
+  likedByMe?: boolean;
+  listings?: unknown[];
+};
+
+export async function fetchShops(params?: {
+  shopKind?: "particulier" | "standard" | "proximite" | "enseigne";
+  createdWithinDays?: number;
+  dateFrom?: string;
+  dateTo?: string;
+  minRating?: number;
+  q?: string;
+  limit?: number;
+}) {
+  const { data } = await api.get<PublicShop[]>("/catalog/shops", { params });
+  return data;
+}
+
+export async function fetchPublicSettings() {
+  const { data } = await api.get<{
+    platformName: string;
+    contactEmail: string;
+    contactPhone: string;
+    maintenanceMode: boolean;
+  }>("/catalog/public-settings");
+  return data;
+}
+
+export async function fetchPublicStats() {
+  const { data } = await api.get("/catalog/public-stats");
+  return data as {
+    totalUsers: number;
+    totalSold: number;
+    avgRating: number;
+    totalArticles: number;
+    users: number;
+    articles: number;
+    orders: number;
+    rating: number;
+  };
 }
 
 export async function createCategory(body: {
   parentId?: string | null;
   nameFr: string;
-  nameEn: string;
-  slug: string;
-  destination: ListingDestination;
+  nameEn?: string;
+  slug?: string;
+  destination?: ListingDestination | null;
   sortOrder?: number;
   isActive?: boolean;
   imageUrl?: string | null;

@@ -1,6 +1,6 @@
 /** Dispute / refund resolve types for admin dispute UI (no seed data). */
 
-export type AdminDisputeStatus = "open" | "under_review" | "resolved";
+export type AdminDisputeStatus = "open" | "under_review" | "resolved" | "closed";
 
 export type AdminDisputeOutcome =
   | "refund_buyer"
@@ -18,6 +18,8 @@ export type AdminDispute = {
   orderId: string;
   productTitle: string;
   productImage: string;
+  buyerId?: string | null;
+  sellerId?: string | null;
   buyerName: string;
   sellerName: string;
   amount: number;
@@ -31,6 +33,7 @@ export type AdminDispute = {
   resolvedAt?: string;
   notes?: string;
   evidence: string[];
+  messages?: any[];
 };
 
 export type AdminDisputePayment = {
@@ -46,6 +49,7 @@ export const DISPUTE_STATUS_LABELS: Record<AdminDisputeStatus, string> = {
   open: "Ouvert",
   under_review: "En cours",
   resolved: "Résolu",
+  closed: "Fermé",
 };
 
 export const DISPUTE_OUTCOME_LABELS: Record<AdminDisputeOutcome, string> = {

@@ -15,6 +15,10 @@ export type Me = {
     id?: string;
     kind: "particulier" | "boutique";
     shopKind: "standard" | "proximite" | "enseigne" | null;
+    shopName?: string;
+    shopDescription?: string;
+    coverUrl?: string;
+    likesCount?: number;
     verificationStatus: "none" | "pending" | "approved" | "rejected";
     listingDestination: string | null;
     allowedDestinations: string[];
@@ -27,6 +31,10 @@ export type Me = {
   } | null;
   courier: { verificationStatus: string; isAvailable: boolean } | null;
   isAdmin: boolean;
+  emailVerified?: boolean;
+  avatarUrl?: string | null;
+  city?: string | null;
+  bio?: string | null;
 };
 
 export async function fetchMe() {
@@ -37,6 +45,11 @@ export async function fetchMe() {
 export async function updateMe(body: {
   name?: string;
   preferredLocale?: "FR" | "EN";
+  city?: string;
+  bio?: string;
+  avatarUrl?: string;
+  coverUrl?: string;
+  phone?: string;
 }) {
   const { data } = await api.patch<Me>("/me", body);
   return data;

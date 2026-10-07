@@ -52,8 +52,16 @@ export type Listing = {
     id: string;
     userId: string;
     displayName?: string | null;
+    shopName?: string | null;
+    avatarUrl?: string | null;
     bio?: string | null;
+    rating?: number;
+    reviewsCount?: number;
+    sellerKind?: string | null;
+    shopKind?: string | null;
   } | null;
+  listingRating?: number;
+  listingReviewsCount?: number;
 };
 
 /**
@@ -68,15 +76,23 @@ export function listingImageUrl(
 ): string | null {
   if (!mediaOrKey) return null;
   if (typeof mediaOrKey === "object") {
-    if (mediaOrKey.url) return mediaOrKey.url;
+    if (mediaOrKey.url) return listingImageUrl(mediaOrKey.url);
     return listingImageUrl(mediaOrKey.storageKey ?? null);
   }
   const storageKey = mediaOrKey;
   if (storageKey.startsWith("http://") || storageKey.startsWith("https://")) {
     return storageKey;
   }
+  if (storageKey.startsWith("/uploads/")) {
+    if (typeof window !== "undefined") return storageKey;
+    const api = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000/api/v1").replace(
+      /\/api\/v1\/?$/,
+      ""
+    );
+    return `${api}${storageKey}`;
+  }
   const base = process.env.NEXT_PUBLIC_MEDIA_BASE_URL?.replace(/\/$/, "");
-  if (!base) return null;
+  if (!base) return storageKey.startsWith("/") ? storageKey : null;
   return `${base}/${storageKey.replace(/^\//, "")}`;
 }
 
@@ -105,8 +121,8 @@ export async function replaceListingMedia(
   listingId: string,
   mediaId: string,
   body: {
-    publicId: string;
-    url: string;
+    publicId?: string;
+    url?: string;
     mimeType?: string;
     sortOrder?: number;
   }
@@ -116,8 +132,8 @@ export async function replaceListingMedia(
     {
       publicId: body.publicId,
       url: body.url,
-      mimeType: body.mimeType || "image/jpeg",
-      sortOrder: body.sortOrder ?? 0,
+      mimeType: body.mimeType,
+      sortOrder: body.sortOrder,
     }
   );
   return data;
@@ -131,6 +147,14 @@ export async function deleteListingMedia(listingId: string, mediaId: string) {
 export async function fetchListings(params?: {
   destination?: string;
   categoryId?: string;
+  q?: string;
+  shopKind?: string;
+  sellerKind?: string;
+  minListingRating?: number;
+  minSellerRating?: number;
+  createdWithinDays?: number;
+  dateFrom?: string;
+  dateTo?: string;
 }) {
   const { data } = await api.get<Listing[]>("/listings", { params });
   return data;

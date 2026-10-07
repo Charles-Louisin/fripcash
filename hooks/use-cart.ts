@@ -80,10 +80,11 @@ export function useClearServerCart() {
 export function useCheckout() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: checkout,
+    mutationFn: checkout as typeof checkout,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cart"] });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
     },
   });
 }

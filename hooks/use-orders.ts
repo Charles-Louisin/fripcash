@@ -7,22 +7,20 @@ import {
   openDispute,
   fetchInvoiceReceipt,
   checkout,
+  sellerRefund,
+  confirmReception,
+  requestCourier,
+  acceptOrderOffer,
+  refuseOrderOffer,
+  payFullAfterOfferRefuse,
+  cancelAfterOfferRefuse,
   type OrderStatus,
 } from "@/lib/api";
-import { ORDER_STATUS_TO_UI, ORDER_STATUS_TO_API } from "@/lib/api/mappers";
 import {
-  listMockOrders,
-  mockAssignCourier,
-  mockConfirmReception,
-  mockMarkShipped,
-  mockOpenDispute,
-  mockPrepareOrder,
-  mockSellerRefund,
-  type MockOrder,
-} from "@/lib/mock-orders-store";
-
-/** Web dashboard uses local mock order lifecycle until BE tracking is complete. */
-const USE_MOCK_ORDERS = true;
+  ORDER_STATUS_TO_UI,
+  ORDER_STATUS_TO_API,
+  ORDER_STATUS_LABEL_FR,
+} from "@/lib/api/mappers";
 
 function normalizeOrder(raw: any, role: "buyer" | "seller" = "buyer") {
   const status =
@@ -56,17 +54,39 @@ function normalizeOrder(raw: any, role: "buyer" | "seller" = "buyer") {
     fulfillmentMode: raw.fulfillmentMode || "courier",
     paymentMethod: raw.paymentMethod || "mobile-money",
     courierName: raw.courierName ?? null,
-    pickupCode: raw.pickupCode,
+    courierId: raw.courierId ?? raw.courier?.id ?? null,
+    courier: raw.courier || null,
+    notifiedCourierNames: raw.notifiedCourierNames || [],
+    buyerId: raw.buyerId || raw.buyer?.id,
+    sellerId: raw.sellerId || raw.seller?.id,
     disputeReason: raw.disputeReason,
-    timeline: raw.timeline || [],
+    timeline: (raw.timeline || []).map((step: any) => ({
+      at: step.at,
+      status: step.status,
+      note: step.note,
+      label:
+        step.label ||
+        ORDER_STATUS_LABEL_FR[step.status] ||
+        step.status ||
+        "Mise à jour",
+    })),
     createdAt: raw.createdAt,
+    offerAmountGnf: raw.offerAmountGnf ?? null,
+    originalAmountGnf: raw.originalAmountGnf ?? raw.amountGnf ?? 0,
+    offerStatus: raw.offerStatus || "none",
     role,
     raw,
   };
 }
 
-function fromMock(o: MockOrder) {
-  return normalizeOrder(o, o.role);
+export function useNewOrdersBadgeCount(isSeller?: boolean) {
+  const { data: orders = [] } = useMyOrders({ isSeller });
+  return orders.filter((o) => {
+    if (o.role === "seller") {
+      return o.status === "sellerNotified" || o.status === "paid";
+    }
+    return o.status === "inTransit" || o.status === "delivered";
+  }).length;
 }
 
 function asArray(data: unknown): any[] {
@@ -80,25 +100,11 @@ function asArray(data: unknown): any[] {
 export function useMyOrders(params?: {
   type?: string;
   status?: string;
-  /** When false, hide seller-side demo orders (buyer-only account). */
   isSeller?: boolean;
 }) {
   return useQuery({
-    queryKey: [
-      "orders",
-      params,
-      USE_MOCK_ORDERS ? "mock" : "live",
-      params?.isSeller ? "seller" : "buyer-only",
-    ],
+    queryKey: ["orders", params, params?.isSeller ? "seller" : "buyer-only"],
     queryFn: async () => {
-      if (USE_MOCK_ORDERS) {
-        let list = listMockOrders(params).map(fromMock);
-        // Buyer-only accounts never see "Mes ventes" demo rows.
-        if (params?.isSeller === false) {
-          list = list.filter((o) => o.role === "buyer");
-        }
-        return list;
-      }
       const type = params?.type;
       let list: ReturnType<typeof normalizeOrder>[] = [];
       if (type === "sell") {
@@ -112,7 +118,7 @@ export function useMyOrders(params?: {
       } else {
         const [purchases, sales] = await Promise.all([
           fetchPurchases(),
-          fetchSales(),
+          params?.isSeller === false ? [] : fetchSales(),
         ]);
         list = [
           ...asArray(purchases).map((o) => normalizeOrder(o, "buyer")),
@@ -129,15 +135,8 @@ export function useMyOrders(params?: {
 
 export function useOrder(id: string) {
   return useQuery({
-    queryKey: ["orders", id, USE_MOCK_ORDERS ? "mock" : "live"],
-    queryFn: async () => {
-      if (USE_MOCK_ORDERS) {
-        const hit = listMockOrders().find((o) => o._id === id);
-        if (!hit) throw new Error("Commande introuvable");
-        return fromMock(hit);
-      }
-      return normalizeOrder(await fetchOrder(id));
-    },
+    queryKey: ["orders", id],
+    queryFn: async () => normalizeOrder(await fetchOrder(id)),
     enabled: !!id,
   });
 }
@@ -172,11 +171,7 @@ export function useConfirmDelivery() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id }: { id: string; code?: string }) => {
-      if (USE_MOCK_ORDERS) {
-        mockConfirmReception(id);
-        return { success: true };
-      }
-      await transitionOrderStatus(id, { status: "DELIVERED" });
+      await confirmReception(id);
       return { success: true };
     },
     onSuccess: () => {
@@ -189,16 +184,26 @@ export function useConfirmDelivery() {
 export function useShipOrder() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id }: { id: string; trackingNumber?: string }) => {
-      if (USE_MOCK_ORDERS) {
-        mockMarkShipped(id);
-        return { success: true };
-      }
-      await transitionOrderStatus(id, { status: "IN_TRANSIT" });
+    mutationFn: async ({
+      id,
+      fulfillmentMode,
+    }: {
+      id: string;
+      trackingNumber?: string;
+      fulfillmentMode?: string;
+    }) => {
+      const status: OrderStatus =
+        fulfillmentMode === "shopLocalDelivery" || fulfillmentMode === "pickup"
+          ? fulfillmentMode === "pickup"
+            ? "READY_FOR_PICKUP"
+            : "IN_TRANSIT"
+          : "IN_TRANSIT";
+      await transitionOrderStatus(id, { status });
       return { success: true };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
     },
   });
 }
@@ -207,10 +212,6 @@ export function usePrepareOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id }: { id: string }) => {
-      if (USE_MOCK_ORDERS) {
-        mockPrepareOrder(id);
-        return { success: true };
-      }
       await transitionOrderStatus(id, { status: "PREPARING" });
       return { success: true };
     },
@@ -225,16 +226,17 @@ export function useAssignCourier() {
   return useMutation({
     mutationFn: async ({
       id,
-      courierName,
+      fulfillmentMode,
     }: {
       id: string;
       courierName?: string;
+      fulfillmentMode?: string;
     }) => {
-      if (USE_MOCK_ORDERS) {
-        mockAssignCourier(id, courierName);
-        return { success: true };
+      if (fulfillmentMode === "pickup") {
+        await transitionOrderStatus(id, { status: "READY_FOR_PICKUP" });
+      } else {
+        await requestCourier(id);
       }
-      await transitionOrderStatus(id, { status: "COURIER_ASSIGNED" });
       return { success: true };
     },
     onSuccess: () => {
@@ -255,17 +257,6 @@ export function useTransitionOrder() {
       status: string;
       note?: string;
     }) => {
-      if (USE_MOCK_ORDERS) {
-        if (status === "preparing") mockPrepareOrder(id);
-        else if (status === "courierAssigned") mockAssignCourier(id);
-        else if (status === "inTransit") mockMarkShipped(id);
-        else if (status === "fundsReleased" || status === "delivered")
-          mockConfirmReception(id);
-        else if (status === "disputed")
-          mockOpenDispute(id, note || "Litige");
-        else if (status === "refunded") mockSellerRefund(id);
-        return { success: true };
-      }
       const apiStatus = (ORDER_STATUS_TO_API[status] ||
         status.toUpperCase()) as OrderStatus;
       return transitionOrderStatus(id, { status: apiStatus, note });
@@ -285,13 +276,7 @@ export function useOpenDispute() {
     }: {
       orderId: string;
       reason: string;
-    }) => {
-      if (USE_MOCK_ORDERS) {
-        mockOpenDispute(orderId, reason);
-        return { success: true };
-      }
-      return openDispute(orderId, reason);
-    },
+    }) => openDispute(orderId, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
@@ -302,11 +287,8 @@ export function useSellerRefund() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id }: { id: string }) => {
-      if (USE_MOCK_ORDERS) {
-        mockSellerRefund(id);
-        return { success: true };
-      }
-      throw new Error("Remboursement vendeur non branché sur l’API.");
+      await sellerRefund(id);
+      return { success: true };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
@@ -315,10 +297,42 @@ export function useSellerRefund() {
   });
 }
 
+export function useAcceptOrderOffer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => acceptOrderOffer(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
+  });
+}
+
+export function useRefuseOrderOffer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => refuseOrderOffer(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
+  });
+}
+
+export function usePayFullAfterOfferRefuse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => payFullAfterOfferRefuse(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
+  });
+}
+
+export function useCancelAfterOfferRefuse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => cancelAfterOfferRefuse(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
+  });
+}
+
 export function useInvoiceReceipt(id: string) {
   return useQuery({
     queryKey: ["invoice", id],
     queryFn: () => fetchInvoiceReceipt(id),
-    enabled: !!id && !USE_MOCK_ORDERS,
+    enabled: !!id,
   });
 }

@@ -7,7 +7,7 @@ import { EmptyStateLottie } from "@/components/empty-state-lottie";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { AppSheet } from "@/components/app-sheet";
-import { ProductCard, ProductCardSkeleton, type Product } from "@/components/product-card";
+import { ProductCard, ProductCardSkeleton, mapArticleToProduct } from "@/components/product-card";
 import {
   ProductFilters,
   defaultFilters,
@@ -39,23 +39,6 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 ];
 
 const ITEMS_PER_PAGE = 12;
-
-function mapArticleToProduct(article: any): Product {
-  return {
-    id: article._id,
-    image: article.images?.[0] || "",
-    brand: article.brand || article.title || "Article",
-    condition: article.condition || "",
-    size: article.size,
-    price: article.price || 0,
-    priceWithShipping: (article.price || 0) + (article.shippingCost || 0),
-    compareAtPrice: article.compareAtPrice ?? null,
-    discountEnabled: article.discountEnabled === true,
-    favorites: article.favoritesCount || 0,
-    href: `/article/${article._id}`,
-    category: article.category,
-  };
-}
 
 const SORT_MAP: Record<SortOption, string> = {
   recent: "-createdAt",

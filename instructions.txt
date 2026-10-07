@@ -1,0 +1,19 @@
+Un livreur peut être assigné à plusieurs zones. une zone peut avoir plusieurs livreurs.
+Le bouton livreur dans la page des zones de livraison du dashboard admin ne ressemble pas à un bouton cliquable. Je dois voir les livreurs associé à une zone sans même ouvrir la liste, il doit afficher au max 3 puis avoir tout voir qui déroule toute la liste
+
+L'upload d'image ne fonctionne pas avec uploadthing, j'ai upload ma photo de profil mais dans le dashboard uploadthing je n'ai rien vu. C'est comme ça dans tout les dashboard, et dans mon profil, je change mes infos mais rien ne persiste, ce n'est pas relié au backend, il doit stocker dans la base de données.
+Les images ne s'affichent plus partout.
+Je dois pouvoir voir la progression de l'upload des images. Quand je veux ajouter les images dans un produit, je dois pouvoir ajouter les images sans qu'il supprime l'image déjà présente et puis je dois pouvoir choisir laquelle sera en couverture.
+
+La page de checkout doit être un modal et non une page à part. Si on utilise les boutons c'est qu'il n'y a plus à donner un code au client pour qu'il le montre au vendeur pourtant je vois toujours ce code dans le checkout, je ne dois plus avoir ça partout, on fonctionne avec les boutons.
+
+
+Lorsque j'ai une nouvelle commande, je dois voir un badge sur le bouton du lien dans la sidebar sur "Mes commandes".
+En tant que vendeur l'application doit savoir en fonction de la zone à quel vendeur il faut attribuer le colis, il doit donc voir chez lui lorsqu'il prépare le colis, que le livreur (avec le nom du livreur) a été notifié, puis le livreur dans son dashboard peut voir une nouvelle commande à récupérer, il accepte la mission, puis le vendeur est notifié que celui a accepté la mission et donc arrive et c'est à ce moment que le bouton "marquer en livraison" pourra être visible, il peuvent discuter par message via l'application.
+
+Le client vera via les cliques des vendeurs et livreurs, l'évolution de sa commande.
+Il sera notifié par notifications push lorsqu'un changement survient dans sa commande pour chaque étape. Ce sera pareil pour les vendeur et les livreurs ils auront des notifications push pour les avertir.
+
+
+J'ai fait une vente complète mais pas de changement sur les montants de ma vente dans le dashboard, les montants sont figés. Je veux voir les vrais montants et informations dans les dashboard.
+

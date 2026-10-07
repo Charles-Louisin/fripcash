@@ -57,6 +57,7 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   className?: string;
   getRowKey?: (item: T, index: number) => string | number;
+  onRowClick?: (item: T) => void;
 }
 
 function ColumnHeaderControl({
@@ -168,6 +169,7 @@ export function DataTable<T>({
   emptyMessage = "Aucune donnée",
   className,
   getRowKey,
+  onRowClick,
 }: DataTableProps<T>) {
   return (
     <div className={cn("rounded-xl border bg-card", className)}>
@@ -197,7 +199,11 @@ export function DataTable<T>({
             </TableRow>
           ) : (
             data.map((item, idx) => (
-              <TableRow key={getRowKey?.(item, idx) ?? idx}>
+              <TableRow
+                key={getRowKey?.(item, idx) ?? idx}
+                onClick={onRowClick ? () => onRowClick(item) : undefined}
+                className={onRowClick ? "cursor-pointer" : undefined}
+              >
                 {columns.map((col) => (
                   <TableCell
                     key={col.key}

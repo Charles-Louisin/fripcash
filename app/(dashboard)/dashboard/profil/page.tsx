@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FiCamera,
   FiStar,
@@ -18,10 +18,18 @@ import { useMyOrders } from "@/hooks/use-orders";
 import { useMyArticles } from "@/hooks/use-articles";
 import { useToast } from "@/components/ui/toast";
 import { useProfileStore } from "@/stores/profile-store";
+import { resolveAccountType } from "@/lib/account-type";
+import { AccountTypeBadge } from "@/components/account/account-type-badge";
+import { ShopVerificationBanner } from "@/components/account/shop-verification-banner";
+import { uploadProfileImage } from "@/lib/api";
 
 export default function ProfilePage() {
   const { showToast } = useToast();
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [avatarProgress, setAvatarProgress] = useState<number | null>(null);
+  const [coverProgress, setCoverProgress] = useState<number | null>(null);
+  const [coverUrl, setCoverUrl] = useState("");
   const { data: user, isLoading } = useMe();
   const { data: orders = [] } = useMyOrders();
   const { data: articles = [] } = useMyArticles();
@@ -29,29 +37,70 @@ export default function ProfilePage() {
   const { name, pseudo, phone, email, city, bio, avatar, updateProfile } =
     useProfileStore();
 
+  const account = resolveAccountType(user);
+  const sellerCover = coverUrl || user?.seller?.coverUrl || "";
+
+  useEffect(() => {
+    if (user?.seller?.coverUrl) setCoverUrl(user.seller.coverUrl);
+  }, [user?.seller?.coverUrl]);
   const salesCount = orders.filter((o) => o.role === "seller").length;
   const purchasesCount = orders.filter((o) => o.role === "buyer").length;
   const articlesCount = articles.length;
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      showToast("L'image ne doit pas dépasser 2 Mo", "error");
+    if (file.size > 4 * 1024 * 1024) {
+      showToast("L'image ne doit pas dépasser 4 Mo", "error");
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      updateProfile({ avatar: reader.result as string });
-    };
-    reader.readAsDataURL(file);
+    try {
+      setAvatarProgress(0);
+      const uploaded = await uploadProfileImage(file, setAvatarProgress);
+      updateProfile({ avatar: uploaded.secure_url });
+      setAvatarProgress(100);
+      showToast("Photo envoyée — enregistre pour la conserver", "success");
+    } catch (err: any) {
+      showToast(err?.message || "Upload de la photo impossible", "error");
+    } finally {
+      setTimeout(() => setAvatarProgress(null), 800);
+    }
+  };
+
+  const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 6 * 1024 * 1024) {
+      showToast("La couverture ne doit pas dépasser 6 Mo", "error");
+      return;
+    }
+    try {
+      setCoverProgress(0);
+      const uploaded = await uploadProfileImage(file, setCoverProgress);
+      setCoverUrl(uploaded.secure_url);
+      setCoverProgress(100);
+      showToast("Couverture envoyée — enregistre pour la conserver", "success");
+    } catch (err: any) {
+      showToast(err?.message || "Upload de la couverture impossible", "error");
+    } finally {
+      setTimeout(() => setCoverProgress(null), 800);
+    }
   };
 
   const handleSave = () => {
     const [firstName, ...lastParts] = name.split(" ");
     const lastName = lastParts.join(" ");
     updateProfileMut.mutate(
-      { firstName, lastName, pseudo, phone, city, bio, avatar },
+      {
+        firstName,
+        lastName,
+        pseudo,
+        phone,
+        city,
+        bio,
+        avatar,
+        coverUrl: coverUrl || sellerCover,
+      },
       {
         onSuccess: () => showToast("Profil mis à jour avec succès", "success"),
         onError: (err: any) =>
@@ -60,32 +109,41 @@ export default function ProfilePage() {
     );
   };
 
-  const stats = [
-    {
-      label: "Ventes",
-      value: salesCount,
-      icon: FiShoppingBag,
-      color: "text-primary bg-primary/10",
-    },
-    {
-      label: "Achats",
-      value: purchasesCount,
-      icon: FiPackage,
-      color: "text-blue-600 bg-blue-50",
-    },
-    {
-      label: "Annonces",
-      value: articlesCount,
-      icon: FiStar,
-      color: "text-amber-500 bg-amber-50",
-    },
-    {
-      label: "En vente",
-      value: articles.filter((a) => a.status === "active").length,
-      icon: FiEdit2,
-      color: "text-purple-600 bg-purple-50",
-    },
-  ];
+  const stats = account.isSeller
+    ? [
+        {
+          label: "Ventes",
+          value: salesCount,
+          icon: FiShoppingBag,
+          color: "text-primary bg-primary/10",
+        },
+        {
+          label: "Achats",
+          value: purchasesCount,
+          icon: FiPackage,
+          color: "text-blue-600 bg-blue-50",
+        },
+        {
+          label: "Annonces",
+          value: articlesCount,
+          icon: FiStar,
+          color: "text-amber-500 bg-amber-50",
+        },
+        {
+          label: "En vente",
+          value: articles.filter((a) => a.status === "active").length,
+          icon: FiEdit2,
+          color: "text-purple-600 bg-purple-50",
+        },
+      ]
+    : [
+        {
+          label: "Achats",
+          value: purchasesCount,
+          icon: FiPackage,
+          color: "text-blue-600 bg-blue-50",
+        },
+      ];
 
   if (isLoading) {
     return (
@@ -97,9 +155,29 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Mon profil</h1>
-        <p className="text-sm text-muted-foreground mt-1">Gérez vos informations personnelles</p>
+      <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+              Type de compte
+            </p>
+            <h1 className="mt-1 text-2xl font-bold text-foreground">{account.label}</h1>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+              {account.description}
+            </p>
+            {account.destination && (
+              <p className="mt-2 text-sm font-medium text-foreground">
+                Catalogue : {account.destination}
+              </p>
+            )}
+          </div>
+          <AccountTypeBadge user={user} size="md" />
+        </div>
+        {account.requiresAdminApproval && (
+          <div className="mt-4">
+            <ShopVerificationBanner type={account} />
+          </div>
+        )}
       </div>
 
       {/* Stats row */}
@@ -151,7 +229,10 @@ export default function ProfilePage() {
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">Photo de profil</p>
-                <p className="text-xs text-muted-foreground">JPG, PNG. Max 2 Mo.</p>
+                <p className="text-xs text-muted-foreground">JPG, PNG. Max 4 Mo.</p>
+                {typeof avatarProgress === "number" && (
+                  <p className="text-xs text-primary mt-1">Upload {avatarProgress}%</p>
+                )}
                 <button
                   type="button"
                   onClick={() => avatarInputRef.current?.click()}
@@ -161,6 +242,49 @@ export default function ProfilePage() {
                 </button>
               </div>
             </div>
+
+            {account.isSeller && (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  Photo de couverture de la boutique
+                </label>
+                <div className="relative h-36 overflow-hidden rounded-xl bg-muted">
+                  {(coverUrl || sellerCover) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={coverUrl || sellerCover}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+                      Aucune couverture
+                    </div>
+                  )}
+                  <input
+                    ref={coverInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={handleCoverChange}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => coverInputRef.current?.click()}
+                    className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-white shadow"
+                  >
+                    <FiCamera className="h-3.5 w-3.5" />
+                    Changer
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  JPG, PNG, WebP. Max 6 Mo. Visible sur ta page boutique et l&apos;accueil.
+                </p>
+                {typeof coverProgress === "number" && (
+                  <p className="text-xs text-primary mt-1">Upload {coverProgress}%</p>
+                )}
+              </div>
+            )}
 
             {/* Fields */}
             <div className="space-y-4">
@@ -305,6 +429,8 @@ export default function ProfilePage() {
                   {user?.createdAt ? new Date(user.createdAt).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) : "—"}
                 </span>
               </div>
+              {account.isSeller && (
+                <>
               <div className="flex items-center gap-3 text-sm">
                 <FiShoppingBag className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground">Articles en vente</span>
@@ -315,6 +441,8 @@ export default function ProfilePage() {
                 <span className="text-muted-foreground">Ventes réalisées</span>
                 <span className="font-medium text-foreground ml-auto">{user?.salesCount ?? 0}</span>
               </div>
+                </>
+              )}
               <div className="flex items-center gap-3 text-sm">
                 <FiPhone className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground">Téléphone</span>

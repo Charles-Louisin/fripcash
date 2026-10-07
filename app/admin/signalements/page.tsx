@@ -12,9 +12,19 @@ type ReportRow = {
   status: "open" | "resolved" | "dismissed";
 };
 
-const LIVE_REPORTS: ReportRow[] = [];
+import { useAdminSignalements, useResolveAdminReport } from "@/hooks/use-admin";
+import { Button } from "@/components/ui/button";
 
 export default function AdminReportsPage() {
+  const { data: raw = [] } = useAdminSignalements();
+  const resolveReport = useResolveAdminReport();
+  const LIVE_REPORTS: ReportRow[] = raw.map((r: any) => ({
+    id: r.id,
+    type: r.listingId ? "article" : "user",
+    target: r.target || r.listingId || r.userId || "—",
+    reason: r.reason,
+    status: r.status === "open" ? "open" : "resolved",
+  }));
   const openCount = LIVE_REPORTS.filter((r) => r.status === "open").length;
 
   return (
@@ -27,7 +37,7 @@ export default function AdminReportsPage() {
       <DataTable
         data={LIVE_REPORTS}
         getRowKey={(r) => r.id}
-        emptyMessage="Aucun signalement — endpoint admin non disponible"
+        emptyMessage="Aucun signalement"
         columns={[
           {
             key: "type",
@@ -48,17 +58,30 @@ export default function AdminReportsPage() {
             key: "status",
             header: "Statut",
             render: (r) => (
-              <Badge
-                variant={
-                  r.status === "open"
-                    ? "destructive"
-                    : r.status === "resolved"
-                      ? "default"
-                      : "secondary"
-                }
-              >
-                {r.status}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant={
+                    r.status === "open"
+                      ? "destructive"
+                      : r.status === "resolved"
+                        ? "default"
+                        : "secondary"
+                  }
+                >
+                  {r.status}
+                </Badge>
+                {r.status === "open" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    disabled={resolveReport.isPending}
+                    onClick={() => resolveReport.mutate(r.id)}
+                  >
+                    Clôturer
+                  </Button>
+                )}
+              </div>
             ),
           },
         ]}

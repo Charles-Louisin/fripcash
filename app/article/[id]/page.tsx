@@ -8,7 +8,7 @@ import { useCartStore } from "@/stores/cart-store";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { AppSheet } from "@/components/app-sheet";
-import { ProductCard, ProductCardSkeleton, type Product } from "@/components/product-card";
+import { ProductCard, ProductCardSkeleton, mapArticleToProduct, type Product } from "@/components/product-card";
 import {
   Dialog,
   DialogContent,
@@ -36,7 +36,6 @@ import {
 import { IoStarSharp, IoStarOutline } from "react-icons/io5";
 import { useArticle, useArticles } from "@/hooks/use-articles";
 import { useArticleReviews, usePostReview } from "@/hooks/use-reviews";
-import { useCreateOffer } from "@/hooks/use-offers";
 import { useStartConversation } from "@/hooks/use-messages";
 import { useCheckFavorite, useToggleFavorite } from "@/hooks/use-favorites";
 import { useAddCartItem } from "@/hooks/use-cart";
@@ -44,26 +43,8 @@ import { useMe } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
 import {
   canAddToCart,
-  canMakeOffer,
   canMessageSeller,
 } from "@/lib/marketplace-actions";
-
-function mapArticleToProduct(article: any): Product {
-  return {
-    id: article._id,
-    image: article.images?.[0] || "",
-    brand: article.brand || article.title || "Article",
-    condition: article.condition || "",
-    size: article.size,
-    price: article.price || 0,
-    priceWithShipping: (article.price || 0) + (article.shippingCost || 0),
-    compareAtPrice: article.compareAtPrice ?? null,
-    discountEnabled: article.discountEnabled === true,
-    favorites: article.favoritesCount || 0,
-    href: `/article/${article._id}`,
-    category: article.category,
-  };
-}
 
 export default function ArticleDetailPage() {
   const params = useParams();
@@ -91,7 +72,6 @@ export default function ArticleDetailPage() {
     status: "active",
   });
   const postReview = usePostReview();
-  const createOffer = useCreateOffer();
   const startConversation = useStartConversation();
   const { data: isFavorite, isLoading: favLoading } = useCheckFavorite(id);
   const toggleFavorite = useToggleFavorite();
@@ -156,6 +136,9 @@ export default function ArticleDetailPage() {
       price: article.price,
       priceWithShipping: article.price + (article.shippingCost || 0),
       href: `/article/${article._id}`,
+      zoneId: article.zoneId || null,
+      sellerId: article.seller?._id || null,
+      negotiable: article.negotiable === true,
     });
     if (isLoggedIn) {
       try {
@@ -167,10 +150,6 @@ export default function ArticleDetailPage() {
     toast("Article ajouté au panier !", "success");
     openCart();
   };
-
-  const [offerOpen, setOfferOpen] = useState(false);
-  const [offerPrice, setOfferPrice] = useState("");
-  const [offerSent, setOfferSent] = useState(false);
 
   const [messageOpen, setMessageOpen] = useState(false);
   const [messageText, setMessageText] = useState("");
@@ -284,41 +263,6 @@ export default function ArticleDetailPage() {
     );
   };
 
-  const handleSendOffer = () => {
-    if (!offerPrice || Number(offerPrice) <= 0) return;
-    if (!isLoggedIn) {
-      toast("Connecte-toi pour faire une offre", "error");
-      router.push("/connexion");
-      return;
-    }
-    createOffer.mutate(
-      { articleId: id, amount: Number(offerPrice) },
-      {
-        onSuccess: () => {
-          setOfferSent(true);
-          toast("Offre envoyée ! Le vendeur a été notifié.");
-        },
-        onError: (err: any) => {
-          const code = err?.code || err?.body?.code;
-          if (code === "LISTING_NOT_NEGOTIABLE") {
-            toast("Cet article n’accepte pas les offres.", "error");
-            return;
-          }
-          const msg = err?.message || "Erreur lors de l'envoi de l'offre";
-          toast(msg, "error");
-        },
-      }
-    );
-  };
-
-  const handleCloseOffer = () => {
-    setOfferOpen(false);
-    setTimeout(() => {
-      setOfferSent(false);
-      setOfferPrice("");
-    }, 300);
-  };
-
   const handleOpenMessage = () => {
     if (!isLoggedIn) {
       toast("Connecte-toi pour envoyer un message", "error");
@@ -366,7 +310,6 @@ export default function ArticleDetailPage() {
       typeof article?.seller === "object" ? article.seller?._id : null,
     negotiable: article?.negotiable === true,
   };
-  const showOffer = canMakeOffer(marketplaceActor, listingMeta);
   const showCart = canAddToCart(marketplaceActor);
   const showMessage = canMessageSeller(marketplaceActor, listingMeta);
 
@@ -573,7 +516,7 @@ export default function ArticleDetailPage() {
               {/* Seller card */}
               {seller && (
                 <div className="border border-border rounded-xl p-4 mb-6">
-                  <div className="flex items-center gap-3">
+                  <Link href={`/boutique/${seller._id}`} className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full overflow-hidden bg-muted shrink-0">
                       {seller.avatar ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
@@ -596,8 +539,10 @@ export default function ArticleDetailPage() {
                         </span>
                       </div>
                     </div>
-                    <Link href="#" className="text-xs font-medium text-primary hover:underline shrink-0">Voir le profil</Link>
-                  </div>
+                    <span className="text-xs font-medium text-primary hover:underline shrink-0">
+                      Voir le profil
+                    </span>
+                  </Link>
                 </div>
               )}
 
@@ -609,31 +554,14 @@ export default function ArticleDetailPage() {
                 </div>
               </div>
 
-              {(showOffer || showCart) && (
+              {showCart && (
                 <div className="hidden lg:flex gap-3">
-                  {showOffer && (
-                    <button
-                      onClick={() => {
-                        if (!isLoggedIn) {
-                          toast("Connecte-toi pour faire une offre", "error");
-                          router.push("/connexion");
-                          return;
-                        }
-                        setOfferOpen(true);
-                      }}
-                      className="flex-1 h-12 rounded-full border-2 border-primary text-primary font-semibold text-base hover:bg-primary/5 transition-colors"
-                    >
-                      Faire une offre
-                    </button>
-                  )}
-                  {showCart && (
-                    <button
-                      onClick={handleAddToCart}
-                      className="flex-1 h-12 rounded-full bg-primary text-primary-foreground font-semibold text-base hover:bg-primary/90 transition-colors"
-                    >
-                      Ajouter au panier
-                    </button>
-                  )}
+                  <button
+                    onClick={handleAddToCart}
+                    className="flex-1 h-12 rounded-full bg-primary text-primary-foreground font-semibold text-base hover:bg-primary/90 transition-colors"
+                  >
+                    Ajouter au panier
+                  </button>
                 </div>
               )}
 
@@ -860,23 +788,8 @@ export default function ArticleDetailPage() {
       </main>
 
       {/* Mobile sticky bottom bar */}
-      {(showOffer || showCart || showMessage || isLoggedIn) && (
+      {(showCart || showMessage || isLoggedIn) && (
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border p-3 flex gap-2 lg:hidden">
-        {showOffer && (
-          <button
-            onClick={() => {
-              if (!isLoggedIn) {
-                toast("Connecte-toi pour faire une offre", "error");
-                router.push("/connexion");
-                return;
-              }
-              setOfferOpen(true);
-            }}
-            className="flex-1 h-12 rounded-full border-2 border-primary text-primary font-semibold text-sm hover:bg-primary/5 transition-colors"
-          >
-            Faire une offre
-          </button>
-        )}
         {showCart && (
           <button
             onClick={handleAddToCart}
@@ -925,43 +838,6 @@ export default function ArticleDetailPage() {
         )}
       </div>
       )}
-
-      {/* Offer Dialog */}
-      <Dialog open={offerOpen} onOpenChange={(open) => !open && handleCloseOffer()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{offerSent ? "Offre envoyée !" : "Faire une offre"}</DialogTitle>
-            <DialogDescription>
-              {offerSent ? "Le vendeur a été notifié et te répondra bientôt." : `Prix actuel : ${(article.price || 0).toLocaleString("fr-FR")} GNF. Propose ton prix.`}
-            </DialogDescription>
-          </DialogHeader>
-          {offerSent ? (
-            <div className="flex flex-col items-center py-6 gap-3">
-              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10"><FiCheck className="h-7 w-7 text-primary" /></div>
-              <p className="text-sm text-muted-foreground text-center">
-                Ton offre de <span className="font-semibold text-foreground">{Number(offerPrice).toLocaleString("fr-FR")} GNF</span> a été envoyée
-                {seller && <> à <span className="font-semibold text-foreground">{seller.pseudo}</span></>}
-              </p>
-              <button onClick={handleCloseOffer} className="mt-2 h-10 px-6 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">Fermer</button>
-            </div>
-          ) : (
-            <div className="space-y-4 pt-2">
-              <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">Ton prix (GNF)</label>
-                <input type="number" value={offerPrice} onChange={(e) => setOfferPrice(e.target.value)} placeholder={`ex: ${((article.price || 0) * 0.8).toFixed(0)}`} min="1" step="0.01"
-                  className="w-full h-11 rounded-lg border border-input bg-background px-4 text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" autoFocus />
-                {offerPrice && Number(offerPrice) >= (article.price || 0) && (
-                  <p className="text-xs text-muted-foreground mt-1">Ton offre est égale ou supérieure au prix demandé. Tu peux acheter directement !</p>
-                )}
-              </div>
-              <button onClick={handleSendOffer} disabled={!offerPrice || Number(offerPrice) <= 0 || createOffer.isPending}
-                className="w-full h-11 rounded-full bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                {createOffer.isPending ? "Envoi en cours..." : "Envoyer l'offre"}
-              </button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Message Dialog */}
       <Dialog open={messageOpen} onOpenChange={(open) => !open && handleCloseMessage()}>

@@ -9,6 +9,10 @@ import {
   useAssignCourier,
   useOpenDispute,
   useSellerRefund,
+  useAcceptOrderOffer,
+  useRefuseOrderOffer,
+  usePayFullAfterOfferRefuse,
+  useCancelAfterOfferRefuse,
 } from "@/hooks/use-orders";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
@@ -24,14 +28,11 @@ import {
   FiUser,
 } from "react-icons/fi";
 import { LuHandshake } from "react-icons/lu";
-import { GetAppBanner } from "@/components/dashboard/get-app-banner";
-import {
-  listMockOrders,
-  MOCK_COURIER_OPTIONS,
-} from "@/lib/mock-orders-store";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMe } from "@/hooks/use-auth";
+import { resolveAccountType } from "@/lib/account-type";
 import Link from "next/link";
+import { OrderChat } from "@/components/order-chat";
 
 type DeliveryMode = "main-propre" | "buyer-delivery" | "seller-delivery";
 
@@ -86,7 +87,7 @@ const statusFilters = [
 const paymentLabels: Record<string, string> = {
   "mobile-money": "Mobile Money",
   card: "Carte",
-  wallet: "Solde FripCash",
+  wallet: "Paiement",
 };
 
 function getOtherParty(order: any, type: "purchase" | "sale"): string {
@@ -124,7 +125,8 @@ export default function MyOrdersPage() {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const { data: me, isLoading: meLoading } = useMe();
-  const isSeller = !!me?.seller;
+  const account = resolveAccountType(me);
+  const isSeller = account.isSeller;
   const { data: orders, isLoading } = useMyOrders({ isSeller });
   const confirmDelivery = useConfirmDelivery();
   const shipOrder = useShipOrder();
@@ -132,13 +134,16 @@ export default function MyOrdersPage() {
   const assignCourier = useAssignCourier();
   const openDispute = useOpenDispute();
   const sellerRefund = useSellerRefund();
+  const acceptOffer = useAcceptOrderOffer();
+  const refuseOffer = useRefuseOrderOffer();
+  const payFullOffer = usePayFullAfterOfferRefuse();
+  const cancelOffer = useCancelAfterOfferRefuse();
 
   const [activeTab, setActiveTab] = useState("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [disputeReason, setDisputeReason] = useState("");
   const [showDisputeForm, setShowDisputeForm] = useState(false);
-  const [pickedCourier, setPickedCourier] = useState(MOCK_COURIER_OPTIONS[0]);
 
   // Buyer-only: never stay on "Mes ventes"
   const effectiveTab =
@@ -161,13 +166,12 @@ export default function MyOrdersPage() {
     .filter((o: any) => effectiveTab === "all" || o.type === effectiveTab)
     .filter((o: any) => statusFilter === "all" || o.status === statusFilter);
 
-  const afterAction = (msg: string, orderId: string) => {
+  const afterAction = (msg: string) => {
     showToast(msg, "success");
     setShowDisputeForm(false);
     setDisputeReason("");
+    setSelectedOrder(null);
     queryClient.invalidateQueries({ queryKey: ["orders"] });
-    const fresh = listMockOrders().find((o) => o._id === orderId);
-    if (fresh) setSelectedOrder(enrichOne(fresh));
   };
 
   const handleConfirmReception = (order: any) => {
@@ -176,8 +180,7 @@ export default function MyOrdersPage() {
       {
         onSuccess: () =>
           afterAction(
-            "Réception confirmée — paiement libéré vers le vendeur.",
-            order._id
+            "Réception confirmée — paiement libéré vers le vendeur."
           ),
         onError: (err: any) =>
           showToast(err.message || "Impossible de confirmer.", "error"),
@@ -189,7 +192,7 @@ export default function MyOrdersPage() {
     prepareOrder.mutate(
       { id: order._id },
       {
-        onSuccess: () => afterAction("Commande en préparation.", order._id),
+        onSuccess: () => afterAction("Commande en préparation."),
         onError: (err: any) => showToast(err.message || "Erreur", "error"),
       }
     );
@@ -197,10 +200,14 @@ export default function MyOrdersPage() {
 
   const handleAssignCourier = (order: any) => {
     assignCourier.mutate(
-      { id: order._id, courierName: pickedCourier },
+      { id: order._id, fulfillmentMode: order.fulfillmentMode },
       {
         onSuccess: () =>
-          afterAction(`Livreur assigné : ${pickedCourier}.`, order._id),
+          afterAction(
+            order.fulfillmentMode === "pickup"
+              ? "Colis prêt à être récupéré."
+              : "Mission ouverte aux livreurs FripCash."
+          ),
         onError: (err: any) => showToast(err.message || "Erreur", "error"),
       }
     );
@@ -208,10 +215,14 @@ export default function MyOrdersPage() {
 
   const handleMarkShipped = (order: any) => {
     shipOrder.mutate(
-      { id: order._id },
+      { id: order._id, fulfillmentMode: order.fulfillmentMode },
       {
         onSuccess: () =>
-          afterAction("Commande marquée en livraison.", order._id),
+          afterAction(
+            order.fulfillmentMode === "pickup"
+              ? "Colis prêt à récupérer."
+              : "Commande marquée en livraison."
+          ),
         onError: (err: any) => showToast(err.message || "Erreur", "error"),
       }
     );
@@ -224,8 +235,7 @@ export default function MyOrdersPage() {
       {
         onSuccess: () =>
           afterAction(
-            "Litige ouvert — l'argent reste bloqué en séquestre.",
-            order._id
+            "Litige ouvert — l'argent reste bloqué en séquestre."
           ),
         onError: (err: any) => showToast(err.message || "Erreur", "error"),
       }
@@ -237,7 +247,7 @@ export default function MyOrdersPage() {
       { id: order._id },
       {
         onSuccess: () =>
-          afterAction("Remboursement effectué (démo).", order._id),
+          afterAction("Remboursement effectué. L'acheteur a été recrédité."),
         onError: (err: any) => showToast(err.message || "Erreur", "error"),
       }
     );
@@ -261,28 +271,22 @@ export default function MyOrdersPage() {
         <h1 className="text-2xl font-bold text-foreground">Mes commandes</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {isSeller
-            ? "Démo suivi — achats & ventes (séquestre, livreur, litige)"
-            : "Démo suivi acheteur — séquestre, confirmation et litige"}
+            ? "Achats et ventes — séquestre, livreur, litige"
+            : "Tes achats — séquestre, confirmation et litige"}
         </p>
       </div>
 
-      <GetAppBanner
-        compact
-        title="Tu es livreur ?"
-        description="Missions, gains et disponibilité se gèrent uniquement dans l’application mobile."
-      />
-
-      {!isSeller && (
+      {account.id === "acheteur" && (
         <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            Compte acheteur — les commandes vendeur (préparation, livreur) apparaissent
-            après activation du profil vendeur.
+            Compte acheteur — les ventes apparaissent si tu actives un profil
+            particulier, ou si tu crées une boutique.
           </p>
           <Link
             href="/dashboard/parametres"
             className="h-9 px-4 inline-flex items-center justify-center rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 shrink-0"
           >
-            Devenir vendeur
+            Devenir vendeur particulier
           </Link>
         </div>
       )}
@@ -539,6 +543,15 @@ export default function MyOrdersPage() {
                     </span>
                   </div>
                 )}
+                {!selectedOrder.courierName &&
+                  selectedOrder.notifiedCourierNames?.length > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Livreur notifié</span>
+                      <span className="font-medium">
+                        {selectedOrder.notifiedCourierNames.slice(0, 3).join(", ")}
+                      </span>
+                    </div>
+                  )}
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Séquestre</span>
                   <span
@@ -617,8 +630,49 @@ export default function MyOrdersPage() {
                       acheteur (ou litige / remboursement).
                     </p>
 
+                    {selectedOrder.offerStatus === "pending" && (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          Offre de{" "}
+                          {(selectedOrder.offerAmountGnf || selectedOrder.amount).toLocaleString("fr-FR")}{" "}
+                          GNF (prix initial{" "}
+                          {(selectedOrder.originalAmountGnf || selectedOrder.amount).toLocaleString("fr-FR")}{" "}
+                          GNF). Accepte ou refuse avant de préparer.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            acceptOffer.mutate(selectedOrder._id, {
+                              onSuccess: () => afterAction("Offre acceptée."),
+                              onError: (err: any) =>
+                                showToast(err.message || "Impossible d'accepter", "error"),
+                            })
+                          }
+                          disabled={acceptOffer.isPending}
+                          className="w-full h-10 rounded-lg bg-primary text-white text-sm font-medium disabled:opacity-50"
+                        >
+                          Accepter l&apos;offre
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            refuseOffer.mutate(selectedOrder._id, {
+                              onSuccess: () => afterAction("Offre refusée."),
+                              onError: (err: any) =>
+                                showToast(err.message || "Impossible de refuser", "error"),
+                            })
+                          }
+                          disabled={refuseOffer.isPending}
+                          className="w-full h-10 rounded-lg border border-destructive text-destructive text-sm font-medium disabled:opacity-50"
+                        >
+                          Refuser l&apos;offre
+                        </button>
+                      </div>
+                    )}
+
                     {(selectedOrder.status === "paid" ||
-                      selectedOrder.status === "sellerNotified") && (
+                      selectedOrder.status === "sellerNotified") &&
+                      selectedOrder.offerStatus !== "pending" && (
                       <button
                         type="button"
                         onClick={() => handlePrepare(selectedOrder)}
@@ -633,36 +687,34 @@ export default function MyOrdersPage() {
                       selectedOrder.status === "preparing" ||
                       selectedOrder.status === "sellerNotified") &&
                       selectedOrder.deliveryMode === "buyer-delivery" && (
-                        <div className="space-y-2">
-                          <label className="text-xs text-muted-foreground">
-                            Assigner un livreur (démo)
-                          </label>
-                          <select
-                            value={pickedCourier}
-                            onChange={(e) => setPickedCourier(e.target.value)}
-                            className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm"
-                          >
-                            {MOCK_COURIER_OPTIONS.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => handleAssignCourier(selectedOrder)}
-                            disabled={assignCourier.isPending}
-                            className="w-full h-10 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 disabled:opacity-50 flex items-center justify-center gap-2"
-                          >
-                            <FiTruck className="h-4 w-4" />
-                            Assigner le livreur
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleAssignCourier(selectedOrder)}
+                          disabled={assignCourier.isPending}
+                          className="w-full h-10 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          <FiTruck className="h-4 w-4" />
+                          Mettre à disposition des livreurs
+                        </button>
                       )}
 
-                    {(selectedOrder.status === "courierAssigned" ||
+                    {(selectedOrder.status === "paid" ||
                       selectedOrder.status === "preparing" ||
-                      selectedOrder.status === "collected") && (
+                      selectedOrder.status === "sellerNotified") &&
+                      selectedOrder.deliveryMode === "main-propre" && (
+                        <button
+                          type="button"
+                          onClick={() => handleAssignCourier(selectedOrder)}
+                          disabled={assignCourier.isPending}
+                          className="w-full h-10 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          <LuHandshake className="h-4 w-4" />
+                          Marquer prêt à récupérer
+                        </button>
+                      )}
+
+                    {selectedOrder.status === "preparing" &&
+                      selectedOrder.deliveryMode === "seller-delivery" && (
                       <button
                         type="button"
                         onClick={() => handleMarkShipped(selectedOrder)}
@@ -673,6 +725,48 @@ export default function MyOrdersPage() {
                         Marquer en livraison
                       </button>
                     )}
+
+                    {(selectedOrder.status === "preparing" ||
+                      selectedOrder.status === "readyForPickup") &&
+                      selectedOrder.deliveryMode === "buyer-delivery" &&
+                      !selectedOrder.courierId && (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                        {selectedOrder.notifiedCourierNames?.length
+                          ? `Livreur notifié : ${selectedOrder.notifiedCourierNames.join(", ")}. En attente d’acceptation.`
+                          : "En attente qu’un livreur FripCash accepte la mission."}
+                      </p>
+                    )}
+
+                    {selectedOrder.status === "courierAssigned" &&
+                      selectedOrder.deliveryMode === "buyer-delivery" && (
+                      <button
+                        type="button"
+                        onClick={() => handleMarkShipped(selectedOrder)}
+                        disabled={shipOrder.isPending}
+                        className="w-full h-10 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        <FiTruck className="h-4 w-4" />
+                        Marquer en livraison
+                      </button>
+                    )}
+
+                    {selectedOrder.deliveryMode === "buyer-delivery" &&
+                      selectedOrder.courierId && (
+                        <OrderChat
+                          orderId={selectedOrder._id}
+                          peerId={selectedOrder.courierId}
+                          peerName={selectedOrder.courierName}
+                        />
+                      )}
+
+                    <button
+                      type="button"
+                      onClick={() => handleSellerRefund(selectedOrder)}
+                      disabled={sellerRefund.isPending}
+                      className="w-full h-10 rounded-lg border border-border text-sm font-medium hover:bg-accent disabled:opacity-50"
+                    >
+                      Rembourser l&apos;acheteur
+                    </button>
 
                     {selectedOrder.status === "inTransit" && (
                       <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
@@ -702,7 +796,7 @@ export default function MyOrdersPage() {
                       disabled={sellerRefund.isPending}
                       className="w-full h-10 rounded-lg border border-border text-sm font-medium hover:bg-accent disabled:opacity-50"
                     >
-                      Rembourser l&apos;acheteur (démo)
+                      Rembourser l&apos;acheteur
                     </button>
                   </div>
                 )}
@@ -721,9 +815,51 @@ export default function MyOrdersPage() {
                       au vendeur. Confirme la réception ou ouvre un litige.
                     </p>
 
+                    {selectedOrder.offerStatus === "refused" && (
+                      <div className="space-y-2 rounded-lg border border-amber-300 bg-white p-3">
+                        <p className="text-xs text-foreground">
+                          Le vendeur a refusé ton offre. Tu peux payer le prix
+                          normal (
+                          {(selectedOrder.originalAmountGnf || selectedOrder.amount).toLocaleString("fr-FR")}{" "}
+                          GNF) ou annuler (remboursement du séquestre).
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            payFullOffer.mutate(selectedOrder._id, {
+                              onSuccess: () =>
+                                afterAction("Prix normal payé."),
+                              onError: (err: any) =>
+                                showToast(err.message || "Paiement impossible", "error"),
+                            })
+                          }
+                          disabled={payFullOffer.isPending}
+                          className="w-full h-10 rounded-lg bg-primary text-white text-sm font-medium disabled:opacity-50"
+                        >
+                          Payer le prix normal
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            cancelOffer.mutate(selectedOrder._id, {
+                              onSuccess: () =>
+                                afterAction("Commande annulée, séquestre remboursé."),
+                              onError: (err: any) =>
+                                showToast(err.message || "Annulation impossible", "error"),
+                            })
+                          }
+                          disabled={cancelOffer.isPending}
+                          className="w-full h-10 rounded-lg border border-destructive text-destructive text-sm font-medium disabled:opacity-50"
+                        >
+                          Annuler la commande
+                        </button>
+                      </div>
+                    )}
+
                     {(selectedOrder.status === "inTransit" ||
-                      selectedOrder.status === "courierAssigned" ||
-                      selectedOrder.status === "collected") && (
+                      selectedOrder.status === "collected" ||
+                      selectedOrder.status === "delivered" ||
+                      selectedOrder.status === "readyForPickup") && (
                       <button
                         type="button"
                         onClick={() => handleConfirmReception(selectedOrder)}

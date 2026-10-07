@@ -15,20 +15,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 import {
   useAdminCatalogCategories,
   useAdminCategoryMutations,
 } from "@/hooks/use-admin";
-import type { CatalogCategory, ListingDestination } from "@/lib/api";
+import type { CatalogCategory } from "@/lib/api";
 import { ApiError, uploadCatalogueImage } from "@/lib/api";
 import {
   FiPlus,
@@ -44,20 +37,6 @@ import {
   FiImage,
   FiX,
 } from "react-icons/fi";
-
-const DESTINATIONS: ListingDestination[] = [
-  "SECONDE_MAIN",
-  "ARTICLES_NEUFS",
-  "QUARTIER_BOUTIQUES",
-  "ENSEIGNES",
-];
-
-const destLabels: Record<ListingDestination, string> = {
-  SECONDE_MAIN: "Seconde main",
-  ARTICLES_NEUFS: "Articles neufs",
-  QUARTIER_BOUTIQUES: "Quartier boutiques",
-  ENSEIGNES: "Enseignes",
-};
 
 function slugify(value: string) {
   return value
@@ -83,8 +62,6 @@ export default function CategoriesPage() {
   const [nameFr, setNameFr] = useState("");
   const [nameEn, setNameEn] = useState("");
   const [slug, setSlug] = useState("");
-  const [destination, setDestination] =
-    useState<ListingDestination>("SECONDE_MAIN");
   const [isActive, setIsActive] = useState(true);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -131,7 +108,6 @@ export default function CategoriesPage() {
     setNameFr("");
     setNameEn("");
     setSlug("");
-    setDestination("SECONDE_MAIN");
     setIsActive(true);
     setImagePreview(null);
     setImageFile(null);
@@ -143,7 +119,6 @@ export default function CategoriesPage() {
     resetForm();
     if (parent) {
       setParentId(parent.id);
-      setDestination(parent.destination);
     }
     setOpen(true);
   };
@@ -154,7 +129,6 @@ export default function CategoriesPage() {
     setNameFr(cat.nameFr);
     setNameEn(cat.nameEn);
     setSlug(cat.slug);
-    setDestination(cat.destination);
     setIsActive(cat.isActive);
     setImagePreview(cat.imageUrl || null);
     setImageFile(null);
@@ -192,16 +166,14 @@ export default function CategoriesPage() {
         nameFr: string;
         nameEn: string;
         slug: string;
-        destination: ListingDestination;
         isActive: boolean;
         imageUrl?: string | null;
         imagePublicId?: string | null;
       } = {
         parentId: parentId || null,
         nameFr: nameFr.trim(),
-        nameEn: (nameEn || nameFr).trim(),
+        nameEn: nameFr.trim(),
         slug: slug.trim() || slugify(nameFr),
-        destination,
         isActive,
       };
 
@@ -255,7 +227,7 @@ export default function CategoriesPage() {
     <div className="space-y-6">
       <AdminPageHeader
         title="Catégories"
-        description="Catalogue live — images Cloudinary (créer / remplacer / supprimer depuis le formulaire)."
+        description="Nom en français et image. Le slug est généré automatiquement."
         action={
           <Button size="sm" onClick={() => openCreate()}>
             <FiPlus className="h-4 w-4 mr-1" /> Nouvelle catégorie
@@ -354,9 +326,6 @@ export default function CategoriesPage() {
                       {cat.slug}
                     </p>
                   </div>
-                  <Badge variant="secondary" className="text-[10px]">
-                    {destLabels[cat.destination] || cat.destination}
-                  </Badge>
                   <Badge variant={cat.isActive ? "default" : "outline"}>
                     {cat.isActive ? "Active" : "Off"}
                   </Badge>
@@ -454,9 +423,7 @@ export default function CategoriesPage() {
                   : "Nouvelle catégorie"}
             </DialogTitle>
             <DialogDescription>
-              Image : sign Cloudinary → upload →{" "}
-              <code className="text-xs">imageUrl</code> /{" "}
-              <code className="text-xs">imagePublicId</code> en base.
+              Image envoyée via UploadThing. Le slug est généré à partir du nom.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -507,45 +474,20 @@ export default function CategoriesPage() {
               </div>
             </div>
             <div>
-              <Label>Nom (FR)</Label>
+              <Label>Nom</Label>
               <Input
                 value={nameFr}
                 onChange={(e) => {
                   setNameFr(e.target.value);
                   if (!editingId) setSlug(slugify(e.target.value));
                 }}
+                placeholder="Ex. Vêtements"
               />
-            </div>
-            <div>
-              <Label>Nom (EN)</Label>
-              <Input
-                value={nameEn}
-                onChange={(e) => setNameEn(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Slug</Label>
-              <Input value={slug} onChange={(e) => setSlug(e.target.value)} />
-            </div>
-            <div>
-              <Label>Destination</Label>
-              <Select
-                value={destination}
-                onValueChange={(v) =>
-                  setDestination(v as ListingDestination)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DESTINATIONS.map((d) => (
-                    <SelectItem key={d} value={d}>
-                      {destLabels[d]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {slug ? (
+                <p className="mt-1 text-[11px] text-muted-foreground font-mono">
+                  Slug : {slug || slugify(nameFr)}
+                </p>
+              ) : null}
             </div>
             <div className="flex items-center justify-between">
               <Label>Active</Label>

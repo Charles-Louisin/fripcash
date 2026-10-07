@@ -3,17 +3,16 @@
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/admin/data-table";
 import { formatGnf } from "@/lib/admin-platform";
-
-type WalletRow = {
-  id: string;
-  sellerName: string;
-  balanceGnf: number;
-  escrowGnf: number;
-};
-
-const LIVE_WALLETS: WalletRow[] = [];
+import { useAdminWallets } from "@/hooks/use-admin";
 
 export default function AdminWalletsPage() {
+  const { data: rows = [] } = useAdminWallets();
+  const LIVE_WALLETS = rows.map((w: any) => ({
+    id: w.id,
+    sellerName: w.user?.name || w.userId,
+    balanceGnf: w.availableGnf || 0,
+    escrowGnf: w.reservedGnf || 0,
+  }));
   const totalBalance = LIVE_WALLETS.reduce((s, w) => s + w.balanceGnf, 0);
   const totalEscrow = LIVE_WALLETS.reduce((s, w) => s + w.escrowGnf, 0);
 
@@ -21,7 +20,7 @@ export default function AdminWalletsPage() {
     <div className="space-y-6">
       <AdminPageHeader
         title="Porte-monnaies vendeurs"
-        description="Soldes et escrow — pas d’endpoint admin wallets pour l’instant"
+        description="Soldes disponibles et fonds encore en séquestre"
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -40,7 +39,7 @@ export default function AdminWalletsPage() {
       <DataTable
         data={LIVE_WALLETS}
         getRowKey={(w) => w.id}
-        emptyMessage="Aucun porte-monnaie — données admin indisponibles"
+        emptyMessage="Aucun porte-monnaie"
         columns={[
           {
             key: "seller",

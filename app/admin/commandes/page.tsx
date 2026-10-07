@@ -11,6 +11,7 @@ import {
   type FulfillmentMode,
   type OrderStatus,
 } from "@/lib/seller-domain";
+import { ORDER_STATUS_TO_UI } from "@/lib/api/mappers";
 import { FiSearch, FiEye } from "react-icons/fi";
 
 const statusVariant: Record<
@@ -38,22 +39,41 @@ export default function CommandesPage() {
   const [fulfillmentFilter, setFulfillmentFilter] = useState<string>("all");
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
-  const { data, isLoading, isError } = useAdminOrders({
-    status: statusFilter === "all" ? undefined : statusFilter,
-  });
+  const { data, isLoading } = useAdminOrders();
 
   const orders = useMemo(() => data?.data ?? [], [data]);
+
+  const resolveStatus = (raw: string): OrderStatus =>
+    normalizeOrderStatus(ORDER_STATUS_TO_UI[raw] || raw);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return orders.filter((o: any) => {
+      const status = resolveStatus(o.status);
+      if (statusFilter !== "all" && status !== statusFilter) return false;
+      if (
+        fulfillmentFilter !== "all" &&
+        (o.fulfillmentMode || "courier") !== fulfillmentFilter
+      ) {
+        return false;
+      }
       if (!q) return true;
+      const buyer =
+        typeof o.buyer === "object" ? o.buyer.pseudo || o.buyer.name : "";
+      const seller =
+        typeof o.seller === "object" ? o.seller.pseudo || o.seller.name : "";
+      const title =
+        typeof o.article === "object"
+          ? o.article.title
+          : o.listing?.title || o.items?.[0]?.title || "";
       return (
         String(o._id || o.id || "").toLowerCase().includes(q) ||
-        String(o.article?.title || "").toLowerCase().includes(q)
+        String(title).toLowerCase().includes(q) ||
+        String(buyer).toLowerCase().includes(q) ||
+        String(seller).toLowerCase().includes(q)
       );
     });
-  }, [orders, search]);
+  }, [orders, search, statusFilter, fulfillmentFilter]);
 
   const totalAmount = filtered.reduce(
     (sum: number, o: any) => sum + (o.amount || 0),
@@ -70,8 +90,6 @@ export default function CommandesPage() {
     typeof o.buyer === "object" ? o.buyer.pseudo : "Acheteur";
   const getSeller = (o: any) =>
     typeof o.seller === "object" ? o.seller.pseudo : "Vendeur";
-
-  const resolveStatus = (raw: string): OrderStatus => normalizeOrderStatus(raw);
 
   const columns = [
     {
@@ -179,7 +197,7 @@ export default function CommandesPage() {
     },
   ];
 
-  if (isLoading && !isError && filtered.length === 0) {
+  if (isLoading && filtered.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -194,10 +212,6 @@ export default function CommandesPage() {
         <p className="text-sm text-muted-foreground mt-1">
           Pipeline aligné avec l&apos;app — livreur, retrait boutique, livraison
           locale
-        </p>
-        <p className="text-xs text-amber-700 dark:text-amber-500 mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-          {data?.unavailableReason ||
-            "Liste vide : GET /admin/orders n’existe pas encore (seed ~20 commandes)."}
         </p>
       </div>
 
@@ -265,6 +279,8 @@ export default function CommandesPage() {
         columns={columns}
         data={filtered}
         emptyMessage="Aucune commande trouvée"
+        onRowClick={(o) => setSelectedOrder(o)}
+        getRowKey={(o) => o._id || o.id}
       />
 
       {selectedOrder && (
@@ -317,14 +333,6 @@ export default function CommandesPage() {
                   ]}
                 </span>
               </div>
-              {selectedOrder.pickupCode && (
-                <div className="flex justify-between py-2 border-b border-border">
-                  <span className="text-muted-foreground">Code retrait</span>
-                  <span className="font-mono font-medium">
-                    {selectedOrder.pickupCode}
-                  </span>
-                </div>
-              )}
               {selectedOrder.courierName && (
                 <div className="flex justify-between py-2 border-b border-border">
                   <span className="text-muted-foreground">Livreur</span>

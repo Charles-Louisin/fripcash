@@ -86,7 +86,7 @@ export function buildSellerSnapshot(input: {
     listingDestination: destination,
     capabilities: {
       createListing: canPublish,
-      excelImport: kind === "boutique",
+      excelImport: kind === "boutique" && canPublish,
       productLibrary: shopKind === "proximite" && canPublish,
       sellerDashboard: kind !== "none",
     },

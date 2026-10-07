@@ -61,7 +61,7 @@ export default function AuthLayout({
           </Link>
         </div>
 
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-xl">
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary hover:underline transition-colors mb-6"

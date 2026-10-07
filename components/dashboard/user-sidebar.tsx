@@ -15,7 +15,10 @@ import {
   FiSearch,
   FiLogOut,
   FiAlertCircle,
-  FiSmartphone,
+  FiTag,
+  FiHome,
+  FiLock,
+  FiGlobe,
 } from "react-icons/fi";
 import { MdOutlineDashboard } from "react-icons/md";
 import { IoWalletOutline } from "react-icons/io5";
@@ -24,50 +27,41 @@ import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/toast";
 import { useProfileStore } from "@/stores/profile-store";
 import { useUnreadMessagesCount } from "@/hooks/use-messages";
-import {
-  APP_STORE_URL,
-  PLAY_STORE_URL,
-} from "@/components/app-store-badges";
+import { useNewOrdersBadgeCount } from "@/hooks/use-orders";
+import { useMe } from "@/hooks/use-auth";
+import { resolveAccountType, type AccountType } from "@/lib/account-type";
+import { AccountTypeBadge } from "@/components/account/account-type-badge";
 
-function AppPromo({ collapsed }: { collapsed?: boolean }) {
+function AppPromo({
+  collapsed,
+  isSeller,
+}: {
+  collapsed?: boolean;
+  isSeller?: boolean;
+}) {
+  if (isSeller) return null;
   if (collapsed) {
     return (
-      <a
-        href={PLAY_STORE_URL !== "#" ? PLAY_STORE_URL : APP_STORE_URL}
+      <Link
+        href="/dashboard/parametres"
         className="flex items-center justify-center rounded-lg p-2 text-primary hover:bg-primary/10"
-        title="Télécharger l'app"
+        title="Commencer à vendre"
       >
-        <FiSmartphone className="h-5 w-5" />
-      </a>
+        <FiHome className="h-5 w-5" />
+      </Link>
     );
   }
 
   return (
-    <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
-      <div className="flex items-center gap-2">
-        <div className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
-          <FiSmartphone className="h-3.5 w-3.5" />
-        </div>
-        <p className="text-xs font-semibold text-foreground">App FripCash</p>
-      </div>
+    <Link
+      href="/dashboard/parametres"
+      className="block rounded-xl border border-border bg-muted/40 p-3 space-y-1 hover:border-primary/40"
+    >
+      <p className="text-xs font-semibold text-foreground">Commencer à vendre</p>
       <p className="text-[11px] leading-relaxed text-muted-foreground">
-        Livreur, boutique de quartier, enseignes — dans l&apos;app.
+        Passe en vendeur particulier depuis les paramètres.
       </p>
-      <div className="flex gap-2">
-        <a
-          href={APP_STORE_URL}
-          className="flex-1 rounded-md bg-zinc-950 px-2 py-1.5 text-center text-[10px] font-medium text-white hover:opacity-90"
-        >
-          App Store
-        </a>
-        <a
-          href={PLAY_STORE_URL}
-          className="flex-1 rounded-md bg-zinc-950 px-2 py-1.5 text-center text-[10px] font-medium text-white hover:opacity-90"
-        >
-          Play Store
-        </a>
-      </div>
-    </div>
+    </Link>
   );
 }
 
@@ -78,10 +72,23 @@ const accountNav = [
   { href: "/dashboard/favoris", icon: FiHeart, label: "Mes favoris" },
   { href: "/dashboard/messages", icon: FiMessageSquare, label: "Messages" },
   { href: "/dashboard/notifications", icon: FiBell, label: "Notifications" },
+  { href: "/dashboard/offres", icon: FiTag, label: "Offres" },
+  { href: "/dashboard/litiges", icon: FiAlertCircle, label: "Litiges" },
 ];
 
-const sellNav = [
+type NavItem = {
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  exact?: boolean;
+  locked?: boolean;
+};
+
+const sellNav: NavItem[] = [
   { href: "/dashboard/articles", icon: FiShoppingBag, label: "Mes annonces" },
+  { href: "/dashboard/boutique", icon: FiHome, label: "Ma boutique" },
+  { href: "/dashboard/import-excel", icon: FiShoppingBag, label: "Import Excel" },
+  { href: "/dashboard/bibliotheque", icon: FiShoppingBag, label: "Bibliothèque" },
   { href: "/dashboard/porte-monnaie", icon: IoWalletOutline, label: "Porte-monnaie" },
 ];
 
@@ -89,7 +96,55 @@ const settingsNav = [
   { href: "/dashboard/parametres", icon: FiSettings, label: "Paramètres" },
 ];
 
-const navItems = [...accountNav, ...sellNav, ...settingsNav];
+function navFor(type: AccountType) {
+  const account = [
+    { href: "/dashboard", icon: MdOutlineDashboard, label: "Vue d'ensemble", exact: true },
+    { href: "/dashboard/profil", icon: FiUser, label: "Mon profil" },
+    { href: "/dashboard/commandes", icon: FiShoppingCart, label: "Mes commandes" },
+    { href: "/dashboard/favoris", icon: FiHeart, label: "Mes favoris" },
+  ];
+  const activity = [
+    { href: "/dashboard/messages", icon: FiMessageSquare, label: "Messages" },
+    { href: "/dashboard/notifications", icon: FiBell, label: "Notifications" },
+    { href: "/dashboard/litiges", icon: FiAlertCircle, label: "Litiges" },
+  ];
+  const sell: NavItem[] = [];
+  if (type.isSeller) {
+    sell.push({ href: "/dashboard/articles", icon: FiShoppingBag, label: "Mes annonces" });
+    sell.push({ href: "/dashboard/offres", icon: FiTag, label: "Offres" });
+    sell.push({ href: "/dashboard/porte-monnaie", icon: IoWalletOutline, label: "Gains / séquestre" });
+  }
+  if (type.isShop) {
+    sell.push({ href: "/dashboard/boutique", icon: FiHome, label: "Ma boutique" });
+  }
+  if (type.seesExcel) {
+    sell.push({
+      href: "/dashboard/import-excel",
+      icon: FiShoppingBag,
+      label: type.excelImport ? "Import Excel" : "Import Excel",
+      locked: !type.excelImport,
+    });
+  }
+  if (type.seesLibrary) {
+    sell.push({
+      href: "/dashboard/bibliotheque",
+      icon: FiShoppingBag,
+      label: "Bibliothèque",
+      locked: !type.productLibrary,
+    });
+  }
+  if (!type.isSeller) {
+    activity.splice(2, 0, { href: "/dashboard/offres", icon: FiTag, label: "Mes offres" });
+  }
+  return {
+    account,
+    sell,
+    activity,
+    settings: settingsNav,
+    all: [...account, ...sell, ...activity, ...settingsNav],
+    sellTitle: type.isShop ? "Ma boutique" : "Vente",
+  };
+}
 
 function isNavActive(pathname: string, href: string, exact?: boolean) {
   if (exact || href === "/dashboard") return pathname === href;
@@ -125,7 +180,7 @@ function SidebarNavLink({
   badge,
   onClick,
 }: {
-  item: { href: string; icon: React.ComponentType<{ className?: string }>; label: string; exact?: boolean };
+  item: { href: string; icon: React.ComponentType<{ className?: string }>; label: string; exact?: boolean; locked?: boolean };
   pathname: string;
   collapsed?: boolean;
   badge?: number;
@@ -156,7 +211,10 @@ function SidebarNavLink({
       {!collapsed && (
         <>
           <span className="truncate">{item.label}</span>
-          <NavBadge count={badge || 0} active={isActive} />
+          {item.locked && (
+            <FiLock className="ml-auto h-3.5 w-3.5 shrink-0 opacity-60" />
+          )}
+          {!item.locked && <NavBadge count={badge || 0} active={isActive} />}
         </>
       )}
     </Link>
@@ -227,13 +285,23 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
   const { showToast } = useToast();
   const { avatar, name, pseudo } = useProfileStore();
   const unreadMessages = useUnreadMessagesCount();
+  const { data: me } = useMe();
+  const account = resolveAccountType(me);
+  const nav = navFor(account);
+  const newOrders = useNewOrdersBadgeCount(account.isSeller);
 
   const badgeFor = (href: string) =>
-    href === "/dashboard/messages" ? unreadMessages : 0;
+    href === "/dashboard/messages"
+      ? unreadMessages
+      : href === "/dashboard/commandes"
+        ? newOrders
+        : 0;
 
   const filteredNav = search
-    ? navItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase()))
-    : navItems;
+    ? nav.all.filter((item) =>
+        item.label.toLowerCase().includes(search.toLowerCase())
+      )
+    : nav.all;
 
   return (
     <aside
@@ -265,7 +333,7 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-sidebar-foreground truncate">{name}</p>
-              <p className="text-[11px] text-muted-foreground truncate">@{pseudo}</p>
+              <AccountTypeBadge user={me} />
             </div>
           </Link>
         )}
@@ -287,32 +355,58 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
         </div>
       )}
 
-      {!collapsed && (
-        <p className="px-5 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-          Mon compte
-        </p>
-      )}
-
       {/* Navigation */}
       <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
-        {(search ? filteredNav : accountNav).map((item) => (
-          <SidebarNavLink
-            key={item.href}
-            item={item}
-            pathname={pathname}
-            collapsed={collapsed}
-            badge={badgeFor(item.href)}
-          />
-        ))}
-
-        {!search && (
+        {search ? (
+          filteredNav.map((item) => (
+            <SidebarNavLink
+              key={item.href}
+              item={item}
+              pathname={pathname}
+              collapsed={collapsed}
+              badge={badgeFor(item.href)}
+            />
+          ))
+        ) : (
           <>
             {!collapsed && (
-              <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Vente légère
+              <p className="px-2 pt-2 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Mon espace
               </p>
             )}
-            {sellNav.map((item) => (
+            {nav.account.map((item) => (
+              <SidebarNavLink
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                collapsed={collapsed}
+                badge={badgeFor(item.href)}
+              />
+            ))}
+            {nav.sell.length > 0 && (
+              <>
+                {!collapsed && (
+                  <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    {nav.sellTitle}
+                  </p>
+                )}
+                {nav.sell.map((item) => (
+                  <SidebarNavLink
+                    key={item.href}
+                    item={item}
+                    pathname={pathname}
+                    collapsed={collapsed}
+                    badge={badgeFor(item.href)}
+                  />
+                ))}
+              </>
+            )}
+            {!collapsed && (
+              <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Activité
+              </p>
+            )}
+            {nav.activity.map((item) => (
               <SidebarNavLink
                 key={item.href}
                 item={item}
@@ -326,7 +420,7 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
                 Réglages
               </p>
             )}
-            {settingsNav.map((item) => (
+            {nav.settings.map((item) => (
               <SidebarNavLink
                 key={item.href}
                 item={item}
@@ -345,7 +439,18 @@ export function UserSidebar({ collapsed }: UserSidebarProps) {
 
       {/* Bottom */}
       <div className="border-t border-sidebar-border p-3 space-y-2">
-        <AppPromo collapsed={collapsed} />
+        <Link
+          href="/"
+          className={cn(
+            "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+            collapsed && "justify-center px-2"
+          )}
+          title={collapsed ? "Retour à l'accueil" : undefined}
+        >
+          <FiGlobe className="h-5 w-5 shrink-0" />
+          {!collapsed && <span>Retour à l&apos;accueil</span>}
+        </Link>
+        <AppPromo collapsed={collapsed} isSeller={account.isSeller} />
         <button
           type="button"
           onClick={() => setLogoutOpen(true)}
@@ -377,15 +482,25 @@ export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: (
   const [search, setSearch] = useState("");
   const [logoutOpen, setLogoutOpen] = useState(false);
   const { showToast } = useToast();
-  const { avatar, name, pseudo } = useProfileStore();
+  const { avatar, name } = useProfileStore();
   const unreadMessages = useUnreadMessagesCount();
+  const { data: me } = useMe();
+  const account = resolveAccountType(me);
+  const nav = navFor(account);
+  const newOrders = useNewOrdersBadgeCount(account.isSeller);
 
   const badgeFor = (href: string) =>
-    href === "/dashboard/messages" ? unreadMessages : 0;
+    href === "/dashboard/messages"
+      ? unreadMessages
+      : href === "/dashboard/commandes"
+        ? newOrders
+        : 0;
 
   const filteredNav = search
-    ? navItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase()))
-    : navItems;
+    ? nav.all.filter((item) =>
+        item.label.toLowerCase().includes(search.toLowerCase())
+      )
+    : nav.all;
 
   if (!open) return null;
 
@@ -406,7 +521,7 @@ export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: (
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-sidebar-foreground truncate">{name}</p>
-              <p className="text-[11px] text-muted-foreground truncate">@{pseudo}</p>
+              <AccountTypeBadge user={me} />
             </div>
           </Link>
         </div>
@@ -424,27 +539,51 @@ export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: (
           </div>
         </div>
 
-        <p className="px-5 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-          Mon compte
-        </p>
-
         <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
-          {(search ? filteredNav : accountNav).map((item) => (
-            <SidebarNavLink
-              key={item.href}
-              item={item}
-              pathname={pathname}
-              badge={badgeFor(item.href)}
-              onClick={onClose}
-            />
-          ))}
-
-          {!search && (
+          {search ? (
+            filteredNav.map((item) => (
+              <SidebarNavLink
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                badge={badgeFor(item.href)}
+                onClick={onClose}
+              />
+            ))
+          ) : (
             <>
-              <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Vente légère
+              <p className="px-2 pt-2 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Mon espace
               </p>
-              {sellNav.map((item) => (
+              {nav.account.map((item) => (
+                <SidebarNavLink
+                  key={item.href}
+                  item={item}
+                  pathname={pathname}
+                  badge={badgeFor(item.href)}
+                  onClick={onClose}
+                />
+              ))}
+              {nav.sell.length > 0 && (
+                <>
+                  <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    {nav.sellTitle}
+                  </p>
+                  {nav.sell.map((item) => (
+                    <SidebarNavLink
+                      key={item.href}
+                      item={item}
+                      pathname={pathname}
+                      badge={badgeFor(item.href)}
+                      onClick={onClose}
+                    />
+                  ))}
+                </>
+              )}
+              <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Activité
+              </p>
+              {nav.activity.map((item) => (
                 <SidebarNavLink
                   key={item.href}
                   item={item}
@@ -456,7 +595,7 @@ export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: (
               <p className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 Réglages
               </p>
-              {settingsNav.map((item) => (
+              {nav.settings.map((item) => (
                 <SidebarNavLink
                   key={item.href}
                   item={item}
@@ -470,7 +609,15 @@ export function UserMobileSidebar({ open, onClose }: { open: boolean; onClose: (
         </nav>
 
         <div className="border-t border-sidebar-border p-3 space-y-2">
-          <AppPromo />
+          <Link
+            href="/"
+            onClick={onClose}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground/80 hover:bg-sidebar-accent"
+          >
+            <FiGlobe className="h-5 w-5 shrink-0" />
+            <span>Retour à l&apos;accueil</span>
+          </Link>
+          <AppPromo isSeller={account.isSeller} />
           <button
             type="button"
             onClick={() => setLogoutOpen(true)}

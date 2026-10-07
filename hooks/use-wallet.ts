@@ -47,10 +47,18 @@ export function useTransactions(type?: string) {
       const raw = await fetchWalletLedger();
       let list = asArray(raw).map((t: any) => ({
         _id: t.id || t._id,
-        type: t.type || t.kind || "ledger",
+        type:
+          t.type === "escrowRelease"
+            ? "sale"
+            : t.type === "escrowHold"
+              ? "escrow_block"
+              : t.type === "withdraw" || t.type === "withdrawal"
+                ? "withdrawal"
+                : t.type || t.kind || "ledger",
         amount: t.amountGnf ?? t.amount ?? 0,
         label: t.label || t.description || t.type || "Mouvement",
         isCredit: t.isCredit ?? (t.direction === "credit" || (t.amountGnf ?? 0) > 0),
+        status: "completed",
         createdAt: t.createdAt,
       }));
       if (type) list = list.filter((t) => t.type === type);

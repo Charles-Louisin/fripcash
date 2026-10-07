@@ -7,6 +7,7 @@ import {
   fetchSellerVerifications,
   approveSellerVerification,
   rejectSellerVerification,
+  sendAdminShopVerificationMessage,
   fetchAdminOrgKyc,
   fetchAdminIndividualKyc,
   approveOrgKyc,
@@ -27,8 +28,25 @@ import {
   fetchCategories,
   fetchZones,
   listingImageUrl,
+  fetchPublicStats,
+  fetchSalesChart,
   fetchAdminListings,
   updateAdminListing,
+  fetchAdminOrders,
+  fetchAdminDisputes,
+  fetchAdminWallets,
+  fetchAdminSessions,
+  fetchAdminReports,
+  fetchAdminPartners,
+  fetchAdminCouriers,
+  updateAdminCourier,
+  fetchAdminTariffs,
+  saveAdminTariffs,
+  fetchAdminRapports,
+  fetchAdminStats,
+  markDisputeReview,
+  resolveAdminReport,
+  askDisputeParty,
   fetchAuthAdminUser,
   fetchAuthAdminUsers,
   createAuthAdminUser,
@@ -115,6 +133,31 @@ export function useRejectSellerVerification() {
   });
 }
 
+export function useAdminShopVerificationMessage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      body,
+      attachments,
+    }: {
+      id: string;
+      body: string;
+      attachments?: Array<{
+        url: string;
+        storageKey?: string;
+        mimeType?: string;
+        name?: string;
+      }>;
+    }) => sendAdminShopVerificationMessage(id, { body, attachments }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "seller-verifications"],
+      });
+    },
+  });
+}
+
 export function useAdminOrgKyc() {
   return useQuery({
     queryKey: ["admin", "kyc", "organizations"],
@@ -172,6 +215,27 @@ export function useReviewIndividualKyc() {
   });
 }
 
+export function useAskDisputeParty() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      message,
+      kind,
+      requestedKinds,
+    }: {
+      id: string;
+      message: string;
+      kind?: string;
+      requestedKinds?: string[];
+    }) => askDisputeParty(id, message, { kind, requestedKinds }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "disputes"] });
+      queryClient.invalidateQueries({ queryKey: ["disputes"] });
+    },
+  });
+}
+
 export function useResolveAdminDispute() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -179,13 +243,19 @@ export function useResolveAdminDispute() {
       id,
       resolution,
       note,
+      buyerPercent,
+      sellerPercent,
     }: {
       id: string;
-      resolution: "resolved_buyer" | "resolved_seller";
+      resolution: "resolved_buyer" | "resolved_seller" | "partial_refund";
       note: string;
-    }) => resolveDispute(id, { resolution, note }),
+      buyerPercent?: number;
+      sellerPercent?: number;
+    }) => resolveDispute(id, { resolution, note, buyerPercent, sellerPercent }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "disputes"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
   });
 }
@@ -262,169 +332,13 @@ export function useAdminZoneMutations() {
   };
 }
 
-/** Dashboard overview — composed from live admin/catalog endpoints (no mock fallback). */
-export function useAdminDashboard() {
+/** Dashboard overview — live GET /admin/stats. */
+export function useAdminDashboard(days?: number) {
   return useQuery({
-    queryKey: ["admin", "dashboard"],
-    queryFn: async () => {
-      const [listings, verifications, settings, auditLogs, categories, authUsers] =
-        await Promise.all([
-          fetchAdminListings({ status: "ALL" }).catch(
-            () => [] as Awaited<ReturnType<typeof fetchAdminListings>>
-          ),
-          fetchSellerVerifications()
-            .then(asArray)
-            .catch(() => [] as any[]),
-          fetchPlatformSettings().catch(() => null),
-          fetchAuditLogs()
-            .then(asArray)
-            .catch(() => [] as any[]),
-          fetchCategories().catch(() => [] as Awaited<ReturnType<typeof fetchCategories>>),
-          fetchAuthAdminUsers({ limit: 100 })
-            .then((r) => r.total ?? r.users?.length ?? 0)
-            .catch(() => null as number | null),
-        ]);
-
-      const pendingStatuses = new Set(["DRAFT", "FLAGGED"]);
-      const pendingListings = listings.filter((l) =>
-        pendingStatuses.has(String(l.status).toUpperCase())
-      );
-      const activeListings = listings.filter(
-        (l) => String(l.status).toUpperCase() === "ACTIVE"
-      );
-      const soldListings = listings.filter((l) => {
-        const s = String(l.status).toUpperCase();
-        return s === "SOLD" || s === "SOLD_OUT";
-      });
-
-      const pendingVerifications = verifications.filter((v: any) => {
-        const status = String(
-          v.status ?? v.verificationStatus ?? ""
-        ).toUpperCase();
-        return (
-          !status ||
-          status === "PENDING" ||
-          status === "SUBMITTED" ||
-          status === "IN_REVIEW"
-        );
-      });
-
-      const categoryNameById = new Map(
-        categories.map((c) => [c.id, c.nameFr || c.nameEn || c.slug])
-      );
-
-      const listingsByCategory = new Map<string, number>();
-      for (const listing of listings) {
-        const key = listing.categoryId
-          ? categoryNameById.get(listing.categoryId) ||
-            listing.category?.nameFr ||
-            "Autre"
-          : "Sans catégorie";
-        listingsByCategory.set(key, (listingsByCategory.get(key) || 0) + 1);
-      }
-
-      const DEST_LABELS: Record<string, string> = {
-        SECONDE_MAIN: "Seconde main",
-        ARTICLES_NEUFS: "Articles neufs",
-        QUARTIER_BOUTIQUES: "Quartier boutiques",
-        ENSEIGNES: "Enseignes",
-      };
-      const listingsByDestination = new Map<string, number>();
-      for (const listing of listings) {
-        const key =
-          DEST_LABELS[listing.destination] || listing.destination || "Autre";
-        listingsByDestination.set(
-          key,
-          (listingsByDestination.get(key) || 0) + 1
-        );
-      }
-
-      const catalogValueGnf = activeListings.reduce(
-        (sum, l) => sum + (l.priceGnf || 0) * (l.quantity || 1),
-        0
-      );
-
-      const commissionBps =
-        settings && typeof settings === "object"
-          ? Number((settings as any).defaultCommissionBps)
-          : NaN;
-
-      const activity = auditLogs.slice(0, 12).map((log: any) => ({
-        id: log.id,
-        type: mapAuditType(log.action, log.entityType),
-        message: formatAuditMessage(log),
-        time: formatRelativeFr(log.createdAt),
-      }));
-
-      return {
-        totalListings: listings.length,
-        activeListings: activeListings.length,
-        soldListings: soldListings.length,
-        draftListings: listings.filter(
-          (l) => String(l.status).toUpperCase() === "DRAFT"
-        ).length,
-        pendingListings,
-        pendingListingCount: pendingListings.length,
-        pendingShopCount: pendingVerifications.length,
-        catalogValueGnf,
-        commissionRatePercent: Number.isFinite(commissionBps)
-          ? commissionBps / 100
-          : null,
-        platformSettings: settings,
-        categoryChart: [...listingsByCategory.entries()]
-          .map(([category, volume]) => ({ category, volume }))
-          .sort((a, b) => b.volume - a.volume),
-        destinationChart: [...listingsByDestination.entries()]
-          .map(([category, volume]) => ({ category, volume }))
-          .sort((a, b) => b.volume - a.volume),
-        activity,
-        // Not exposed by API yet — keep explicit zeros (no mock)
-        openDisputes: [] as any[],
-        openDisputeCount: 0,
-        escrowGmv: 0,
-        escrowHoldCount: 0,
-        totalUsers: authUsers,
-        totalRevenue: null as number | null,
-        activeDeliveries: 0,
-      };
-    },
+    queryKey: ["admin", "dashboard", days ?? 30],
+    queryFn: () => fetchAdminStats(days ?? 30),
     staleTime: 60_000,
   });
-}
-
-function mapAuditType(
-  action?: string,
-  entityType?: string
-): "signup" | "sale" | "dispute" | "article" | "delivery" {
-  const a = `${action || ""} ${entityType || ""}`.toLowerCase();
-  if (a.includes("dispute")) return "dispute";
-  if (a.includes("order") || a.includes("sale") || a.includes("checkout"))
-    return "sale";
-  if (a.includes("listing") || a.includes("article") || a.includes("comment"))
-    return "article";
-  if (a.includes("courier") || a.includes("delivery") || a.includes("mission"))
-    return "delivery";
-  if (a.includes("user") || a.includes("signup") || a.includes("provision"))
-    return "signup";
-  return "article";
-}
-
-function formatAuditMessage(log: any): string {
-  const action = log.action || "action";
-  const entity = log.entityType || "ressource";
-  const id = log.entityId ? ` #${String(log.entityId).slice(-6)}` : "";
-  return `${action} · ${entity}${id}`;
-}
-
-function formatRelativeFr(iso?: string): string {
-  if (!iso) return "";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "";
-  const diffSec = Math.round((Date.now() - then) / 1000);
-  if (diffSec < 60) return "à l'instant";
-  if (diffSec < 3600) return `il y a ${Math.floor(diffSec / 60)} min`;
-  if (diffSec < 86400) return `il y a ${Math.floor(diffSec / 3600)} h`;
-  return `il y a ${Math.floor(diffSec / 86400)} j`;
 }
 
 /** @deprecated Prefer useAdminDashboard */
@@ -432,29 +346,25 @@ export function useAdminStats() {
   return useAdminDashboard();
 }
 
-export function useAdminChartData(_days?: number) {
+export function useAdminChartData(days?: number) {
   return useQuery({
-    queryKey: ["admin", "chart-data", "transactions"],
-    queryFn: async () => [] as { date: string; revenus: number; commissions: number }[],
-    staleTime: 5 * 60 * 1000,
+    queryKey: ["admin", "dashboard", days ?? 30],
+    queryFn: () => fetchAdminStats(days ?? 30),
+    select: (d: any) =>
+      (d?.chart?.transactions ?? []) as {
+        date: string;
+        revenus: number;
+        commissions: number;
+      }[],
+    staleTime: 60_000,
   });
 }
 
 export function useUserChartData(range?: string) {
+  const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
   return useQuery({
-    queryKey: ["user", "chart-data", range],
-    queryFn: async () => {
-      const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
-      return Array.from({ length: Math.min(days, 30) }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - (29 - i));
-        return {
-          date: d.toISOString().slice(0, 10),
-          ventes: 2 + (i % 5),
-          revenus: 50000 + i * 12000,
-        };
-      });
-    },
+    queryKey: ["user", "chart-data", days],
+    queryFn: () => fetchSalesChart(days),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -462,16 +372,7 @@ export function useUserChartData(range?: string) {
 export function usePublicStats() {
   return useQuery({
     queryKey: ["public-stats"],
-    queryFn: async () => ({
-      totalUsers: 12840,
-      totalSold: 8920,
-      avgRating: 4.8,
-      totalArticles: 35620,
-      users: 12840,
-      articles: 35620,
-      orders: 8920,
-      rating: 4.8,
-    }),
+    queryFn: fetchPublicStats,
     staleTime: 10 * 60 * 1000,
   });
 }
@@ -500,10 +401,16 @@ export function useAdminUsers(params?: {
         userKind?: string;
         authAudience?: string;
         role?: string | null;
+        seller?: { kind?: string; shopKind?: string | null } | null;
       }) => {
         const kind = String(u.userKind || u.authAudience || "").toUpperCase();
         if (kind === "ADMIN" || u.role === "admin") return "admin";
-        if (kind === "COURIER") return "livreur";
+        if (kind === "COURIER" || u.authAudience === "COURIER") return "livreur";
+        const shop = u.seller?.shopKind;
+        if (shop === "enseigne") return "enseigne";
+        if (shop === "proximite") return "commerce";
+        if (u.seller?.kind === "boutique") return "boutique";
+        if (u.seller?.kind === "particulier") return "particulier";
         return "acheteur";
       };
 
@@ -529,6 +436,7 @@ export function useAdminUsers(params?: {
           authRole: u.role || "user",
           userKind: u.userKind,
           authAudience: u.authAudience,
+          shopKind: u.seller?.shopKind,
           articlesCount: 0,
           createdAt: u.createdAt,
           raw: u,
@@ -727,6 +635,7 @@ export function useAdminArticles(params?: {
           userId: l.sellerProfile?.userId,
           kind: l.sellerProfile?.sellerKind || null,
           pseudo:
+            l.sellerProfile?.displayName ||
             l.sellerProfile?.sellerKind ||
             l.sellerProfileId?.slice(-6) ||
             "Vendeur",
@@ -812,12 +721,17 @@ export function useAdminOrders(params?: {
 }) {
   return useQuery({
     queryKey: ["admin", "orders", params],
-    queryFn: async () => ({
-      data: [] as any[],
-      total: 0,
-      unavailableReason:
-        "GET /admin/orders n’existe pas encore (seed ~20 commandes).",
-    }),
+    queryFn: async () => {
+      const rows = asArray(await fetchAdminOrders()).map((o: any) => ({
+        ...o,
+        _id: o.id || o._id,
+        amount: o.amountGnf ?? o.amount ?? 0,
+        commission: o.commissionGnf ?? o.commission ?? 0,
+        article: o.listing || o.article,
+        shippingCost: o.shippingCostGnf ?? o.shippingCost ?? 0,
+      }));
+      return { data: rows, total: rows.length };
+    },
   });
 }
 
@@ -827,12 +741,113 @@ export function useAdminDisputes(params?: {
 }) {
   return useQuery({
     queryKey: ["admin", "disputes", params],
-    queryFn: async () => ({
-      data: [] as any[],
-      total: 0,
-      unavailableReason:
-        "GET /admin/disputes n’existe pas encore (seed ~7 litiges). Resolve-only est branché.",
-    }),
+    queryFn: async () => {
+      const rows = asArray(await fetchAdminDisputes());
+      return { data: rows, total: rows.length };
+    },
+  });
+}
+
+export function useAdminWallets() {
+  return useQuery({
+    queryKey: ["admin", "wallets"],
+    queryFn: async () => asArray(await fetchAdminWallets()),
+  });
+}
+
+export function useAdminLiveSessions() {
+  return useQuery({
+    queryKey: ["admin", "sessions"],
+    queryFn: async () => asArray(await fetchAdminSessions()),
+  });
+}
+
+export function useAdminSignalements() {
+  return useQuery({
+    queryKey: ["admin", "signalements"],
+    queryFn: async () => asArray(await fetchAdminReports()),
+  });
+}
+
+export function useAdminPartners() {
+  return useQuery({
+    queryKey: ["admin", "partners"],
+    queryFn: async () => asArray(await fetchAdminPartners()),
+  });
+}
+
+export function useAdminCouriers() {
+  return useQuery({
+    queryKey: ["admin", "couriers"],
+    queryFn: async () => asArray(await fetchAdminCouriers()),
+  });
+}
+
+export function useUpdateAdminCourier() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: string;
+      zoneId?: string | null;
+      zoneIds?: string[];
+      isAvailable?: boolean;
+      status?: string;
+    }) => updateAdminCourier(id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "couriers"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "catalog"] });
+    },
+  });
+}
+
+export function useAdminTariffs() {
+  return useQuery({
+    queryKey: ["admin", "tariffs"],
+    queryFn: fetchAdminTariffs,
+  });
+}
+
+export function useSaveAdminTariffs() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      items: Array<{ fromZoneId: string; toZoneId: string; amountGnf: number }>
+    ) => saveAdminTariffs(items),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "tariffs"] });
+    },
+  });
+}
+
+export function useAdminRapports() {
+  return useQuery({
+    queryKey: ["admin", "rapports"],
+    queryFn: fetchAdminRapports,
+  });
+}
+
+export function useMarkDisputeReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note?: string }) =>
+      markDisputeReview(id, note),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "disputes"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    },
+  });
+}
+
+export function useResolveAdminReport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => resolveAdminReport(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "signalements"] });
+    },
   });
 }
 
@@ -849,17 +864,27 @@ export function useUpdateDisputeStatus() {
       status: string;
       note?: string;
     }) => {
-      if (status === "resolved_buyer" || status === "resolved_seller") {
+      if (
+        status === "resolved_buyer" ||
+        status === "resolved_seller" ||
+        status === "partial_refund"
+      ) {
         return resolveDispute(id, {
-          resolution: status,
+          resolution: status as
+            | "resolved_buyer"
+            | "resolved_seller"
+            | "partial_refund",
           note: note || "Résolu",
         });
+      }
+      if (status === "under_review") {
+        return markDisputeReview(id, note);
       }
       return { success: true, id, status };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "disputes"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "stats"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
     },
   });
 }

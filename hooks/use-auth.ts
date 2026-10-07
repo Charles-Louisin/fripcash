@@ -42,7 +42,10 @@ export function mapMeToUiUser(me: Me) {
     lastName,
     pseudo: me.displayName,
     phone: me.phone,
-    email: null as string | null,
+    email: me.email ?? null,
+    emailVerified: !!me.emailVerified,
+    city: me.city || "",
+    bio: me.bio || "",
     role,
     shopKind: me.seller?.shopKind ?? null,
     seller: me.seller,
@@ -51,7 +54,7 @@ export function mapMeToUiUser(me: Me) {
     preferredLocale: me.preferredLocale,
     courier: me.courier,
     walletBalance: 0,
-    avatar: undefined as string | undefined,
+    avatar: (me.avatarUrl || undefined) as string | undefined,
     createdAt: undefined as string | undefined,
     // UI extras until dedicated stats endpoints exist
     salesCount: 0,
@@ -190,6 +193,11 @@ export function useUpdateProfile() {
       const me = await updateMe({
         name,
         preferredLocale: body.preferredLocale as "FR" | "EN" | undefined,
+        city: body.city,
+        bio: body.bio,
+        avatarUrl: body.avatar,
+        coverUrl: body.coverUrl,
+        phone: body.phone,
       });
       return { success: true, user: mapMeToUiUser(me) };
     },

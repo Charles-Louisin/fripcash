@@ -25,7 +25,6 @@ import {
   FiBell,
   FiFileText,
   FiSettings,
-  FiCreditCard,
   FiShoppingBag,
   FiUser,
   FiLogOut,
@@ -58,7 +57,6 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 const accountLinks = [
   { label: "Mon profil", href: "/dashboard/profil", icon: FiUser },
   { label: "Mes paramètres", href: "/dashboard/parametres", icon: FiSettings },
-  { label: "Mon porte-monnaie", href: "/dashboard/porte-monnaie", icon: FiCreditCard },
   { label: "Mes commandes", href: "/dashboard/commandes", icon: FiShoppingBag },
 ];
 

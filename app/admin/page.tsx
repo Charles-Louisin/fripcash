@@ -1,7 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { StatCard } from "@/components/admin/stat-card";
+import {
+  StatsDetailSheet,
+  type StatPanelKey,
+} from "@/components/admin/stats-detail-sheet";
 import { StatsCarousel } from "@/components/admin/stats-carousel";
 import { ChartAreaInteractive } from "@/components/admin/chart-area-interactive";
 import { ChartBarInteractive } from "@/components/admin/charts/chart-bar-interactive";
@@ -25,7 +30,8 @@ import { listingImageUrl } from "@/lib/api";
 
 export default function AdminDashboardPage() {
   const range = useAdminDateRange();
-  const { data, isLoading, isError, error } = useAdminDashboard();
+  const { data, isLoading, isError, error } = useAdminDashboard(range.days);
+  const [panel, setPanel] = useState<StatPanelKey | null>(null);
 
   if (isLoading) {
     return (
@@ -83,7 +89,7 @@ export default function AdminDashboardPage() {
           label="Litiges ouverts"
           value={`${openDisputeCount}`}
           description="À examiner ou résoudre"
-          href="/admin/litiges"
+          onClick={() => setPanel("disputes")}
           actionLabel="Voir les litiges"
           icon={HiOutlineScale}
         />
@@ -95,7 +101,7 @@ export default function AdminDashboardPage() {
               ? "Aucun séquestre"
               : `${escrowHoldCount} séquestres actives`
           }
-          href="/admin/porte-monnaies"
+          onClick={() => setPanel("escrow")}
           actionLabel="Voir les paiements"
           icon={FaShieldHalved}
         />
@@ -103,7 +109,7 @@ export default function AdminDashboardPage() {
           label="Validations boutique"
           value={`${pendingShopCount}`}
           description="Commerce local & enseignes"
-          href="/admin/validations"
+          onClick={() => setPanel("validations")}
           actionLabel="Valider"
           icon={BsShieldFillCheck}
         />
@@ -112,8 +118,8 @@ export default function AdminDashboardPage() {
           value={
             totalUsers == null ? "—" : totalUsers.toLocaleString("fr-FR")
           }
-          description="Comptes Better Auth (list-users)"
-          href="/admin/utilisateurs"
+          description="Comptes inscrits"
+          onClick={() => setPanel("users")}
           actionLabel="Voir les utilisateurs"
           icon={FiUsers}
         />
@@ -124,7 +130,7 @@ export default function AdminDashboardPage() {
           label="Articles"
           value={totalListings.toLocaleString("fr-FR")}
           description={`${activeListings} actifs · ${draftListings ?? 0} brouillons · ${soldListings ?? 0} vendus`}
-          href="/admin/articles"
+          onClick={() => setPanel("listings")}
           actionLabel="Voir les articles"
           icon={FiShoppingBag}
         />
@@ -132,7 +138,7 @@ export default function AdminDashboardPage() {
           label="Valeur catalogue"
           value={formatGnf(catalogValueGnf)}
           description="Somme des annonces actives"
-          href="/admin/articles"
+          onClick={() => setPanel("catalog")}
           actionLabel="Voir le catalogue"
           icon={HiArrowTrendingUp}
         />
@@ -142,7 +148,7 @@ export default function AdminDashboardPage() {
           description={
             activeDeliveries > 0 ? "Missions en cours" : "Aucune livraison active"
           }
-          href="/admin/livreurs"
+          onClick={() => setPanel("deliveries")}
           actionLabel="Voir livreurs"
           icon={FiTruck}
         />
@@ -158,8 +164,8 @@ export default function AdminDashboardPage() {
               ? "Paramètres plateforme non configurés"
               : "Taux plateforme actuel"
           }
-          href="/admin/parametres"
-          actionLabel="Paramètres"
+          onClick={() => setPanel("commission")}
+          actionLabel="Détail"
           icon={HiArrowTrendingUp}
         />
       </StatsCarousel>
@@ -167,8 +173,11 @@ export default function AdminDashboardPage() {
       <ChartAreaInteractive />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        <ChartBarInteractive />
-        <ChartRadialStacked />
+        <ChartBarInteractive data={data.chart?.inscriptions ?? []} />
+        <ChartRadialStacked
+          livraison={data.gmvCourier ?? 0}
+          retrait={data.gmvPickup ?? 0}
+        />
         <ChartPieDonutText
           title="Catalogue par catégorie"
           description="Annonces live regroupées par catégorie"
@@ -199,7 +208,7 @@ export default function AdminDashboardPage() {
               <Badge variant="secondary">{pendingListingCount}</Badge>
             </div>
             <div className="space-y-2">
-              {pendingListings.slice(0, 3).map((a) => {
+              {pendingListings.slice(0, 3).map((a: any) => {
                 const img = listingImageUrl(a.media?.[0]);
                 return (
                   <div key={a.id} className="flex items-center gap-3 py-1.5">
@@ -239,9 +248,24 @@ export default function AdminDashboardPage() {
               </h3>
               <Badge variant="destructive">{openDisputeCount}</Badge>
             </div>
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              Aucun litige ouvert
-            </p>
+            <div className="space-y-2">
+              {(data.openDisputes ?? []).slice(0, 3).map((d: any) => (
+                <div key={d.id} className="flex items-center justify-between gap-2 py-1.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{d.productTitle}</p>
+                    <p className="text-xs text-muted-foreground">{d.reason}</p>
+                  </div>
+                  <Badge variant="destructive" className="shrink-0">
+                    {formatGnf(d.amount || 0)}
+                  </Badge>
+                </div>
+              ))}
+              {openDisputeCount === 0 && (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  Aucun litige ouvert
+                </p>
+              )}
+            </div>
             <Link
               href="/admin/litiges"
               className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
@@ -251,6 +275,8 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </div>
+
+      <StatsDetailSheet panel={panel} onClose={() => setPanel(null)} />
     </div>
   );
 }

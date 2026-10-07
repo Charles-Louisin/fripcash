@@ -23,6 +23,7 @@ type StatCardProps = {
   change?: string;
   changeType?: "positive" | "negative" | "neutral";
   href?: string;
+  onClick?: () => void;
   actionLabel?: string;
   icon: IconType;
   className?: string;
@@ -38,6 +39,7 @@ export function StatCard({
   description,
   change,
   href,
+  onClick,
   actionLabel = "Voir",
   icon: Icon,
   className,
@@ -49,8 +51,10 @@ export function StatCard({
     <Card
       className={cn(
         "h-full gap-0 py-0 shadow-sm transition-colors hover:border-primary/35",
+        onClick && "cursor-pointer",
         className,
       )}
+      onClick={onClick}
     >
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 px-5 pt-5 pb-2">
         <div className="min-w-0 space-y-1">
@@ -72,15 +76,26 @@ export function StatCard({
           <span className="block h-4" aria-hidden />
         )}
       </CardContent>
-      {href ? (
+      {onClick || href ? (
         <CardFooter className="mt-auto border-t border-border px-5 pt-3 pb-4">
-          <Link
-            href={href}
-            className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-colors hover:underline"
-          >
-            {actionLabel}
-            <FiArrowUpRight className="size-3.5" />
-          </Link>
+          {onClick ? (
+            <button
+              type="button"
+              onClick={onClick}
+              className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-colors hover:underline"
+            >
+              {actionLabel}
+              <FiArrowUpRight className="size-3.5" />
+            </button>
+          ) : (
+            <Link
+              href={href!}
+              className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-colors hover:underline"
+            >
+              {actionLabel}
+              <FiArrowUpRight className="size-3.5" />
+            </Link>
+          )}
         </CardFooter>
       ) : null}
     </Card>

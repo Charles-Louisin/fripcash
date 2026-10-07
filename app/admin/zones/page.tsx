@@ -4,13 +4,16 @@ import { useMemo, useState } from "react";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
-import { FiPlus, FiTrash2, FiMapPin } from "react-icons/fi";
 import {
   useAdminCatalogZones,
   useAdminZoneMutations,
+  useAdminCouriers,
+  useUpdateAdminCourier,
 } from "@/hooks/use-admin";
 import { ApiError } from "@/lib/api";
+import { FiPlus, FiMapPin, FiChevronDown, FiChevronUp } from "react-icons/fi";
 
 function slugCode(name: string) {
   return name
@@ -22,11 +25,26 @@ function slugCode(name: string) {
     .slice(0, 24);
 }
 
+function zoneIdsOf(c: any): string[] {
+  const ids = [
+    ...(c.zoneIds || []),
+    ...(c.courier?.zoneIds || []),
+    c.zoneId,
+    c.courier?.zoneId,
+  ]
+    .filter(Boolean)
+    .map(String);
+  return [...new Set(ids)];
+}
+
 export default function AdminZonesPage() {
   const { data: zones = [], isLoading, isError } = useAdminCatalogZones();
-  const { create, remove } = useAdminZoneMutations();
+  const { data: couriers = [] } = useAdminCouriers();
+  const { create, update } = useAdminZoneMutations();
+  const patchCourier = useUpdateAdminCourier();
   const { toast } = useToast();
   const [newZone, setNewZone] = useState("");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const sorted = useMemo(
     () => [...zones].sort((a, b) => a.nameFr.localeCompare(b.nameFr, "fr")),
@@ -54,13 +72,32 @@ export default function AdminZonesPage() {
     }
   };
 
-  const handleRemove = async (id: string, name: string) => {
+  const handleToggle = async (id: string, isActive: boolean, name: string) => {
     try {
-      await remove.mutateAsync(id);
-      toast(`Zone « ${name} » désactivée`, "success");
+      await update.mutateAsync({ id, isActive });
+      toast(isActive ? `Zone « ${name} » activée` : `Zone « ${name} » désactivée`, "success");
     } catch (err) {
       toast(
-        err instanceof ApiError ? err.body.message : "Suppression impossible",
+        err instanceof ApiError ? err.body.message : "Mise à jour impossible",
+        "error"
+      );
+    }
+  };
+
+  const couriersInZone = (zoneId: string) =>
+    couriers.filter((c: any) => zoneIdsOf(c).includes(zoneId));
+
+  const handleAssign = async (courier: any, zoneId: string, checked: boolean) => {
+    const current = zoneIdsOf(courier);
+    const zoneIds = checked
+      ? current.filter((id) => id !== zoneId)
+      : [...current, zoneId];
+    try {
+      await patchCourier.mutateAsync({ id: courier.id, zoneIds });
+      toast("Livreur mis à jour", "success");
+    } catch (err) {
+      toast(
+        err instanceof ApiError ? err.body.message : "Assignation impossible",
         "error"
       );
     }
@@ -70,7 +107,7 @@ export default function AdminZonesPage() {
     <div className="space-y-6">
       <AdminPageHeader
         title="Zones de livraison"
-        description="Zones catalogue (GET/POST /catalog/zones)"
+        description="Active ou désactive une zone et associe les livreurs."
         action={
           <div className="flex gap-2 w-full sm:w-auto">
             <input
@@ -103,42 +140,120 @@ export default function AdminZonesPage() {
           Aucune zone en base
         </p>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {sorted.map((zone) => (
-            <div
-              key={zone.id}
-              className="rounded-lg border border-border bg-card p-3"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <FiMapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <h3 className="font-semibold text-sm truncate">
-                      {zone.nameFr}
-                    </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+          {sorted.map((zone) => {
+            const assigned = couriersInZone(zone.id);
+            const preview = assigned.slice(0, 3);
+            const extra = assigned.length - preview.length;
+            const open = !!expanded[zone.id];
+            return (
+              <div
+                key={zone.id}
+                className="rounded-lg border border-border bg-card p-3 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <FiMapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <h3 className="font-semibold text-sm truncate">
+                        {zone.nameFr}
+                      </h3>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                      {zone.code}
+                    </p>
+                    <Badge
+                      variant={zone.isActive ? "secondary" : "outline"}
+                      className="mt-2 text-[10px]"
+                    >
+                      {zone.isActive ? "Active" : "Inactive"}
+                    </Badge>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
-                    {zone.code}
-                  </p>
-                  <Badge
-                    variant={zone.isActive ? "secondary" : "outline"}
-                    className="mt-2 text-[10px]"
-                  >
-                    {zone.isActive ? "Active" : "Inactive"}
-                  </Badge>
+                  <Switch
+                    checked={!!zone.isActive}
+                    onCheckedChange={(v) => handleToggle(zone.id, v, zone.nameFr)}
+                  />
                 </div>
-                <button
+
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-medium text-muted-foreground">
+                    Livreurs · {assigned.length}
+                  </p>
+                  {assigned.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Aucun livreur associé</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {(open ? assigned : preview).map((c: any) => (
+                        <li key={c.id} className="text-xs truncate">
+                          {c.name}
+                          {c.phone ? ` · ${c.phone}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {extra > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-primary inline-flex items-center gap-1 hover:underline"
+                      onClick={() =>
+                        setExpanded((s) => ({ ...s, [zone.id]: !open }))
+                      }
+                    >
+                      {open ? (
+                        <>
+                          Réduire <FiChevronUp className="h-3 w-3" />
+                        </>
+                      ) : (
+                        <>
+                          Tout voir ({assigned.length}) <FiChevronDown className="h-3 w-3" />
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                <Button
                   type="button"
-                  onClick={() => handleRemove(zone.id, zone.nameFr)}
-                  disabled={remove.isPending}
-                  className="text-destructive hover:bg-destructive/10 p-1.5 rounded-md shrink-0"
-                  aria-label={`Supprimer ${zone.nameFr}`}
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-8 text-xs"
+                  onClick={() =>
+                    setExpanded((s) => ({ ...s, [zone.id]: !open }))
+                  }
                 >
-                  <FiTrash2 className="h-3.5 w-3.5" />
-                </button>
+                  {open ? "Masquer l’assignation" : "Assigner des livreurs"}
+                </Button>
+
+                {open && (
+                  <div className="space-y-2 border-t pt-2">
+                    {couriers.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Aucun livreur</p>
+                    ) : (
+                      couriers.map((c: any) => {
+                        const id = c.id;
+                        const checked = zoneIdsOf(c).includes(zone.id);
+                        return (
+                          <label
+                            key={id}
+                            className="flex items-center gap-2 text-sm"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => handleAssign(c, zone.id, checked)}
+                            />
+                            <span className="truncate">
+                              {c.name} {c.phone ? `· ${c.phone}` : ""}
+                            </span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

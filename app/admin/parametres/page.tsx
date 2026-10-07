@@ -53,11 +53,23 @@ export default function ParametresPage() {
     if (typeof s.maintenanceMode === "boolean") {
       setMaintenanceMode(s.maintenanceMode);
     }
+    if (typeof s.platformName === "string") setPlatformName(s.platformName);
+    if (typeof s.contactEmail === "string") setContactEmail(s.contactEmail);
+    if (typeof s.contactPhone === "string") setContactPhone(s.contactPhone);
+    if (typeof s.notifyEmail === "boolean") setEmailNotifs(s.notifyEmail);
+    if (typeof s.notifySms === "boolean") setSmsNotifs(s.notifySms);
+    if (typeof s.notifyDisputes === "boolean") setDisputeNotifs(s.notifyDisputes);
+    if (typeof s.notifyNewUsers === "boolean") setNewUserNotifs(s.notifyNewUsers);
   }, [settings]);
 
   const handleSaveGeneral = () => {
     updateSettings.mutate(
-      { maintenanceMode },
+      {
+        maintenanceMode,
+        platformName,
+        contactEmail,
+        contactPhone,
+      },
       {
         onSuccess: () => toast("Paramètres généraux enregistrés", "success"),
         onError: (err: unknown) => {
@@ -102,9 +114,23 @@ export default function ParametresPage() {
   };
 
   const handleSaveNotifications = () => {
-    toast(
-      "Préférences locales uniquement — pas d’API admin notifications",
-      "warning"
+    updateSettings.mutate(
+      {
+        notifyEmail: emailNotifs,
+        notifySms: smsNotifs,
+        notifyDisputes: disputeNotifs,
+        notifyNewUsers: newUserNotifs,
+      },
+      {
+        onSuccess: () => toast("Notifications enregistrées", "success"),
+        onError: (err: unknown) => {
+          const msg =
+            err && typeof err === "object" && "message" in err
+              ? String((err as { message: string }).message)
+              : "Erreur lors de l’enregistrement";
+          toast(msg, "error");
+        },
+      }
     );
   };
 
@@ -148,11 +174,7 @@ export default function ParametresPage() {
                   value={platformName}
                   onChange={(e) => setPlatformName(e.target.value)}
                   className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
-                  disabled
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Non géré par l’API platform-settings
-                </p>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
@@ -163,8 +185,6 @@ export default function ParametresPage() {
                     type="email"
                     value={contactEmail}
                     onChange={(e) => setContactEmail(e.target.value)}
-                    placeholder="Non fourni par l’API"
-                    disabled
                     className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
                   />
                 </div>
@@ -176,8 +196,6 @@ export default function ParametresPage() {
                     type="text"
                     value={contactPhone}
                     onChange={(e) => setContactPhone(e.target.value)}
-                    placeholder="Non fourni par l’API"
-                    disabled
                     className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
                   />
                 </div>

@@ -28,10 +28,21 @@ export async function sendOtp(phoneNumber: string) {
   return data;
 }
 
-export async function verifyOtp(phoneNumber: string, code: string) {
+export async function verifyOtp(
+  phoneNumber: string,
+  code: string,
+  signupRole?: string,
+  extra?: { name?: string; displayName?: string }
+) {
   const { data } = await api.post<VerifyOtpResponse>(
     "/auth/phone-number/verify",
-    { phoneNumber, code }
+    {
+      phoneNumber,
+      code,
+      ...(signupRole ? { signupRole } : {}),
+      ...(extra?.name ? { name: extra.name } : {}),
+      ...(extra?.displayName ? { displayName: extra.displayName } : {}),
+    }
   );
   if (!data.token) {
     throw new Error("No session token returned");
@@ -68,6 +79,21 @@ export async function signInEmail(email: string, password: string) {
   return data;
 }
 
+export async function courierLogin(body: {
+  email?: string;
+  phone?: string;
+  password: string;
+}) {
+  const { data } = await api.post<{
+    token?: string;
+    user?: AuthUser;
+  }>("/auth/courier/login", body);
+  const token = data.token;
+  if (!token) throw new Error("No courier session token returned");
+  writeToken(token);
+  return data;
+}
+
 /** Staff only — Nest `POST /auth/admin/login` → `aud: admin` session. */
 export async function adminLogin(email: string, password: string) {
   const { data } = await api.post<{
@@ -89,6 +115,7 @@ export async function signUpEmail(body: {
   email: string;
   password: string;
   name: string;
+  signupRole?: string;
 }) {
   const { data } = await api.post<{
     token?: string | null;
@@ -100,34 +127,38 @@ export async function signUpEmail(body: {
   return data;
 }
 
-/** Trigger verification email (requires BE email provider + trusted callbackURL). */
-export async function sendVerificationEmail(
-  email: string,
-  callbackURL?: string
-) {
-  const { data } = await api.post("/auth/send-verification-email", {
-    email,
-    ...(callbackURL ? { callbackURL } : {}),
-  });
+export async function sendVerificationEmail(email: string) {
+  const { data } = await api.post<{ message: string; code?: string }>(
+    "/auth/send-verification-email",
+    { email }
+  );
   return data;
 }
 
-/** Confirm email from link token — GET /auth/verify-email?token= */
-export async function verifyEmail(token: string) {
-  const { data } = await api.get("/auth/verify-email", {
-    params: { token },
-  });
+export async function verifyEmailCode(body: { email?: string; code: string }) {
+  const { data } = await api.post<{
+    status: boolean;
+    message: string;
+  }>("/auth/verify-email-code", body);
   return data;
+}
+
+/** @deprecated Use verifyEmailCode */
+export async function verifyEmail(token: string) {
+  return verifyEmailCode({ code: token });
 }
 
 export async function requestPasswordReset(
   email: string,
   redirectTo?: string
 ) {
-  const { data } = await api.post("/auth/request-password-reset", {
-    email,
-    ...(redirectTo ? { redirectTo } : {}),
-  });
+  const { data } = await api.post<{ message: string; token?: string }>(
+    "/auth/request-password-reset",
+    {
+      email,
+      ...(redirectTo ? { redirectTo } : {}),
+    }
+  );
   return data;
 }
 

@@ -7,7 +7,6 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   BarChart3,
-  Activity,
   Map,
   Grid3x3,
   Truck,
@@ -57,6 +56,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useLogout } from "@/hooks/use-auth";
 import { clearAdminSession } from "@/lib/admin-session";
+import { useAdminMe } from "@/hooks/use-admin";
 import { toast } from "sonner";
 
 const navSections = [
@@ -64,7 +64,6 @@ const navSections = [
     title: "Monitoring",
     items: [
       { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
-      { href: "/admin/sessions", label: "Sessions", icon: Activity },
       { href: "/admin/rapports", label: "Rapports", icon: BarChart3 },
     ],
   },
@@ -112,12 +111,21 @@ export function AppSidebar() {
   const logout = useLogout();
   const { setOpenMobile } = useSidebar();
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const { data: me } = useAdminMe();
+  const adminName = me?.name || "Admin";
+  const adminEmail = me?.email || "";
+  const initials = adminName
+    .split(" ")
+    .map((w: string) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   const handleLogout = () => {
     logout();
     clearAdminSession();
     toast.success("Déconnexion réussie");
-    router.push("/admin-login");
+    router.push("/connexion");
   };
 
   const closeMobile = () => setOpenMobile(false);
@@ -185,13 +193,13 @@ export function AppSidebar() {
                 >
                   <Avatar className="h-8 w-8 rounded-lg">
                     <AvatarFallback className="rounded-lg bg-primary/10 text-primary">
-                      AD
+                      {initials || "AD"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">Super Admin</span>
+                    <span className="truncate font-semibold">{adminName}</span>
                     <span className="truncate text-xs text-muted-foreground">
-                      admin@fripcash.com
+                      {adminEmail}
                     </span>
                   </div>
                   <ChevronsUpDown className="ml-auto size-4" />
@@ -203,6 +211,9 @@ export function AppSidebar() {
                 align="end"
                 sideOffset={4}
               >
+                <DropdownMenuItem asChild>
+                  <Link href="/">Accueil du site</Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/admin/parametres">Paramètres</Link>
                 </DropdownMenuItem>

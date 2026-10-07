@@ -26,6 +26,7 @@ import { fetchCategories, fetchListing, type CatalogCategory } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
+import { RequireSeller } from "@/components/dashboard/require-role";
 import {
   Sheet,
   SheetContent,
@@ -34,8 +35,9 @@ import {
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
-import { GetAppBanner } from "@/components/dashboard/get-app-banner";
 import { useMe } from "@/hooks/use-auth";
+import { resolveAccountType } from "@/lib/account-type";
+import { ShopVerificationBanner } from "@/components/account/shop-verification-banner";
 import Link from "next/link";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -94,12 +96,13 @@ function buildCategoryOptions(rows: CatalogCategory[]) {
     });
 }
 
-export default function MyArticlesPage() {
+function MyArticlesInner() {
   const { showToast } = useToast();
   const { data: user } = useMe();
-  const canCreateListing = user?.seller?.capabilities?.createListing === true;
+  const account = resolveAccountType(user);
+  const canCreateListing = account.canPublish;
   const verificationPending =
-    user?.seller?.verificationStatus === "pending";
+    account.requiresAdminApproval && account.verificationStatus === "pending";
   const { data: listings = [], isLoading } = useMyArticles();
   const { data: catalogRows = [] } = useQuery({
     queryKey: ["catalog", "categories", "flat"],
@@ -118,8 +121,9 @@ export default function MyArticlesPage() {
   const [viewMode, setViewMode] = useState<"grid" | "table">("table");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  type GallerySlot = { url: string; file?: File; mediaId?: string };
+  const [gallery, setGallery] = useState<GallerySlot[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const emptyForm = {
@@ -147,14 +151,9 @@ export default function MyArticlesPage() {
   const openAddSheet = () => {
     if (!canCreateListing) {
       showToast(
-        "Active d'abord un profil vendeur dans Paramètres → Vendre",
-        "info"
-      );
-      return;
-    }
-    if (verificationPending) {
-      showToast(
-        "Ton profil vendeur est en attente de validation — tu ne peux pas encore publier.",
+        account.requiresAdminApproval
+          ? `La mise en ligne s’ouvre après validation de ta ${account.shortLabel.toLowerCase()} par l’équipe.`
+          : "Ce compte n’est pas encore autorisé à publier.",
         "info"
       );
       return;
@@ -164,8 +163,8 @@ export default function MyArticlesPage() {
       ...emptyForm,
       categoryId: categoryOptions[0]?.id || "",
     });
-    setImagePreviews([]);
-    setImageFiles([]);
+    setGallery([]);
+    setUploadProgress(null);
     setSheetOpen(true);
   };
 
@@ -188,14 +187,25 @@ export default function MyArticlesPage() {
       color: item.color || "",
     });
     // List APIs only return the cover; hydrate full gallery from detail.
-    setImagePreviews(item.images || []);
-    setImageFiles([]);
+    setGallery(
+      (item.media || []).length
+        ? item.media.map((m: { id: string; url: string }) => ({
+            url: m.url,
+            mediaId: m.id,
+          }))
+        : (item.images || []).map((url: string) => ({ url }))
+    );
+    setUploadProgress(null);
     setSheetOpen(true);
     try {
       const full = await fetchListing(item._id || item.id);
       const article = listingToArticle(full);
-      setImagePreviews(
-        article.images.length > 0 ? article.images : item.images || []
+      setGallery(
+        article.media.length
+          ? article.media.map((m) => ({ url: m.url, mediaId: m.id }))
+          : (article.images.length > 0 ? article.images : item.images || []).map(
+              (url: string) => ({ url })
+            )
       );
       setFormData((prev) => ({
         ...prev,
@@ -211,7 +221,7 @@ export default function MyArticlesPage() {
           : "",
         categoryId: article.categoryId || prev.categoryId,
       }));
-      setEditingItem({ ...item, ...article, images: article.images });
+      setEditingItem({ ...item, ...article, images: article.images, media: article.media });
     } catch {
       /* keep cover-only from list */
     }
@@ -220,7 +230,8 @@ export default function MyArticlesPage() {
   const closeSheet = () => {
     setSheetOpen(false);
     setEditingItem(null);
-    setImageFiles([]);
+    setGallery([]);
+    setUploadProgress(null);
   };
 
   const filtered = listings.filter((l: any) =>
@@ -254,26 +265,29 @@ export default function MyArticlesPage() {
     const files = e.target.files;
     if (!files) return;
     Array.from(files).forEach((file) => {
-      setImageFiles((prev) => {
-        if (prev.length >= 5) return prev;
-        return [...prev, file];
-      });
       const reader = new FileReader();
       reader.onload = (ev) => {
-        setImagePreviews((prev) => {
+        setGallery((prev) => {
           if (prev.length >= 5) return prev;
-          return [...prev, ev.target?.result as string];
+          return [...prev, { url: ev.target?.result as string, file }];
         });
       };
       reader.readAsDataURL(file);
     });
-    // Reset input so same file can be selected again
     e.target.value = "";
   };
 
   const removeImage = (index: number) => {
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
-    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setGallery((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const setCover = (index: number) => {
+    setGallery((prev) => {
+      if (index <= 0 || index >= prev.length) return prev;
+      const next = [...prev];
+      const [picked] = next.splice(index, 1);
+      return [picked, ...next];
+    });
   };
 
   const listingErrorMessage = (err: any) => {
@@ -284,11 +298,11 @@ export default function MyArticlesPage() {
       err?.statusCode === 403
     ) {
       if (verificationPending) {
-        return "Profil vendeur en attente de validation — la création d'annonces est bloquée par l'API.";
+        return "Dossier encore en validation — la publication publique n’est pas encore ouverte.";
       }
       return (
         err?.message ||
-        "Accès refusé pour publier une annonce (vérifie ton profil vendeur)."
+        "Publication refusée pour ce type de compte."
       );
     }
     return err?.message || "Erreur";
@@ -296,9 +310,11 @@ export default function MyArticlesPage() {
 
   const handleSubmit = () => {
     if (createArticle.isPending || updateArticle.isPending) return;
-    if (verificationPending && !editingItem) {
+    if (!canCreateListing && !editingItem) {
       showToast(
-        "Profil vendeur en attente de validation — publication impossible.",
+        account.requiresAdminApproval
+          ? "Publication impossible tant que l’équipe n’a pas validé ta boutique."
+          : "Publication impossible pour ce compte.",
         "error"
       );
       return;
@@ -317,7 +333,7 @@ export default function MyArticlesPage() {
       showToast("Choisis une catégorie.", "error");
       return;
     }
-    if (imagePreviews.length === 0) {
+    if (gallery.length === 0) {
       showToast("Ajoute au moins une photo.", "error");
       return;
     }
@@ -343,8 +359,10 @@ export default function MyArticlesPage() {
       title: formData.title,
       brand: formData.brand || "Sans marque",
       description: formData.description,
-      images: imagePreviews,
-      imageFiles,
+      images: gallery.map((s) => s.url),
+      imageFiles: gallery.map((s) => s.file).filter(Boolean) as File[],
+      imageSlots: gallery.map((s) => ({ mediaId: s.mediaId, file: s.file })),
+      onUploadProgress: (pct: number) => setUploadProgress(pct),
       categoryId: formData.categoryId,
       condition: formData.condition,
       size: formData.size || undefined,
@@ -364,7 +382,10 @@ export default function MyArticlesPage() {
             showToast("Article modifié avec succès !", "success");
             closeSheet();
           },
-          onError: (err: any) => showToast(listingErrorMessage(err), "error"),
+          onError: (err: any) => {
+            setUploadProgress(null);
+            showToast(listingErrorMessage(err), "error");
+          },
         }
       );
     } else {
@@ -384,7 +405,10 @@ export default function MyArticlesPage() {
           );
           closeSheet();
         },
-        onError: (err: any) => showToast(listingErrorMessage(err), "error"),
+        onError: (err: any) => {
+          setUploadProgress(null);
+          showToast(listingErrorMessage(err), "error");
+        },
       });
     }
   };
@@ -401,23 +425,30 @@ export default function MyArticlesPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Mes annonces</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Vente simple sur le web — pour boutique, proximité ou enseigne, utilise l&apos;app
+            {account.isShop
+              ? canCreateListing
+                ? `Tes articles paraissent dans ${account.destination}.`
+                : "Espace vendeur ouvert — la mise en ligne attend la validation de l’équipe."
+              : "Tes annonces en seconde main."}
           </p>
         </div>
         <button
           type="button"
           onClick={openAddSheet}
-          className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
+          disabled={!canCreateListing}
+          className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <FiPlus className="h-4 w-4" />
           <span className="hidden sm:inline">Ajouter une annonce</span>
         </button>
       </div>
 
-      {!canCreateListing && (
+      {account.requiresAdminApproval ? (
+        <ShopVerificationBanner type={account} />
+      ) : !canCreateListing ? (
         <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            Active un profil vendeur particulier pour publier en seconde main.
+            Compte acheteur — active un profil particulier pour publier en seconde main.
           </p>
           <Link
             href="/dashboard/parametres"
@@ -426,33 +457,14 @@ export default function MyArticlesPage() {
             Paramètres → Vendre
           </Link>
         </div>
-      )}
+      ) : null}
 
-      {canCreateListing && verificationPending && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex gap-3">
-          <FiAlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-sm">
-            <p className="font-medium text-amber-900">
-              Profil vendeur en attente de validation
-            </p>
-            <p className="mt-0.5 text-amber-800/80">
-              Tu es bien connecté en tant que vendeur, et tes annonces seed
-              restent visibles. L&apos;API bloque{" "}
-              <strong>POST /listings</strong> tant que{" "}
-              <code className="text-xs">verificationStatus</code> est{" "}
-              <code className="text-xs">pending</code> (le 403{" "}
-              <code className="text-xs">FORBIDDEN_AUDIENCE</code> vient du BE,
-              pas d&apos;un mauvais login).
-            </p>
-          </div>
-        </div>
-      )}
-
-      <GetAppBanner
-        compact
-        title="Vendeur pro ? C’est dans l’app"
-        description="Import Excel, bibliothèque produits, commerce local et enseignes partenaires."
-      />
+      <Link
+        href="/dashboard/boutique"
+        className="block rounded-xl border border-border px-4 py-3 text-sm hover:border-primary/40"
+      >
+        Boutique, Excel, bibliothèque →
+      </Link>
 
       {isLoading && (
         <div className="flex items-center justify-center h-32">
@@ -684,10 +696,10 @@ export default function MyArticlesPage() {
             {/* ─── Photos ─── */}
             <div>
               <label className="block text-sm font-semibold text-foreground mb-2">
-                Photos * <span className="font-normal text-muted-foreground">({imagePreviews.length}/5)</span>
+                Photos * <span className="font-normal text-muted-foreground">({gallery.length}/5)</span>
               </label>
 
-              {imagePreviews.length === 0 ? (
+              {gallery.length === 0 ? (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -703,14 +715,22 @@ export default function MyArticlesPage() {
                 </button>
               ) : (
                 <div className="grid grid-cols-5 gap-2">
-                  {imagePreviews.map((src, i) => (
-                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-muted group/img">
+                  {gallery.map((slot, i) => (
+                    <div key={`${slot.mediaId || slot.url}-${i}`} className="relative aspect-square rounded-xl overflow-hidden bg-muted group/img">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={src} alt={`Photo ${i + 1}`} className="absolute inset-0 w-full h-full object-cover" />
-                      {i === 0 && (
+                      <img src={slot.url} alt={`Photo ${i + 1}`} className="absolute inset-0 w-full h-full object-cover" />
+                      {i === 0 ? (
                         <span className="absolute bottom-1 left-1 bg-primary text-primary-foreground text-[9px] font-bold px-1.5 py-0.5 rounded">
                           Couverture
                         </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setCover(i)}
+                          className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] font-medium px-1.5 py-0.5 rounded opacity-0 group-hover/img:opacity-100"
+                        >
+                          Couverture
+                        </button>
                       )}
                       <button
                         type="button"
@@ -721,7 +741,7 @@ export default function MyArticlesPage() {
                       </button>
                     </div>
                   ))}
-                  {imagePreviews.length < 5 && (
+                  {gallery.length < 5 && (
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -731,6 +751,19 @@ export default function MyArticlesPage() {
                       <span className="text-[10px] font-medium">Ajouter</span>
                     </button>
                   )}
+                </div>
+              )}
+              {typeof uploadProgress === "number" && (
+                <div className="mt-3">
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Envoi des images… {uploadProgress}%
+                  </p>
                 </div>
               )}
 
@@ -986,10 +1019,14 @@ export default function MyArticlesPage() {
               disabled={createArticle.isPending || updateArticle.isPending}
               className="flex-1 h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-primary"
             >
-              {createArticle.isPending || updateArticle.isPending ? (
+                  {createArticle.isPending || updateArticle.isPending ? (
                 <>
                   <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  {editingItem ? "Enregistrement..." : "Publication..."}
+                  {typeof uploadProgress === "number"
+                    ? `Upload ${uploadProgress}%`
+                    : editingItem
+                      ? "Enregistrement..."
+                      : "Publication..."}
                 </>
               ) : editingItem ? (
                 <>
@@ -1041,5 +1078,13 @@ export default function MyArticlesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function MyArticlesPage() {
+  return (
+    <RequireSeller>
+      <MyArticlesInner />
+    </RequireSeller>
   );
 }

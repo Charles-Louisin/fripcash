@@ -7,6 +7,7 @@ import { UserTopbar } from "@/components/dashboard/user-topbar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useMe } from "@/hooks/use-auth";
 import { useProfileStore } from "@/stores/profile-store";
+import { needsEmailVerification } from "@/lib/auth-redirect";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -15,9 +16,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { data: user, isLoading, isError } = useMe();
   const hydrateFromUser = useProfileStore((s) => s.hydrateFromUser);
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoading && (isError || !user)) {
+      router.replace("/connexion");
+      return;
+    }
+    if (!user) return;
+    if (user.isAdmin) {
+      router.replace("/admin");
+      return;
+    }
+    if (user.courier) {
+      router.replace("/livreur");
+      return;
+    }
+    if (needsEmailVerification(user)) {
       router.replace("/connexion");
     }
   }, [isLoading, isError, user, router]);
@@ -36,8 +49,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  // Don't render dashboard if not authenticated (redirect is in progress)
-  if (!user) {
+  if (!user || user.isAdmin || user.courier || needsEmailVerification(user)) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />

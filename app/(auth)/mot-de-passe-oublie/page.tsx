@@ -2,7 +2,8 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { passwordError, passwordsMatchError } from "@/lib/password";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +27,7 @@ import {
 } from "@/lib/auth-country";
 
 function MotDePasseOublieInner() {
+  const router = useRouter();
   const params = useSearchParams();
   const tokenFromUrl = params.get("token") || "";
   const { toast } = useToast();
@@ -38,7 +40,10 @@ function MotDePasseOublieInner() {
   const [email, setEmail] = useState("");
   const [token, setToken] = useState(tokenFromUrl);
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [devToken, setDevToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleRequest = async (e: React.FormEvent) => {
@@ -60,7 +65,11 @@ function MotDePasseOublieInner() {
         typeof window !== "undefined"
           ? `${window.location.origin}/mot-de-passe-oublie`
           : undefined;
-      await requestPasswordReset(email.trim(), redirectTo);
+      const res = await requestPasswordReset(email.trim(), redirectTo);
+      if (res.token) {
+        setDevToken(res.token);
+        setToken(res.token);
+      }
       setStep("sent");
       toast("Si un compte existe, un email a été envoyé.", "success");
     } catch (err) {
@@ -96,15 +105,21 @@ function MotDePasseOublieInner() {
       toast("Token manquant.", "error");
       return;
     }
-    if (password.length < 8) {
-      toast("Mot de passe : 8 caractères minimum.", "error");
+    const pwdErr = passwordError(password);
+    if (pwdErr) {
+      toast(pwdErr, "error");
+      return;
+    }
+    const matchErr = passwordsMatchError(password, confirmPassword);
+    if (matchErr) {
+      toast(matchErr, "error");
       return;
     }
     setLoading(true);
     try {
       await resetPassword({ token: token.trim(), newPassword: password });
-      toast("Mot de passe mis à jour.", "success");
-      setStep("request");
+      toast("Mot de passe mis à jour. Connecte-toi.", "success");
+      router.push("/connexion");
     } catch (err) {
       toast(
         err instanceof ApiError
@@ -182,6 +197,14 @@ function MotDePasseOublieInner() {
             Si un compte existe pour <strong>{email}</strong>, tu recevras un
             lien. Ouvre-le pour choisir un nouveau mot de passe.
           </p>
+          {devToken && (
+            <Button
+              className="w-full h-11"
+              onClick={() => setStep("reset")}
+            >
+              Continuer (lien de développement)
+            </Button>
+          )}
           <Button
             variant="outline"
             className="w-full h-11"
@@ -215,6 +238,8 @@ function MotDePasseOublieInner() {
                 className="pl-9 pr-11 h-11"
                 minLength={8}
                 required
+                autoComplete="new-password"
+                placeholder="8 caractères, lettre + chiffre"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -224,6 +249,35 @@ function MotDePasseOublieInner() {
                 onClick={() => setShowPassword((v) => !v)}
               >
                 {showPassword ? (
+                  <FiEyeOff className="h-4 w-4" />
+                ) : (
+                  <FiEye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">
+              Confirmer le mot de passe
+            </label>
+            <div className="relative">
+              <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type={showConfirm ? "text" : "password"}
+                className="pl-9 pr-11 h-11"
+                minLength={8}
+                required
+                autoComplete="new-password"
+                placeholder="Retape le même mot de passe"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                onClick={() => setShowConfirm((v) => !v)}
+              >
+                {showConfirm ? (
                   <FiEyeOff className="h-4 w-4" />
                 ) : (
                   <FiEye className="h-4 w-4" />

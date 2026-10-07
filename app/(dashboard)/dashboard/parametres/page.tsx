@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useMe, useBecomeParticulier, useUpdateProfile } from "@/hooks/use-auth";
 import {
   useNotificationPreferences,
@@ -9,11 +10,9 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { FiShoppingBag, FiSmartphone } from "react-icons/fi";
 import { buildSellerSnapshot } from "@/lib/account-capabilities";
-import { GetAppBanner } from "@/components/dashboard/get-app-banner";
-import {
-  APP_STORE_URL,
-  PLAY_STORE_URL,
-} from "@/components/app-store-badges";
+import { resolveAccountType, verificationLabel } from "@/lib/account-type";
+import { AccountTypeBadge } from "@/components/account/account-type-badge";
+import { ShopVerificationBanner } from "@/components/account/shop-verification-banner";
 
 const settingsTabs = [
   { id: "account", label: "Compte" },
@@ -76,6 +75,7 @@ export default function SettingsPage() {
     if (user?.pseudo) setDisplayName(user.pseudo);
   }, [user?.pseudo]);
 
+  const account = resolveAccountType(user);
   const seller =
     user?.seller ??
     buildSellerSnapshot({
@@ -150,6 +150,7 @@ export default function SettingsPage() {
 
       <div className="flex items-center gap-1 border-b border-border overflow-x-auto">
         {settingsTabs.map((tab) => (
+          /* label overridden below */
           <button
             key={tab.id}
             type="button"
@@ -160,7 +161,11 @@ export default function SettingsPage() {
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            {tab.label}
+            {tab.id === "seller"
+              ? account.isShop
+                ? "Ma boutique"
+                : "Vendre"
+              : tab.label}
           </button>
         ))}
       </div>
@@ -168,7 +173,11 @@ export default function SettingsPage() {
       {activeTab === "account" && (
         <div className="space-y-6">
           <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-            <h3 className="font-semibold text-foreground">Compte</h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-semibold text-foreground">Compte</h3>
+              <AccountTypeBadge user={user} size="md" />
+            </div>
+            <p className="text-sm text-muted-foreground">{account.description}</p>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">
                 Nom d&apos;affichage
@@ -228,46 +237,44 @@ export default function SettingsPage() {
 
       {activeTab === "seller" && (
         <div className="space-y-6">
+          {account.isShop && <ShopVerificationBanner type={account} />}
+
           <div className="rounded-xl border border-border bg-card p-6 space-y-3">
-            <h3 className="font-semibold text-foreground">Profil vendeur</h3>
+            <h3 className="font-semibold text-foreground">
+              {account.isShop ? "Ta boutique" : "Profil vendeur"}
+            </h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Un seul compte. Tu upgrades pour vendre — pas de changement de
-              rôle libre. Tes achats restent toujours visibles.
+              {account.isShop
+                ? "Tu es déjà vendeur. Certaines actions (mise en ligne, Excel, annuaire) restent fermées tant que l’équipe n’a pas validé le dossier."
+                : account.isSeller
+                  ? "Tu vends déjà en particulier. Tes achats restent sur le même compte."
+                  : "Un seul compte. Tu peux activer un profil particulier pour vendre en seconde main."}
             </p>
             <dl className="grid gap-2 text-sm pt-2">
               <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Statut</dt>
+                <dt className="text-muted-foreground">Type</dt>
+                <dd className="font-medium text-foreground">{account.label}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Validation</dt>
                 <dd className="font-medium text-foreground">
-                  {seller.kind === "none"
-                    ? "Acheteur uniquement"
-                    : seller.kind === "particulier"
-                      ? "Particulier (seconde main)"
-                      : "Boutique"}
+                  {account.requiresAdminApproval
+                    ? verificationLabel(account.verificationStatus)
+                    : "Non requise"}
                 </dd>
               </div>
-              {user?.seller?.verificationStatus && (
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Vérification</dt>
-                  <dd className="font-medium text-foreground capitalize">
-                    {user.seller.verificationStatus}
-                  </dd>
-                </div>
-              )}
-              {seller.listingDestination && (
+              {account.destination && (
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted-foreground">Univers</dt>
                   <dd className="font-medium text-foreground">
-                    {seller.listingDestination === "secondeMain" ||
-                    seller.listingDestination === "SECONDE_MAIN"
-                      ? "Seconde main"
-                      : seller.listingDestination}
+                    {account.destination}
                   </dd>
                 </div>
               )}
             </dl>
           </div>
 
-          {seller.kind === "none" && (
+          {account.id === "acheteur" && seller.kind === "none" && (
             <div className="rounded-xl border border-border bg-card p-6 space-y-4">
               <div className="flex items-start gap-3">
                 <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -279,7 +286,8 @@ export default function SettingsPage() {
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                     Publie en seconde main sur le site. Même compte, historique
-                    d&apos;achats conservé.
+                    d&apos;achats conservé. Boutique, commerce ou enseigne se
+                    créent à l&apos;inscription ou via Ma boutique.
                   </p>
                 </div>
               </div>
@@ -293,7 +301,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {seller.kind === "particulier" && (
+          {account.id === "particulier" && (
             <div className="rounded-xl border border-border bg-muted/30 p-6 space-y-3">
               <div className="flex items-start gap-3">
                 <div className="flex size-10 items-center justify-center rounded-lg bg-muted text-foreground">
@@ -304,33 +312,52 @@ export default function SettingsPage() {
                     Créer une boutique
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                    Boutique, commerce local ou enseigne (avec validation) —
-                    dans l&apos;app FripCash.
+                    Boutique, commerce local ou enseigne — dossier et
+                    validation sur le site.
                   </p>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <a
-                  href={APP_STORE_URL}
-                  className="h-9 px-4 inline-flex items-center rounded-lg bg-zinc-950 text-white text-xs font-medium"
-                >
-                  App Store
-                </a>
-                <a
-                  href={PLAY_STORE_URL}
-                  className="h-9 px-4 inline-flex items-center rounded-lg bg-zinc-950 text-white text-xs font-medium"
-                >
-                  Google Play
-                </a>
-              </div>
+              <Link
+                href="/dashboard/boutique"
+                className="inline-flex h-9 items-center rounded-lg bg-primary px-4 text-xs font-medium text-white"
+              >
+                Ouvrir le dossier boutique
+              </Link>
             </div>
           )}
 
-          <GetAppBanner
-            compact
-            title="Boutique & livreur dans l'app"
-            description="Import Excel, proximité, enseignes et espace livreur restent sur mobile."
-          />
+          {account.isShop && (
+            <div className="rounded-xl border border-border bg-card p-6 space-y-3">
+              <h3 className="font-semibold text-foreground">Outils boutique</h3>
+              <p className="text-sm text-muted-foreground">
+                {account.canPublish
+                  ? "Tous tes outils sont débloqués."
+                  : "Tu vois déjà ton espace. Import et mise en ligne se débloquent après validation."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/dashboard/boutique"
+                  className="inline-flex h-9 items-center rounded-lg border border-border px-4 text-xs font-medium hover:bg-accent"
+                >
+                  Ma boutique
+                </Link>
+                <Link
+                  href="/dashboard/boutique/reglages"
+                  className="inline-flex h-9 items-center rounded-lg border border-border px-4 text-xs font-medium hover:bg-accent"
+                >
+                  Réglages
+                </Link>
+                {account.seesExcel && (
+                  <Link
+                    href="/dashboard/import-excel"
+                    className="inline-flex h-9 items-center rounded-lg border border-border px-4 text-xs font-medium hover:bg-accent"
+                  >
+                    Import Excel{account.excelImport ? "" : " (verrouillé)"}
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

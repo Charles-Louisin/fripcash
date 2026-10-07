@@ -21,11 +21,21 @@ import {
   useSellerVerifications,
   useApproveSellerVerification,
   useRejectSellerVerification,
+  useAdminShopVerificationMessage,
   useAdminIndividualKyc,
   useAdminOrgKyc,
   useReviewIndividualKyc,
   useReviewOrgKyc,
 } from "@/hooks/use-admin";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { ShopVerificationThread } from "@/components/shop-verification-thread";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
 import { listingImageUrl } from "@/lib/api";
 
@@ -36,6 +46,10 @@ type VerificationRow = {
   phone?: string;
   createdAt?: string;
   displayName?: string;
+  documents: any[];
+  messages: any[];
+  shopDescription?: string;
+  raw: any;
 };
 
 type KycRow = {
@@ -62,6 +76,10 @@ function mapVerification(v: any): VerificationRow {
     phone: v.phone || v.user?.phone || v.sellerProfile?.phone,
     createdAt: v.createdAt || v.submittedAt,
     displayName: v.displayName || v.user?.name || v.user?.displayName,
+    documents: v.documents || [],
+    messages: v.messages || [],
+    shopDescription: v.shopDescription || "",
+    raw: v,
   };
 }
 
@@ -106,6 +124,8 @@ export default function AdminValidationsPage() {
   const [shopFilter, setShopFilter] = useState<
     "all" | "proximite" | "enseigne"
   >("all");
+  const [selectedShop, setSelectedShop] = useState<VerificationRow | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
 
   const {
     data: shopRows = [],
@@ -118,6 +138,7 @@ export default function AdminValidationsPage() {
 
   const approveShop = useApproveSellerVerification();
   const rejectShop = useRejectSellerVerification();
+  const shopMsg = useAdminShopVerificationMessage();
   const reviewIndividual = useReviewIndividualKyc();
   const reviewOrg = useReviewOrgKyc();
 
@@ -230,6 +251,10 @@ export default function AdminValidationsPage() {
               data={filteredShops}
               getRowKey={(u) => u.id}
               emptyMessage="Aucune demande"
+              onRowClick={(u) => {
+                setSelectedShop(u);
+                setRejectNote("");
+              }}
               columns={[
                 {
                   key: "shop",
@@ -431,6 +456,91 @@ export default function AdminValidationsPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <Sheet
+        open={!!selectedShop}
+        onOpenChange={(open) => !open && setSelectedShop(null)}
+      >
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{selectedShop?.shopName || "Boutique"}</SheetTitle>
+          </SheetHeader>
+          {selectedShop && (
+            <div className="mt-4 space-y-4 px-1 pb-6">
+              <p className="text-sm text-muted-foreground">
+                {selectedShop.shopKind} · {selectedShop.displayName}
+              </p>
+              {selectedShop.shopDescription && (
+                <p className="text-sm">{selectedShop.shopDescription}</p>
+              )}
+              <ShopVerificationThread
+                messages={selectedShop.messages || []}
+                documents={selectedShop.documents || []}
+                sending={shopMsg.isPending}
+                adminView
+                onSend={async (payload) => {
+                  const res: any = await shopMsg.mutateAsync({
+                    id: selectedShop.id,
+                    body: payload.body,
+                    attachments: payload.attachments,
+                  });
+                  setSelectedShop((s) =>
+                    s
+                      ? { ...s, messages: res.messages || s.messages }
+                      : s
+                  );
+                  toast("Message envoyé", "success");
+                }}
+              />
+              <div>
+                <Label>Note de refus</Label>
+                <Input
+                  className="mt-1"
+                  value={rejectNote}
+                  onChange={(e) => setRejectNote(e.target.value)}
+                  placeholder="Motif si tu refuses"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  disabled={rejectShop.isPending}
+                  onClick={async () => {
+                    try {
+                      await rejectShop.mutateAsync({
+                        id: selectedShop.id,
+                        reviewerNote: rejectNote || "Refusé depuis l'admin",
+                      });
+                      toast("Boutique refusée", "warning");
+                      setSelectedShop(null);
+                    } catch {
+                      toast("Impossible de refuser", "error");
+                    }
+                  }}
+                >
+                  Refuser
+                </Button>
+                <Button
+                  className="flex-1"
+                  disabled={approveShop.isPending}
+                  onClick={async () => {
+                    try {
+                      await approveShop.mutateAsync({ id: selectedShop.id });
+                      toast("Boutique validée", "success");
+                      setSelectedShop(null);
+                    } catch {
+                      toast("Impossible de valider", "error");
+                    }
+                  }}
+                >
+                  Valider
+                </Button>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

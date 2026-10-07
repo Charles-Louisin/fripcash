@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useUIStore } from "@/stores/ui-store";
 import { useCartStore } from "@/stores/cart-store";
 import { useMe } from "@/hooks/use-auth";
@@ -38,7 +36,6 @@ import {
   useMarkNotificationAsRead,
   useMarkAllNotificationsAsRead,
 } from "@/hooks/use-notifications";
-import { useArticleSearch } from "@/hooks/use-articles";
 
 /* ─── Category types ─── */
 
@@ -100,128 +97,14 @@ function mapDbCategories(raw: any[]): Category[] {
 }
 
 function NavbarSearch({ className }: { className?: string }) {
-  const router = useRouter();
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const [query, setQuery] = useState("");
-  const [debounced, setDebounced] = useState("");
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(query.trim()), 280);
-    return () => clearTimeout(t);
-  }, [query]);
-
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, []);
-
-  const { data, isFetching } = useArticleSearch(debounced, 8);
-  const results = data?.data || [];
-  const total = data?.total || 0;
-  const showPanel = open && query.trim().length >= 2;
-
-  const goToResults = () => {
-    const q = query.trim();
-    if (!q) return;
-    setOpen(false);
-    router.push(`/produits?q=${encodeURIComponent(q)}`);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    goToResults();
-  };
-
   return (
-    <div ref={wrapRef} className={`relative ${className || ""}`}>
-      <form onSubmit={handleSubmit} className="relative w-full">
-        <FiSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="search"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          placeholder="Rechercher des articles"
-          className="h-9 bg-muted/50 pl-9"
-          autoComplete="off"
-          aria-autocomplete="list"
-          aria-expanded={showPanel}
-        />
-      </form>
-
-      {showPanel && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-border bg-background shadow-lg">
-          {isFetching && results.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-              Recherche…
-            </p>
-          ) : results.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-              Aucun article pour « {query.trim()} »
-            </p>
-          ) : (
-            <ul className="max-h-[min(70vh,22rem)] overflow-y-auto py-1">
-              {results.map((item) => (
-                <li key={item._id}>
-                  <Link
-                    href={`/article/${item._id}`}
-                    onClick={() => {
-                      setOpen(false);
-                      setQuery("");
-                    }}
-                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/60 transition-colors"
-                  >
-                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
-                      {item.images[0] ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={item.images[0]}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                          <FiSearch className="h-4 w-4 opacity-40" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {item.title}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {item.category}
-                      </p>
-                    </div>
-                    <p className="shrink-0 text-sm font-semibold text-foreground tabular-nums">
-                      {item.price.toLocaleString("fr-FR")} GNF
-                    </p>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-          <button
-            type="button"
-            onClick={goToResults}
-            className="flex w-full items-center justify-center gap-1 border-t border-border px-3 py-2.5 text-sm font-medium text-primary hover:bg-muted/50 transition-colors"
-          >
-            Voir tous les résultats
-            {total > results.length ? ` (${total})` : ""}
-            <FiChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
-    </div>
+    <Link
+      href="/recherche"
+      className={`relative flex h-9 w-full items-center rounded-md border border-transparent bg-muted/50 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${className || ""}`}
+    >
+      <FiSearch className="mr-2 h-4 w-4 shrink-0" />
+      <span className="truncate">Rechercher des articles, boutiques, catégories…</span>
+    </Link>
   );
 }
 
@@ -321,7 +204,7 @@ export function Header() {
             />
           </Link>
 
-          {/* Search bar with live product suggestions */}
+          {/* Search bar — opens the search page */}
           <NavbarSearch className="flex-1 max-w-2xl" />
 
           {/* Right side actions */}
@@ -854,7 +737,7 @@ export function Header() {
           </div>
         </div>
 
-        {/* Row 2: Search bar with live product suggestions */}
+        {/* Row 2: Search bar — opens the search page */}
         <div className="px-4 py-2 border-b">
           <NavbarSearch className="w-full" />
         </div>

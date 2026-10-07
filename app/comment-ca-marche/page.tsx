@@ -230,8 +230,9 @@ export default function CommentCaMarchePage() {
                   </h3>
                   <p className="text-muted-foreground text-sm leading-relaxed">
                     Échange avec le vendeur et achète en un simple clic. Paie en
-                    toute sécurité avec Mobile Money, carte bancaire ou ton
-                    porte-monnaie FripCash.
+                    toute sécurité avec Mobile Money ou carte bancaire. Le
+                    paiement est bloqué en séquestre jusqu&apos;à confirmation
+                    de réception.
                   </p>
                 </div>
               </div>

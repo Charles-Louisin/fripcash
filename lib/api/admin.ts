@@ -16,6 +16,13 @@ export type PlatformSettings = {
   minWithdrawalGnf?: number;
   maxListingPhotos?: number;
   maintenanceMode?: boolean;
+  platformName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  notifyEmail?: boolean;
+  notifySms?: boolean;
+  notifyDisputes?: boolean;
+  notifyNewUsers?: boolean;
   updatedAt?: string;
   /** Legacy — prefer commissionRateStandard */
   defaultCommissionBps?: number;
@@ -34,6 +41,13 @@ export async function updatePlatformSettings(
     minWithdrawalGnf: number;
     maxListingPhotos: number;
     maintenanceMode: boolean;
+    platformName: string;
+    contactEmail: string;
+    contactPhone: string;
+    notifyEmail: boolean;
+    notifySms: boolean;
+    notifyDisputes: boolean;
+    notifyNewUsers: boolean;
   }>
 ) {
   const { data } = await api.patch<PlatformSettings>(
@@ -77,6 +91,17 @@ export type AuthAdminUser = {
   preferredLocale?: string;
   userKind?: string;
   authAudience?: string;
+  seller?: {
+    kind?: string;
+    shopKind?: string | null;
+    shopName?: string;
+    verificationStatus?: string;
+  } | null;
+  courier?: {
+    isAvailable?: boolean;
+    vehicle?: string;
+    zoneId?: string | null;
+  } | null;
 };
 
 export async function fetchAuthAdminUsers(params?: {
@@ -267,6 +292,25 @@ export async function rejectSellerVerification(
   return data;
 }
 
+export async function sendAdminShopVerificationMessage(
+  id: string,
+  body: {
+    body: string;
+    attachments?: Array<{
+      url: string;
+      storageKey?: string;
+      mimeType?: string;
+      name?: string;
+    }>;
+  }
+) {
+  const { data } = await api.post(
+    `/admin/seller-verifications/${id}/messages`,
+    body
+  );
+  return data;
+}
+
 export async function fetchAdminOrgKyc() {
   const { data } = await api.get("/admin/kyc/organizations");
   return data;
@@ -318,7 +362,12 @@ export async function rejectIndividualKyc(id: string, reviewerNote?: string) {
 
 export async function resolveDispute(
   id: string,
-  body: { resolution: "resolved_buyer" | "resolved_seller"; note: string }
+  body: {
+    resolution: "resolved_buyer" | "resolved_seller" | "partial_refund";
+    note: string;
+    buyerPercent?: number;
+    sellerPercent?: number;
+  }
 ) {
   const { data } = await api.post(`/admin/disputes/${id}/resolve`, body);
   return data;
@@ -358,6 +407,8 @@ export type AdminListing = {
     userId?: string;
     sellerKind?: string;
     verificationStatus?: string;
+    displayName?: string | null;
+    shopKind?: string | null;
   };
   category?: {
     id: string;
@@ -392,5 +443,102 @@ export async function updateAdminListing(
   }>
 ) {
   const { data } = await api.patch<AdminListing>(`/admin/listings/${id}`, body);
+  return data;
+}
+
+export async function fetchAdminOrders() {
+  const { data } = await api.get("/admin/orders");
+  return data;
+}
+
+export async function fetchAdminDisputes() {
+  const { data } = await api.get("/admin/disputes");
+  return data;
+}
+
+export async function fetchAdminWallets() {
+  const { data } = await api.get("/admin/wallets");
+  return data;
+}
+
+export async function fetchAdminSessions() {
+  const { data } = await api.get("/admin/sessions");
+  return data;
+}
+
+export async function fetchAdminReports() {
+  const { data } = await api.get("/admin/signalements");
+  return data;
+}
+
+export async function fetchAdminPartners() {
+  const { data } = await api.get("/admin/partenaires");
+  return data;
+}
+
+export async function createAdminPartner(body: { name: string; kind?: string; status?: string }) {
+  const { data } = await api.post("/admin/partenaires", body);
+  return data;
+}
+
+export async function fetchAdminCouriers() {
+  const { data } = await api.get("/admin/livreurs");
+  return data;
+}
+
+export async function updateAdminCourier(
+  id: string,
+  body: {
+    zoneId?: string | null;
+    zoneIds?: string[];
+    isAvailable?: boolean;
+    status?: string;
+  }
+) {
+  const { data } = await api.patch(`/admin/livreurs/${id}`, body);
+  return data;
+}
+
+export async function fetchAdminTariffs() {
+  const { data } = await api.get("/admin/tarifs");
+  return data;
+}
+
+export async function saveAdminTariffs(
+  items: Array<{ fromZoneId: string; toZoneId: string; amountGnf: number }>
+) {
+  const { data } = await api.put("/admin/tarifs", { items });
+  return data;
+}
+
+export async function fetchAdminRapports() {
+  const { data } = await api.get("/admin/rapports");
+  return data;
+}
+
+export async function fetchAdminStats(days = 30) {
+  const { data } = await api.get("/admin/stats", { params: { days } });
+  return data;
+}
+
+export async function markDisputeReview(id: string, note?: string) {
+  const { data } = await api.post(`/admin/disputes/${id}/review`, { note });
+  return data;
+}
+
+export async function resolveAdminReport(id: string, status = "resolved") {
+  const { data } = await api.post(`/admin/signalements/${id}/resolve`, { status });
+  return data;
+}
+
+export async function askDisputeParty(
+  id: string,
+  message?: string,
+  extra?: { kind?: string; requestedKinds?: string[] }
+) {
+  const { data } = await api.post(`/admin/disputes/${id}/ask-party`, {
+    message,
+    ...extra,
+  });
   return data;
 }

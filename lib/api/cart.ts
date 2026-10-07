@@ -53,10 +53,21 @@ export async function removeCartItem(itemId: string) {
   return data;
 }
 
-export async function checkout() {
+export async function checkout(body?: {
+  fulfillmentMode?: "courier" | "pickup" | "shopLocalDelivery";
+  paymentMethod?: string;
+  address?: string;
+  city?: string;
+  phone?: string;
+  name?: string;
+  shippingCostGnf?: number;
+  toZoneId?: string;
+  zoneId?: string;
+  offerAmountGnf?: number;
+}) {
   const { data } = await api.post<{
     paymentIntent?: unknown;
     orders?: unknown[];
-  }>("/checkout");
+  }>("/checkout", body ?? {});
   return data;
 }

@@ -1,9 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { FaFacebookF, FaInstagram, FaTwitter, FaLinkedinIn } from "react-icons/fa";
-import { TfiEmail } from "react-icons/tfi";
-import { LuPhoneCall } from "react-icons/lu";
-import { MdLocationOn } from "react-icons/md";
+import { FooterContact } from "@/components/footer-contact";
 import { AppStoreBadges } from "@/components/app-store-badges";
 
 export function Footer() {
@@ -167,36 +165,7 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Contact Info Row */}
-          <div className="border-t border-border pt-6 pb-4 grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
-            <div className="flex items-center gap-3">
-              <TfiEmail className="text-primary text-lg" />
-              <div>
-                <div className="font-bold text-xs text-muted-foreground">
-                  EMAIL
-                </div>
-                <div className="text-foreground">support@fripcash.com</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <LuPhoneCall className="text-primary text-lg" />
-              <div>
-                <div className="font-bold text-xs text-muted-foreground">
-                  TÉLÉPHONE
-                </div>
-                <div className="text-foreground">+224 6XX XXX XXX</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <MdLocationOn className="text-primary text-lg" />
-              <div>
-                <div className="font-bold text-xs text-muted-foreground">
-                  ADRESSE
-                </div>
-                <div className="text-foreground">Conakry, Guinée</div>
-              </div>
-            </div>
-          </div>
+          <FooterContact />
 
 
           {/* Copyright */}

@@ -2,26 +2,9 @@
 
 import { useRef } from "react";
 import { EmptyStateLottie } from "@/components/empty-state-lottie";
-import { ProductCard, ProductCardSkeleton, type Product } from "@/components/product-card";
+import { ProductCard, ProductCardSkeleton, mapArticleToProduct } from "@/components/product-card";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { useArticles } from "@/hooks/use-articles";
-
-function mapArticleToProduct(article: any): Product {
-  return {
-    id: article._id,
-    image: article.images?.[0] || "",
-    brand: article.brand || article.title || "Article",
-    condition: article.condition || "",
-    size: article.size,
-    price: article.price || 0,
-    priceWithShipping: (article.price || 0) + (article.shippingCost || 0),
-    compareAtPrice: article.compareAtPrice ?? null,
-    discountEnabled: article.discountEnabled === true,
-    favorites: article.favoritesCount || 0,
-    href: `/article/${article._id}`,
-    category: article.category,
-  };
-}
 
 export function NewProductsSlider() {
   const scrollRef = useRef<HTMLDivElement>(null);

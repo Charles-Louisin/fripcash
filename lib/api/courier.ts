@@ -41,6 +41,11 @@ export async function progressMission(
   return data;
 }
 
+export async function fetchCourierGains() {
+  const { data } = await api.get("/courier/gains");
+  return data;
+}
+
 export async function transferMission(
   orderId: string,
   toCourierUserId: string

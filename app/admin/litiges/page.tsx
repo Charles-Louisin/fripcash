@@ -15,7 +15,7 @@ import {
   DISPUTE_PAYMENT_KIND_LABELS,
   DISPUTE_STATUS_LABELS,
 } from "@/lib/admin-disputes";
-import { useResolveAdminDispute } from "@/hooks/use-admin";
+import { useAdminDisputes, useAskDisputeParty, useMarkDisputeReview, useResolveAdminDispute } from "@/hooks/use-admin";
 import {
   FiAlertTriangle,
   FiCheck,
@@ -34,6 +34,7 @@ const statusVariant: Record<
   open: "warning",
   under_review: "secondary",
   resolved: "success",
+  closed: "outline",
 };
 
 function formatWhen(iso: string) {
@@ -50,6 +51,32 @@ function formatGnf(amount: number) {
   return `${amount.toLocaleString("fr-FR")} GNF`;
 }
 
+function normalizeId(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") {
+    const o = value as { id?: unknown; _id?: unknown };
+    if (o.id) return String(o.id);
+    if (o._id) return String(o._id);
+  }
+  const raw = String(value);
+  return raw === "[object Object]" ? "" : raw;
+}
+
+function disputeMessageAuthor(m: any, dispute: AdminDispute) {
+  if (m?.fromAdmin || m?.senderRole === "admin") return "Admin";
+  if (m?.senderRole === "seller") return dispute.sellerName || "Vendeur";
+  if (m?.senderRole === "buyer") return dispute.buyerName || "Acheteur";
+  const senderId = normalizeId(m?.senderId);
+  if (senderId && senderId === normalizeId(dispute.sellerId)) {
+    return dispute.sellerName || "Vendeur";
+  }
+  if (senderId && senderId === normalizeId(dispute.buyerId)) {
+    return dispute.buyerName || "Acheteur";
+  }
+  return m?.senderName || "Partie";
+}
+
 export default function LitigesPage() {
   const { showToast } = useToast();
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -58,21 +85,50 @@ export default function LitigesPage() {
   const [notes, setNotes] = useState("");
   const [confirmOutcome, setConfirmOutcome] =
     useState<AdminDisputeOutcome | null>(null);
+  const [chatDraft, setChatDraft] = useState("");
+  const [buyerPercent, setBuyerPercent] = useState(50);
 
-  // No GET /admin/disputes yet — empty live list (no mock store).
-  const disputes: AdminDispute[] = [];
+  const { data: disputesRes, isLoading } = useAdminDisputes();
+  const markReviewApi = useMarkDisputeReview();
+  const resolveDisputeApi = useResolveAdminDispute();
+  const askParty = useAskDisputeParty();
+
+  const disputes: AdminDispute[] = useMemo(() => {
+    const rows = disputesRes?.data ?? [];
+    return rows.map((d: any) => ({
+      id: d.id,
+      orderId: d.orderId,
+      productTitle: d.productTitle || "Article",
+      productImage: d.productImage || d.listingImageUrl || "",
+      buyerId: d.buyerId,
+      sellerId: d.sellerId,
+      buyerName: d.buyerName || "Acheteur",
+      sellerName: d.sellerName || "Vendeur",
+      amount: d.amount || 0,
+      reason: d.reason || "",
+      initiatedBy: d.initiatedBy === "seller" ? "seller" : "buyer",
+      initiatorName: d.initiatorName || d.buyerName || "Acheteur",
+      openedVia: "order_page",
+      status:
+        d.status === "resolved"
+          ? "resolved"
+          : d.status === "under_review"
+            ? "under_review"
+            : d.status === "closed"
+              ? "closed"
+              : "open",
+      outcome: d.outcome,
+      openedAt: d.openedAt || d.createdAt,
+      resolvedAt: d.resolvedAt,
+      notes: d.notes || d.note || "",
+      evidence: Array.isArray(d.evidence)
+        ? d.evidence.map((e: any) => (typeof e === "string" ? e : e.url)).filter(Boolean)
+        : [],
+      messages: d.messages || [],
+    }));
+  }, [disputesRes]);
   const payments: AdminDisputePayment[] = [];
   const orderStatuses: Record<string, string> = {};
-  const markUnderReview = (_id: string) => ({
-    ok: false as const,
-    message: "Aucun litige à mettre en revue",
-  });
-  const resolveDisputeLocal = (
-    _id: string,
-    _outcome: AdminDisputeOutcome,
-    _notes: string
-  ) => ({ ok: false as const, message: "Aucun litige local" });
-  const resolveDisputeApi = useResolveAdminDispute();
 
   const selectedDispute = useMemo(
     () => disputes.find((d) => d.id === selectedId) ?? null,
@@ -112,10 +168,6 @@ export default function LitigesPage() {
     ? payments.filter((p) => p.orderId === selectedDispute.orderId)
     : [];
 
-  const partialAmount = selectedDispute
-    ? Math.round(selectedDispute.amount / 2)
-    : 0;
-
   function openDetail(d: AdminDispute) {
     setSelectedId(d.id);
     setNotes(d.notes ?? "");
@@ -128,35 +180,39 @@ export default function LitigesPage() {
     setConfirmOutcome(null);
   }
 
-  function handleMarkReview() {
+  async function handleMarkReview() {
     if (!selectedDispute) return;
-    const result = markUnderReview(selectedDispute.id);
-    showToast(result.message, result.ok ? "success" : "warning");
+    try {
+      await markReviewApi.mutateAsync({ id: selectedDispute.id });
+      showToast("Litige passé en revue", "success");
+    } catch (err: any) {
+      showToast(err?.message || "Impossible de mettre en revue", "error");
+    }
   }
 
   async function handleConfirmOutcome() {
     if (!selectedDispute || !confirmOutcome) return;
-    const note = notes.trim() || "Résolu depuis l'admin web";
+    const note = notes.trim() || "Résolu depuis l'admin";
     const apiResolution =
-      confirmOutcome === "refund_buyer" || confirmOutcome === "partial_refund"
+      confirmOutcome === "refund_buyer"
         ? "resolved_buyer"
-        : "resolved_seller";
+        : confirmOutcome === "partial_refund"
+          ? "partial_refund"
+          : "resolved_seller";
     try {
       await resolveDisputeApi.mutateAsync({
         id: selectedDispute.id,
         resolution: apiResolution,
         note,
+        buyerPercent: confirmOutcome === "partial_refund" ? buyerPercent : undefined,
+        sellerPercent:
+          confirmOutcome === "partial_refund" ? 100 - buyerPercent : undefined,
       });
-    } catch {
-      /* keep local store update for offline demo queue */
+      showToast("Litige résolu", "success");
+      setConfirmOutcome(null);
+    } catch (err: any) {
+      showToast(err?.message || "Impossible de résoudre le litige", "error");
     }
-    const result = resolveDisputeLocal(
-      selectedDispute.id,
-      confirmOutcome,
-      notes.trim() || "Résolu depuis l'admin web",
-    );
-    showToast(result.message, result.ok ? "success" : "warning");
-    setConfirmOutcome(null);
   }
 
   const outcomeImpact: Record<
@@ -180,11 +236,14 @@ export default function LitigesPage() {
         },
         partial_refund: {
           title: "Émettre un remboursement partiel ?",
-          description:
-            "Démo : moitié à l’acheteur ; la commande passe en remboursé.",
-          buyerGets: formatGnf(partialAmount),
-          sellerGets: formatGnf(selectedDispute.amount - partialAmount),
-          orderStatus: "Remboursée",
+          description: `${buyerPercent}% à l'acheteur, ${100 - buyerPercent}% au vendeur.`,
+          buyerGets: formatGnf(
+            Math.round((selectedDispute.amount * buyerPercent) / 100)
+          ),
+          sellerGets: formatGnf(
+            Math.round((selectedDispute.amount * (100 - buyerPercent)) / 100)
+          ),
+          orderStatus: "Fonds libérés (partiel)",
         },
         refund_buyer: {
           title: "Rembourser l’acheteur intégralement ?",
@@ -276,16 +335,20 @@ export default function LitigesPage() {
     },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Litiges</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Examiner les différends et résoudre le paiement (séquestre)
-        </p>
-        <p className="text-xs text-amber-700 dark:text-amber-500 mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-          Liste vide : GET /admin/disputes n’existe pas encore (seed ~7 litiges).
-          Seul POST /admin/disputes/:id/resolve est branché.
         </p>
       </div>
 
@@ -355,6 +418,8 @@ export default function LitigesPage() {
         columns={columns}
         data={filtered}
         emptyMessage="Aucun litige trouvé"
+        onRowClick={openDetail}
+        getRowKey={(d) => d.id}
       />
 
       {selectedDispute && (
@@ -370,12 +435,16 @@ export default function LitigesPage() {
             </button>
 
             <div className="mb-4 flex items-start gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={selectedDispute.productImage}
-                alt=""
-                className="size-16 shrink-0 rounded-md object-cover"
-              />
+              {selectedDispute.productImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={selectedDispute.productImage}
+                  alt="image"
+                  className="size-16 shrink-0 rounded-md object-cover"
+                />
+              ) : (
+                <div className="size-16 shrink-0 rounded-md bg-muted" />
+              )}
               <div className="min-w-0 pt-0.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg font-bold text-foreground">
@@ -443,17 +512,107 @@ export default function LitigesPage() {
               <p className="mb-2 text-[11px] font-bold tracking-wide text-muted-foreground uppercase">
                 Preuves à examiner
               </p>
-              <ul className="space-y-1.5">
+              <ul className="flex flex-wrap gap-2">
                 {selectedDispute.evidence.map((item) => (
-                  <li
-                    key={item}
-                    className="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
-                  >
-                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
-                    <span className="min-w-0 flex-1">{item}</span>
+                  <li key={item}>
+                    {item.startsWith("http") || item.startsWith("/") ? (
+                      /\.(png|jpe?g|webp|gif)(\?|$)/i.test(item) ||
+                      item.includes("image") ? (
+                        <a href={item} target="_blank" rel="noreferrer">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={item}
+                            alt=""
+                            className="h-16 w-16 rounded-md object-cover"
+                          />
+                        </a>
+                      ) : (
+                        <a
+                          href={item}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm text-primary underline"
+                        >
+                          Ouvrir la pièce
+                        </a>
+                      )
+                    ) : (
+                      <span className="text-sm">{item}</span>
+                    )}
                   </li>
                 ))}
               </ul>
+            </div>
+
+            <div className="mb-4">
+              <p className="mb-2 text-[11px] font-bold tracking-wide text-muted-foreground uppercase">
+                Discussion
+              </p>
+              <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border border-border p-3">
+                {(selectedDispute.messages || []).length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Aucun message</p>
+                ) : (
+                  (selectedDispute.messages || []).map((m: any, i: number) => (
+                    <div key={i} className="text-sm">
+                      <p className="text-[10px] font-semibold tracking-wide text-muted-foreground">
+                        {disputeMessageAuthor(m, selectedDispute)}
+                        {m.createdAt
+                          ? ` · ${formatWhen(m.createdAt)}`
+                          : ""}
+                      </p>
+                      <p>{m.body}</p>
+                      {(m.attachments || []).map((a: any, j: number) =>
+                        a.url ? (
+                          a.mimeType?.startsWith("image/") ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              key={j}
+                              src={a.url}
+                              alt=""
+                              className="mt-1 h-16 w-16 rounded-md object-cover"
+                            />
+                          ) : (
+                            <a
+                              key={j}
+                              href={a.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-1 block text-xs text-primary underline"
+                            >
+                              {a.name || "Pièce jointe"}
+                            </a>
+                          )
+                        ) : null
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <input
+                  value={chatDraft}
+                  onChange={(e) => setChatDraft(e.target.value)}
+                  placeholder="Demander des infos (texte, photos, documents)…"
+                  className="h-9 flex-1 rounded-lg border border-input px-3 text-sm"
+                />
+                <button
+                  type="button"
+                  className="h-9 rounded-lg bg-primary px-3 text-sm font-medium text-white"
+                  onClick={async () => {
+                    if (!chatDraft.trim()) return;
+                    await askParty.mutateAsync({
+                      id: selectedDispute.id,
+                      message: chatDraft.trim(),
+                      kind: "info_request",
+                      requestedKinds: ["text", "image", "document"],
+                    });
+                    setChatDraft("");
+                    showToast("Demande envoyée", "success");
+                  }}
+                >
+                  Demander
+                </button>
+              </div>
             </div>
 
             {relatedPayments.length > 0 && (
@@ -501,7 +660,7 @@ export default function LitigesPage() {
                     Résoudre le paiement
                   </h3>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    L’issue met à jour le litige et la commande liée (mock).
+                    Choisis le pourcentage acheteur / vendeur avant de libérer.
                   </p>
                 </div>
 
@@ -528,6 +687,21 @@ export default function LitigesPage() {
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="Quelle preuve a tranché ce dossier ?"
                     className="mt-1.5 min-h-20 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
+                  />
+                </div>
+
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    Remboursement partiel — % acheteur : {buyerPercent}% · % vendeur :{" "}
+                    {100 - buyerPercent}%
+                  </p>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={buyerPercent}
+                    onChange={(e) => setBuyerPercent(Number(e.target.value))}
+                    className="mt-2 w-full"
                   />
                 </div>
 

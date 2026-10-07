@@ -11,6 +11,7 @@ import { NewsletterSection } from "@/components/newsletter-section";
 import { AppDownloadSection } from "@/components/app-download-section";
 import { Footer } from "@/components/footer";
 import { AppSheet } from "@/components/app-sheet";
+import { ShopsStrip } from "@/components/shops-strip";
 
 export default function Home() {
   return (
@@ -20,6 +21,21 @@ export default function Home() {
       <HeroSection />
       <InfoBanner message="Les frais de port sont calculés lors du paiement." />
       <CategoriesGrid />
+      <ShopsStrip
+        title="Commerces locaux"
+        shopKind="proximite"
+        large
+        alwaysShow
+        href="/recherche?tab=boutiques&type=proximite"
+      />
+      <ShopsStrip
+        title="Enseignes"
+        shopKind="enseigne"
+        large
+        alwaysShow
+        href="/recherche?tab=boutiques&type=enseigne"
+      />
+      <ShopsStrip title="Nouvelles boutiques" createdWithinDays={7} />
       <section className="container mx-auto px-4 pb-12">
         <h2 className="text-2xl font-bold tracking-tight mb-6">
           Articles populaires

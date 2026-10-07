@@ -58,7 +58,9 @@ export function getToken(): string | null {
 }
 
 function shouldRedirectOn401(pathname: string): boolean {
-  if (pathname.startsWith("/connexion") || pathname.startsWith("/admin-login")) {
+  if (
+    pathname.startsWith("/connexion")
+  ) {
     return false;
   }
   // Public browse: don't bounce guests when an optional authed call 401s
@@ -73,13 +75,21 @@ function shouldRedirectOn401(pathname: string): boolean {
 }
 
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000",
+  // Browser: same-origin Next proxy (/api/v1 → backend :5000). Avoids CORS
+  // and works if you open the site via localhost or 192.168.x.x.
+  baseURL:
+    typeof window === "undefined"
+      ? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:5000/api/v1"
+      : "/api/v1",
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
   timeout: 15_000,
 });
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  if (typeof window !== "undefined") {
+    config.baseURL = "/api/v1";
+  }
   const url = config.url ?? "";
   const isAnonAuth =
     url.includes("/auth/phone-number/send-otp") ||
@@ -107,6 +117,23 @@ api.interceptors.response.use(
   (error: AxiosError<ApiErrorBody | AuthErrorBody>) => {
     const status = error.response?.status;
     const data = error.response?.data;
+
+    if (!error.response) {
+      const offline =
+        error.code === "ERR_NETWORK" ||
+        error.code === "ECONNABORTED" ||
+        error.message === "Network Error";
+      return Promise.reject(
+        new ApiError({
+          statusCode: 0,
+          code: "NETWORK",
+          message: offline
+            ? "Impossible de joindre l’API. Vérifie que le backend tourne (port 5000) et recharge la page."
+            : error.message || "Request failed",
+          locale: "FR",
+        })
+      );
+    }
 
     if (status === 401) {
       clearToken();

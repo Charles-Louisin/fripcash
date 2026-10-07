@@ -44,3 +44,25 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+Acheteur                    Vendeur                     Livreur              Admin
+   |                           |                           |                    |
+   |  catalogue / panier       |                           |                    |
+   |  checkout (paiement       |                           |  (valide quartier  |
+   |  simulé)                  |                           |   / enseigne       |
+   |                           |                           |   avant qu’ils     |
+   |  PAID + séquestre         |  notifié                  |   publient)        |
+   |  fonds bloqués            |  PREPARING                |                    |
+   |                           |  READY_FOR_PICKUP         |                    |
+   |                           |-------- si "courier" ---->|  accepte mission   |
+   |                           |                           |  COLLECTED         |
+   |                           |                           |  IN_TRANSIT        |
+   |  DELIVERED <------------------------------------------|  + 15 000 GNF     |
+   |  confirme réception       |                           |                    |
+   |  FUNDS_RELEASED --------->|  net débloqué             |                    |
+   |                           |  (prix - commission)      |                    |
+   |  ou LITIGE -------------------------------------------|------------------->|
+   |                           |                           |            refund  |
+   |                           |                           |            ou      |
+   |                           |                           |            release |

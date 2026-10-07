@@ -6,6 +6,7 @@ import { TbSend } from "react-icons/tb";
 import { LiaWalletSolid } from "react-icons/lia";
 import { useWalletBalance, useTransactions, useWithdraw } from "@/hooks/use-wallet";
 import { useToast } from "@/components/ui/toast";
+import { RequireSeller } from "@/components/dashboard/require-role";
 
 const typeConfig: Record<string, { label: string; icon: React.ElementType; iconColor: string; bgColor: string }> = {
   sale: { label: "Vente", icon: FiArrowDownLeft, iconColor: "text-emerald-600", bgColor: "bg-emerald-50" },
@@ -30,7 +31,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   failed: { label: "Échoué", className: "text-red-700 bg-red-50 border border-red-200" },
 };
 
-export default function WalletPage() {
+function WalletInner() {
   const { showToast } = useToast();
   const [filter, setFilter] = useState("all");
   const [showWithdraw, setShowWithdraw] = useState(false);
@@ -41,7 +42,7 @@ export default function WalletPage() {
   const { data: transactions = [], isLoading: txLoading } = useTransactions(filter === "all" ? undefined : filter);
   const withdrawMut = useWithdraw();
 
-  const walletBalance = balanceData?.balance ?? 0;
+  const walletBalance = balanceData?.availableBalance ?? balanceData?.balance ?? 0;
   const availableBalance = balanceData?.availableBalance ?? balanceData?.balance ?? 0;
   const reservedBalance = balanceData?.reservedBalance ?? 0;
 
@@ -49,18 +50,18 @@ export default function WalletPage() {
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const totalIn = transactions
-    .filter((t: any) => t.amount > 0 && t.status === "completed")
-    .reduce((sum: number, t: any) => sum + t.amount, 0);
+    .filter((t: any) => t.isCredit)
+    .reduce((sum: number, t: any) => sum + Math.abs(t.amount || 0), 0);
   const totalOut = transactions
-    .filter((t: any) => t.amount < 0 && t.status === "completed")
-    .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0);
-  const pendingCount = transactions.filter((t: any) => t.status === "pending").length;
+    .filter((t: any) => !t.isCredit)
+    .reduce((sum: number, t: any) => sum + Math.abs(t.amount || 0), 0);
+  const pendingCount = reservedBalance > 0 ? 1 : 0;
 
   const walletCards = [
-    { label: "Solde disponible", icon: LiaWalletSolid, iconBg: "bg-foreground/5", iconColor: "text-foreground/70", value: walletBalance, prefix: "", suffix: "GNF", desc: "Disponible pour retrait" },
-    { label: "Revenus", icon: FiTrendingUp, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", value: totalIn, prefix: "+", suffix: "F", desc: "Ventes, bonus & remboursements" },
-    { label: "Retraits", icon: FiTrendingDown, iconBg: "bg-orange-50", iconColor: "text-orange-600", value: totalOut, prefix: "-", suffix: "F", desc: "Vers Mobile Money" },
-    { label: "En attente", icon: FiClock, iconBg: "bg-amber-50", iconColor: "text-amber-600", value: pendingCount, prefix: "", suffix: `transaction${pendingCount !== 1 ? "s" : ""}`, desc: "En cours de traitement" },
+    { label: "Solde disponible", icon: LiaWalletSolid, iconBg: "bg-foreground/5", iconColor: "text-foreground/70", value: availableBalance, prefix: "", suffix: "GNF", desc: "Disponible pour retrait" },
+    { label: "Revenus", icon: FiTrendingUp, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", value: totalIn, prefix: "+", suffix: "GNF", desc: "Fonds libérés et crédits" },
+    { label: "Retraits", icon: FiTrendingDown, iconBg: "bg-orange-50", iconColor: "text-orange-600", value: totalOut, prefix: "-", suffix: "GNF", desc: "Séquestres, retraits" },
+    { label: "En séquestre", icon: FiClock, iconBg: "bg-amber-50", iconColor: "text-amber-600", value: reservedBalance, prefix: "", suffix: "GNF", desc: "Ventes en cours" },
   ];
 
   const handleScroll = useCallback(() => {
@@ -325,5 +326,13 @@ export default function WalletPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function WalletPage() {
+  return (
+    <RequireSeller>
+      <WalletInner />
+    </RequireSeller>
   );
 }

@@ -43,7 +43,7 @@ export function useCategories() {
     queryKey: ["categories", "with-sub-images"],
     queryFn: async () => {
       const rows = await fetchCategories();
-      return mapApiCategories(rows);
+      return mapApiCategories(Array.isArray(rows) ? rows : []);
     },
     staleTime: 5 * 60 * 1000,
     refetchOnMount: "always",
