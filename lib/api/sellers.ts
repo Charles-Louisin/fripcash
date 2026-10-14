@@ -13,7 +13,7 @@ export async function becomeParticulier(body?: {
 export async function applyForShop(body: {
   shopKind: "STANDARD" | "PROXIMITE" | "ENSEIGNE";
   name: string;
-  description: string;
+  description?: string;
   coverUrl?: string;
   storeAddress?: string;
   soldCategories?: string[];

@@ -28,7 +28,7 @@ export type ShopKindApi = "STANDARD" | "PROXIMITE" | "ENSEIGNE";
 export type ShopApplicationInput = {
   shopKind: ShopKindApi;
   name: string;
-  description?: string;
+  description: string;
   coverUrl?: string;
   storeAddress?: string;
   soldCategories?: string[];
@@ -70,6 +70,7 @@ export async function finalizeShopApplication(
   );
   return {
     ...body,
+    description: (body.description || "").trim(),
     coverUrl: body.coverUrl && !body.coverUrl.startsWith("blob:") ? body.coverUrl : undefined,
     documents,
   };

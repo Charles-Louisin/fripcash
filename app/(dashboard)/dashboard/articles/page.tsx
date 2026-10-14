@@ -229,7 +229,7 @@ function MyArticlesInner() {
 
   const openEditSheet = async (item: any) => {
     const draft = readPageDraft<ArticleFormDraft>(ARTICLE_DRAFT_KEY);
-    if (draft?.editingId === (item._id || item.id)) {
+    if (draft && draft.editingId === (item._id || item.id)) {
       setEditingItem(item);
       setFormData({ ...emptyForm, ...draft.formData });
       setGallery(draft.gallery || []);

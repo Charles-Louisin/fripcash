@@ -315,7 +315,7 @@ export default function InscriptionPage() {
     setLoading(true);
     try {
       const body = await finalizeShopApplication(shopDraft);
-      await applyForShop(body);
+      await applyForShop({ ...body, description: body.description || "" });
       clearPageDraft("signup-wizard");
       clearPageDraft("signup-shop:STANDARD");
       clearPageDraft("signup-shop:PROXIMITE");
@@ -1043,7 +1043,7 @@ export default function InscriptionPage() {
             onSubmit={async (body) => {
               setLoading(true);
               try {
-                await applyForShop(body);
+                await applyForShop({ ...body, description: body.description || "" });
                 toast("Dossier envoyé.", "success");
                 const me = await fetchMe();
                 cacheMe(me);
