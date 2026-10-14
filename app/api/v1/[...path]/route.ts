@@ -34,8 +34,6 @@ async function proxy(req: NextRequest, path: string[]) {
     if (HOP_BY_HOP.has(key.toLowerCase())) return;
     headers.set(key, value);
   });
-  // Deployed Better Auth trusts the API host origin, not localhost.
-  headers.set("origin", UPSTREAM);
   // Node fetch decompresses gzip; forwarding Content-Encoding: gzip would
   // make the browser try to inflate already-plain JSON (empty homepage).
   headers.set("accept-encoding", "identity");
