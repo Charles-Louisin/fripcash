@@ -184,9 +184,18 @@ function RechercheContent() {
   const q = searchParams.get("q") || "";
   const sellerTypes = csv(searchParams.get("type")) as ShopKind[];
   const destinations = csv(searchParams.get("dest"));
-  const categoryIds = csv(searchParams.get("cat"));
+  const namedCategoryKey = [
+    searchParams.get("category"),
+    searchParams.get("subCategory"),
+    searchParams.get("itemType"),
+  ]
+    .map((value) => (value || "").trim().toLowerCase())
+    .filter(Boolean)
+    .join("|");
+  const categoryIdsFromQuery = csv(searchParams.get("cat"));
   const minListingRating = Number(searchParams.get("noteArticle") || 0);
   const minSellerRating = Number(searchParams.get("noteVendeur") || 0);
+  const promoOnly = searchParams.get("promo") === "1";
   const datePreset = searchParams.get("date") || "";
   const dateFrom = searchParams.get("from") || "";
   const dateTo = searchParams.get("to") || "";
@@ -232,6 +241,19 @@ function RechercheContent() {
     queryFn: fetchCategories,
   });
   const rootCategories = categories.filter((c) => !c.parentId && c.isActive !== false);
+  const categoryIds = useMemo(() => {
+    if (!namedCategoryKey) return categoryIdsFromQuery;
+    const hints = namedCategoryKey.split("|");
+    const fromNames = categories
+      .filter((c) => {
+        const labels = [c.nameFr, c.nameEn, c.slug].map((v) =>
+          String(v || "").trim().toLowerCase()
+        );
+        return hints.some((hint) => labels.includes(hint));
+      })
+      .map((c) => c.id);
+    return [...new Set([...categoryIdsFromQuery, ...fromNames])];
+  }, [categories, categoryIdsFromQuery, namedCategoryKey]);
 
   const selectedCategoryIds = useMemo(() => {
     if (!categoryIds.length) return undefined;
@@ -269,8 +291,15 @@ function RechercheContent() {
 
   const articles = useMemo(() => {
     const catMap = new Map(categories.map((c) => [c.id, c]));
-    return listings.map((l) => listingToArticle(l, catMap));
-  }, [listings, categories]);
+    const mapped = listings.map((l) => listingToArticle(l, catMap));
+    if (!promoOnly) return mapped;
+    return mapped.filter(
+      (a) =>
+        a.discountEnabled &&
+        a.compareAtPrice != null &&
+        a.compareAtPrice > a.price
+    );
+  }, [listings, categories, promoOnly]);
 
   const shopQueries = useQueries({
     queries: SHOP_SECTIONS.map((section) => ({
@@ -301,7 +330,8 @@ function RechercheContent() {
     categoryIds.length +
     (minListingRating ? 1 : 0) +
     (minSellerRating ? 1 : 0) +
-    (datePreset ? 1 : 0);
+    (datePreset ? 1 : 0) +
+    (promoOnly ? 1 : 0);
 
   const resetFilters = () => {
     setParams({
@@ -313,6 +343,7 @@ function RechercheContent() {
       date: null,
       from: null,
       to: null,
+      promo: null,
     });
   };
 
@@ -329,6 +360,14 @@ function RechercheContent() {
             Tout effacer
           </button>
         ) : null}
+      </div>
+
+      <div>
+        <CheckboxItem
+          label="Promotions"
+          checked={promoOnly}
+          onChange={() => setParams({ promo: promoOnly ? null : "1" })}
+        />
       </div>
 
       <div>

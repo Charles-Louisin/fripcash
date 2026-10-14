@@ -55,21 +55,14 @@ export default function BoutiquePublicPage() {
           </div>
         ) : (
           <>
-            <div className="relative h-40 sm:h-56 bg-muted">
+            <div className="relative h-40 sm:h-68 bg-muted z-0">
               {shop.coverUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={shop.coverUrl} alt="" className="h-full w-full object-cover" />
               ) : null}
             </div>
             <div className="container mx-auto px-4">
-              <nav className="flex items-center gap-1.5 text-sm text-muted-foreground pt-4">
-                <Link href="/" className="flex items-center gap-1 hover:text-primary">
-                  <FiHome className="h-3.5 w-3.5" /> Accueil
-                </Link>
-                <span>/</span>
-                <span className="text-foreground font-medium">{shop.shopName}</span>
-              </nav>
-              <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-10 pb-8">
+              <div className="flex flex-col sm:flex-row sm:items-end pt-15 gap-4 -mt-10 pb-8">
                 <div className="h-24 w-24 rounded-full border-4 border-background overflow-hidden bg-muted shrink-0">
                   {shop.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element

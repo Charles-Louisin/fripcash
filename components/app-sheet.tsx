@@ -71,7 +71,7 @@ export function AppSheet() {
   const { data: rawCategories = [] } = useCategories();
   const menuCategories = rawCategories.map((cat: any) => ({
     label: cat.name,
-    href: `/produits?category=${encodeURIComponent(cat.name)}`,
+    href: `/recherche?cat=${encodeURIComponent(cat._id || cat.id || "")}`,
     icon: ICON_MAP[cat.name] || GiBookshelf,
   }));
 

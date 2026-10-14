@@ -37,9 +37,19 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      { source: "/produits", destination: "/recherche", permanent: true },
+      { source: "/produits/:path*", destination: "/recherche", permanent: true },
+    ];
+  },
   async rewrites() {
-    const api = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000/api/v1";
-    const origin = api.replace(/\/api\/v1\/?$/, "");
+    const upstream = process.env.API_UPSTREAM_URL || "";
+    const api = process.env.NEXT_PUBLIC_API_URL || "";
+    const absolute = [upstream, api, "http://127.0.0.1:5000"].find((value) =>
+      /^https?:\/\//.test(value)
+    )!;
+    const origin = absolute.replace(/\/$/, "").replace(/\/api\/v1\/?$/, "");
     return [{ source: "/uploads/:path*", destination: `${origin}/uploads/:path*` }];
   },
 };

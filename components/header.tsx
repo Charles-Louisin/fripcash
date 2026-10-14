@@ -70,27 +70,23 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Divertissement: GiGamepad,
 };
 
-function buildFilterHref(category: string, subCategory?: string, itemType?: string): string {
-  const params = new URLSearchParams();
-  params.set("category", category);
-  if (subCategory) params.set("subCategory", subCategory);
-  if (itemType) params.set("itemType", itemType);
-  return `/produits?${params.toString()}`;
+function searchHref(categoryId?: string) {
+  return categoryId ? `/recherche?cat=${encodeURIComponent(categoryId)}` : "/recherche";
 }
 
 function mapDbCategories(raw: any[]): Category[] {
   return raw.map((cat: any) => ({
     label: cat.name,
-    href: buildFilterHref(cat.name),
+    href: searchHref(cat._id || cat.id),
     icon: ICON_MAP[cat.name] || GiBookshelf,
     image: cat.image || cat.imageUrl || undefined,
     subGroups: (cat.subGroups || []).map((sg: any) => ({
       label: sg.name,
-      href: buildFilterHref(cat.name, sg.name),
+      href: searchHref(sg._id || sg.id || cat._id || cat.id),
       image: sg.image || sg.imageUrl || undefined,
       items: (sg.items || []).map((it: any) => ({
         label: it.name,
-        href: buildFilterHref(cat.name, sg.name, it.name),
+        href: searchHref(it._id || it.id || sg._id || cat._id),
       })),
     })),
   }));

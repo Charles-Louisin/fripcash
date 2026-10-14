@@ -21,9 +21,9 @@ export function CategoriesGrid() {
   const categories = rawCategories
     .filter((cat: { image?: string }) => !!cat.image)
     .slice(0, 6)
-    .map((cat: { name: string; slug?: string; image?: string }) => ({
+    .map((cat: { name: string; slug?: string; image?: string; _id?: string; id?: string }) => ({
       label: cat.name,
-      href: `/produits?category=${encodeURIComponent(cat.name)}`,
+      href: `/recherche?cat=${encodeURIComponent(cat._id || cat.id || "")}`,
       area:
         AREA_MAP[cat.name] ||
         cat.slug ||

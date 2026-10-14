@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useMe } from "@/hooks/use-auth";
 import { useProfileStore } from "@/stores/profile-store";
 import { needsEmailVerification } from "@/lib/auth-redirect";
+import { readPageDraft } from "@/lib/page-draft";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -15,6 +16,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: user, isLoading, isError } = useMe();
   const hydrateFromUser = useProfileStore((s) => s.hydrateFromUser);
+  const updateProfile = useProfileStore((s) => s.updateProfile);
 
   useEffect(() => {
     if (!isLoading && (isError || !user)) {
@@ -35,10 +37,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [isLoading, isError, user, router]);
 
-  // Sync profile store from API user data
+  // Sync profile store from API, then re-apply unsaved draft until refresh
   useEffect(() => {
-    if (user) hydrateFromUser(user);
-  }, [user, hydrateFromUser]);
+    if (!user) return;
+    hydrateFromUser(user);
+    const draft = readPageDraft<{
+      name?: string;
+      pseudo?: string;
+      phone?: string;
+      city?: string;
+      bio?: string;
+      avatar?: string;
+    }>("dashboard-profile");
+    if (!draft) return;
+    updateProfile({
+      ...(draft.name !== undefined ? { name: draft.name } : {}),
+      ...(draft.pseudo !== undefined ? { pseudo: draft.pseudo } : {}),
+      ...(draft.phone !== undefined ? { phone: draft.phone } : {}),
+      ...(draft.city !== undefined ? { city: draft.city } : {}),
+      ...(draft.bio !== undefined ? { bio: draft.bio } : {}),
+      ...(draft.avatar !== undefined ? { avatar: draft.avatar } : {}),
+    });
+  }, [user, hydrateFromUser, updateProfile]);
 
   // Show a loading spinner while checking auth
   if (isLoading) {

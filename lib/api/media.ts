@@ -48,7 +48,17 @@ export async function uploadViaUploadThing(
       public_id: fileRes.key,
     };
   } catch {
-    return uploadViaApi(file, "listings", onProgress);
+    const folder =
+      endpoint === "kycDocument" || endpoint === "profileImage"
+        ? "kyc"
+        : endpoint === "categoryImage"
+          ? "categories"
+          : endpoint === "excelCatalog"
+            ? "excel"
+            : endpoint === "disputeFile"
+              ? "disputes"
+              : "listings";
+    return uploadViaApi(file, folder, onProgress);
   }
 }
 

@@ -27,7 +27,8 @@ import {
   deleteZone,
   fetchCategories,
   fetchZones,
-  listingImageUrl,
+  imagesFromListing,
+  fetchListing,
   fetchPublicStats,
   fetchSalesChart,
   fetchAdminListings,
@@ -627,9 +628,7 @@ export function useAdminArticles(params?: {
         destination: l.destination,
         listingDestination: l.destination,
         condition: l.conditionNote || "",
-        images: (l.media || [])
-          .map((m) => listingImageUrl(m))
-          .filter(Boolean) as string[],
+        images: imagesFromListing(l),
         seller: {
           id: l.sellerProfile?.id || l.sellerProfileId,
           userId: l.sellerProfile?.userId,
@@ -687,6 +686,32 @@ export function useAdminArticles(params?: {
             r.seller.pseudo.toLowerCase().includes(q)
         );
       }
+
+      const missing = rows.filter((row) => !row.images.length);
+      if (missing.length) {
+        const queue = [...missing];
+        const found = new Map<string, string[]>();
+        const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
+          while (queue.length) {
+            const row = queue.shift();
+            if (!row) return;
+            try {
+              const full = await fetchListing(row.id);
+              const images = imagesFromListing(full);
+              if (images.length) found.set(row.id, images);
+            } catch {
+              /* vignette absente */
+            }
+          }
+        });
+        await Promise.all(workers);
+        if (found.size) {
+          rows = rows.map((row) =>
+            found.has(row.id) ? { ...row, images: found.get(row.id)! } : row
+          );
+        }
+      }
+
       return { data: rows, total: rows.length };
     },
   });

@@ -55,19 +55,28 @@ export async function removeCartItem(itemId: string) {
 
 export async function checkout(body?: {
   fulfillmentMode?: "courier" | "pickup" | "shopLocalDelivery";
-  paymentMethod?: string;
+  paymentMethod?: "OM_GN" | "MTN_GN" | "CINETPAY" | string;
   address?: string;
   city?: string;
   phone?: string;
   name?: string;
+  email?: string;
+  mobileNumber?: string;
   shippingCostGnf?: number;
   toZoneId?: string;
   zoneId?: string;
   offerAmountGnf?: number;
 }) {
   const { data } = await api.post<{
+    payment?: {
+      merchantTransactionId: string;
+      status: string;
+      message?: string;
+      paymentUrl?: string;
+      mustRedirect?: boolean;
+    };
     paymentIntent?: unknown;
     orders?: unknown[];
-  }>("/checkout", body ?? {});
+  }>("/checkout", body ?? {}, { timeout: 30_000 });
   return data;
 }

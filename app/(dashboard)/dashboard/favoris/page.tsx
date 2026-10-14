@@ -75,7 +75,7 @@ export default function FavoritesPage() {
           <FiHeart className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
           <p className="text-lg font-medium text-foreground">Vous n&apos;avez pas encore de favoris</p>
           <p className="text-sm text-muted-foreground mt-1">Explorez les articles et ajoutez vos coups de coeur</p>
-          <Link href="/produits" className="inline-block mt-4 h-10 px-6 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors leading-10">
+          <Link href="/recherche" className="inline-block mt-4 h-10 px-6 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors leading-10">
             Parcourir les articles
           </Link>
         </div>
@@ -86,7 +86,7 @@ export default function FavoritesPage() {
               <Link href={`/article/${item._id}`} className="block">
                 <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.images?.[0] || ""} alt={item.title} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                  <img src={item.images?.[0] || ""} alt={item.title} className="absolute inset-0 h-full w-full object-cover transition-transform duration-200 group-hover:scale-105" />
                   <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-white/90 backdrop-blur-sm px-2 py-1 text-xs text-red-500 shadow-sm">
                     <FiHeart className="h-3.5 w-3.5 fill-red-500 text-red-500" />
                     <span>{Math.max(item.favoritesCount || 0, 1)}</span>

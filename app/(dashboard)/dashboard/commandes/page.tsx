@@ -86,8 +86,12 @@ const statusFilters = [
 
 const paymentLabels: Record<string, string> = {
   "mobile-money": "Mobile Money",
-  card: "Carte",
-  wallet: "Paiement",
+  OM_GN: "Orange Money",
+  MTN_GN: "MTN MoMo",
+  CINETPAY: "CinetPay",
+  card: "CinetPay",
+  orange: "Orange Money",
+  mtn: "MTN MoMo",
 };
 
 function getOtherParty(order: any, type: "purchase" | "sale"): string {
@@ -116,8 +120,11 @@ function getArticleImage(order: any): string {
 }
 
 function escrowLabel(escrowStatus: string) {
-  if (escrowStatus === "blocked") return "Bloqué en séquestre";
+  if (escrowStatus === "blocked" || escrowStatus === "held" || escrowStatus === "payout_pending" || escrowStatus === "refund_pending") {
+    return "Bloqué en séquestre";
+  }
   if (escrowStatus === "refunded") return "Remboursé à l'acheteur";
+  if (escrowStatus === "pending") return "En attente de paiement";
   return "Paiement libéré";
 }
 
@@ -374,6 +381,7 @@ export default function MyOrdersPage() {
                       <img
                         src={order.articleImage}
                         alt={order.articleTitle}
+                        referrerPolicy="no-referrer"
                         className="w-full h-full object-cover"
                       />
                     )}
@@ -457,6 +465,7 @@ export default function MyOrdersPage() {
                     <img
                       src={selectedOrder.articleImage}
                       alt={selectedOrder.articleTitle}
+                      referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                     />
                   )}

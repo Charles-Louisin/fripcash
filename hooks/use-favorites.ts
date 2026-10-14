@@ -5,6 +5,7 @@ import {
   removeFavorite,
   readToken,
   listingImageUrl,
+  imagesFromListing,
 } from "@/lib/api";
 
 function hasToken(): boolean {
@@ -35,16 +36,17 @@ function normalizeFavorites(raw: unknown): Array<{ _id: string; article: any }> 
       ) ||
       sorted[0];
     const img = listingImageUrl(media ?? null);
+    const images = imagesFromListing(listing);
     return {
       _id: id,
       article: {
+        ...listing,
         _id: id,
         title: listing.title || "Article",
-        images: img ? [img] : [],
+        images: images.length ? images : img ? [img] : [],
         price: listing.priceGnf ?? listing.price ?? 0,
         condition: listing.conditionNote || listing.condition || "",
         createdAt: listing.createdAt || item.createdAt,
-        ...listing,
       },
     };
   });

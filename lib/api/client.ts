@@ -67,6 +67,7 @@ function shouldRedirectOn401(pathname: string): boolean {
   if (
     pathname === "/" ||
     pathname.startsWith("/produits") ||
+    pathname.startsWith("/recherche") ||
     pathname.startsWith("/article")
   ) {
     return false;

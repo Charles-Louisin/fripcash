@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -20,8 +20,16 @@ import {
   verifyOtp,
   fetchMe,
   signUpEmail,
+  applyForShop,
 } from "@/lib/api";
 import { EmailVerifyModal } from "@/components/auth/email-verify-modal";
+import {
+  ShopProfileForm,
+  finalizeShopApplication,
+  type ShopApplicationInput,
+  type ShopProfileFormHandle,
+} from "@/components/shop-profile-form";
+import { clearPageDraft, readPageDraft, writePageDraft } from "@/lib/page-draft";
 import type { Me } from "@/lib/api";
 import { mapMeToUiUser } from "@/hooks/use-auth";
 import {
@@ -107,12 +115,22 @@ function generatePseudos(firstName: string, lastName: string): string[] {
   return [...new Set(suggestions)].slice(0, 4);
 }
 
-type Step = "role" | "identifier" | "code" | "profile";
+type Step = "role" | "identifier" | "code" | "profile" | "shop";
 
-function WizardHeader({ current }: { current: 1 | 2 | 3 }) {
+function WizardHeader({
+  current,
+  shopRole,
+}: {
+  current: 1 | 2 | 3;
+  shopRole?: boolean;
+}) {
   const items = [
     { n: 1, label: "Rôle", hint: "Qui tu es" },
-    { n: 2, label: "Tes infos", hint: "Profil" },
+    {
+      n: 2,
+      label: "Tes infos",
+      hint: shopRole ? "Profil + dossier" : "Profil",
+    },
     { n: 3, label: "Ton compte", hint: "Identifiants" },
   ] as const;
 
@@ -173,11 +191,22 @@ function WizardHeader({ current }: { current: 1 | 2 | 3 }) {
   );
 }
 
+type SignupWizardDraft = {
+  signupRole: SignupRole | null;
+  step: Step;
+  countryId: AuthCountryId;
+  firstName: string;
+  lastName: string;
+  pseudo: string;
+  localPhone: string;
+  email: string;
+  shopDraft: ShopApplicationInput | null;
+};
+
 export default function InscriptionPage() {
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
   const [countryId, setCountryId] = useState<AuthCountryId>("GN");
   const country = AUTH_COUNTRIES[countryId];
   const isEmailAuth = country.authMethod === "email";
@@ -198,24 +227,61 @@ export default function InscriptionPage() {
   const [loading, setLoading] = useState(false);
   const [suggestionKey, setSuggestionKey] = useState(0);
   const [pendingVerify, setPendingVerify] = useState<Me | null>(null);
+  const [shopDraft, setShopDraft] = useState<ShopApplicationInput | null>(null);
+  const [wizardReady, setWizardReady] = useState(false);
+  const shopFormRef = useRef<ShopProfileFormHandle>(null);
 
   useEffect(() => {
+    const saved = readPageDraft<SignupWizardDraft>("signup-wizard");
+    if (saved) {
+      if (saved.countryId) setCountryId(saved.countryId);
+      if (saved.signupRole) setSignupRole(saved.signupRole);
+      if (saved.step) setStep(saved.step);
+      if (saved.localPhone) setLocalPhone(saved.localPhone);
+      if (saved.email) setEmail(saved.email);
+      if (saved.lastName) setLastName(saved.lastName);
+      if (saved.firstName) setFirstName(saved.firstName);
+      if (saved.pseudo) setPseudo(saved.pseudo);
+      if (saved.shopDraft) setShopDraft(saved.shopDraft);
+    }
     try {
       if (sessionStorage.getItem("fripcash_need_profile") === "1") {
         sessionStorage.removeItem("fripcash_need_profile");
         setStep("profile");
-        return;
+      } else if (new URLSearchParams(window.location.search).get("step") === "profile") {
+        setStep("profile");
       }
     } catch {
       /* ignore */
     }
-    if (
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).get("step") === "profile"
-    ) {
-      setStep("profile");
-    }
+    setWizardReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!wizardReady) return;
+    writePageDraft<SignupWizardDraft>("signup-wizard", {
+      signupRole,
+      step,
+      countryId,
+      firstName,
+      lastName,
+      pseudo,
+      localPhone,
+      email,
+      shopDraft,
+    });
+  }, [
+    wizardReady,
+    signupRole,
+    step,
+    countryId,
+    firstName,
+    lastName,
+    pseudo,
+    localPhone,
+    email,
+    shopDraft,
+  ]);
 
   const suggestions = useMemo(
     () => generatePseudos(firstName, lastName),
@@ -231,8 +297,52 @@ export default function InscriptionPage() {
   };
 
   const goHome = (me: Awaited<ReturnType<typeof fetchMe>>) => {
+    clearPageDraft("signup-wizard");
     applySessionFlags(me);
     router.push(homeForAccount(me));
+  };
+
+  const needsShopProfile =
+    signupRole === "grandeSurface" ||
+    signupRole === "commerceLocal" ||
+    signupRole === "boutique";
+
+  const submitShopDraft = async (me: Awaited<ReturnType<typeof fetchMe>>) => {
+    if (!shopDraft) {
+      setStep("shop");
+      return;
+    }
+    setLoading(true);
+    try {
+      const body = await finalizeShopApplication(shopDraft);
+      await applyForShop(body);
+      clearPageDraft("signup-wizard");
+      clearPageDraft("signup-shop:STANDARD");
+      clearPageDraft("signup-shop:PROXIMITE");
+      clearPageDraft("signup-shop:ENSEIGNE");
+      toast("Dossier envoyé.", "success");
+      const fresh = await fetchMe().catch(() => me);
+      cacheMe(fresh);
+      goHome(fresh);
+    } catch (err) {
+      toast(
+        err instanceof ApiError
+          ? err.body.message
+          : "Compte créé — complète ton dossier boutique.",
+        "error"
+      );
+      setStep("shop");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const afterAccount = (me: Awaited<ReturnType<typeof fetchMe>>) => {
+    if (needsShopProfile) {
+      void submitShopDraft(me);
+      return;
+    }
+    goHome(me);
   };
 
   const handleCountryChange = (id: AuthCountryId) => {
@@ -345,7 +455,7 @@ export default function InscriptionPage() {
         return;
       }
       toast("Compte créé.", "success");
-      if (me) goHome(me);
+      if (me) afterAccount(me);
     } catch (err) {
       toast(
         err instanceof ApiError
@@ -384,7 +494,7 @@ export default function InscriptionPage() {
         userId: me.id,
       });
       toast("Bienvenue sur FripCash !");
-      goHome(me);
+      afterAccount(me);
     } catch (err) {
       if (err instanceof ApiError && err.body.code === "TOO_MANY_ATTEMPTS") {
         toast("Trop d'essais. Renvoie un code.", "error");
@@ -406,6 +516,13 @@ export default function InscriptionPage() {
       toast("Indique ton prénom et ton nom.", "error");
       return;
     }
+    if (needsShopProfile) {
+      const ok = shopFormRef.current?.submit();
+      if (!ok) {
+        toast("Complète le dossier boutique (description et pièces KYC).", "error");
+        return;
+      }
+    }
     setStep("identifier");
   };
 
@@ -419,10 +536,12 @@ export default function InscriptionPage() {
           const next = { ...pendingVerify, emailVerified: true };
           cacheMe(next);
           setPendingVerify(null);
-          goHome(next);
+          afterAccount(next);
         }}
       />
-      <WizardHeader current={wizardStep} />
+      {step !== "shop" && (
+        <WizardHeader current={wizardStep} shopRole={needsShopProfile} />
+      )}
 
       {step === "role" && (
         <div className="space-y-5">
@@ -758,7 +877,9 @@ export default function InscriptionPage() {
           <div>
             <h2 className="text-lg font-semibold text-foreground">Tes infos</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Comment tu apparais sur FripCash.
+              {needsShopProfile
+                ? "Ton profil, puis le dossier boutique — les mêmes champs que dans le dashboard."
+                : "Comment tu apparais sur FripCash."}
             </p>
           </div>
           <div className="flex gap-3">
@@ -843,6 +964,37 @@ export default function InscriptionPage() {
             )}
           </div>
 
+          {needsShopProfile && signupRole && (
+            <div className="space-y-3 border-t border-border pt-5">
+              <div>
+                <h3 className="text-base font-semibold text-foreground">
+                  {signupRole === "grandeSurface"
+                    ? "Ton enseigne"
+                    : signupRole === "boutique"
+                      ? "Ta boutique"
+                      : "Ton commerce local"}
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Description, couverture et pièces KYC — comme dans le dashboard.
+                </p>
+              </div>
+              <ShopProfileForm
+                ref={shopFormRef}
+                kind={
+                  signupRole === "grandeSurface"
+                    ? "ENSEIGNE"
+                    : signupRole === "boutique"
+                      ? "STANDARD"
+                      : "PROXIMITE"
+                }
+                embedded
+                storageKey="signup-shop"
+                onDraftChange={setShopDraft}
+                onSubmit={setShopDraft}
+              />
+            </div>
+          )}
+
           <div className="flex items-center gap-3 pt-1">
             <button
               type="button"
@@ -861,6 +1013,54 @@ export default function InscriptionPage() {
             </Button>
           </div>
         </form>
+      )}
+
+      {step === "shop" && needsShopProfile && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              {signupRole === "grandeSurface"
+                ? "Ton enseigne"
+                : signupRole === "boutique"
+                  ? "Ta boutique"
+                  : "Ton commerce local"}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Profil, description et pièces KYC — les fichiers passent par UploadThing.
+            </p>
+          </div>
+          <ShopProfileForm
+            kind={
+              signupRole === "grandeSurface"
+                ? "ENSEIGNE"
+                : signupRole === "boutique"
+                  ? "STANDARD"
+                  : "PROXIMITE"
+            }
+            loading={loading}
+            storageKey="signup-shop"
+            onDraftChange={setShopDraft}
+            onSubmit={async (body) => {
+              setLoading(true);
+              try {
+                await applyForShop(body);
+                toast("Dossier envoyé.", "success");
+                const me = await fetchMe();
+                cacheMe(me);
+                goHome(me);
+              } catch (err) {
+                toast(
+                  err instanceof ApiError
+                    ? err.body.message
+                    : "Impossible d'envoyer le dossier.",
+                  "error"
+                );
+              } finally {
+                setLoading(false);
+              }
+            }}
+          />
+        </div>
       )}
 
       <p className="mt-6 text-center text-sm text-muted-foreground">

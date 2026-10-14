@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useMe } from "@/hooks/use-auth";
 import {
@@ -8,16 +8,14 @@ import {
   fetchSellerVerification,
   sendSellerVerificationMessage,
   addSellerVerificationDocument,
-  uploadCatalogueImage,
 } from "@/lib/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { resolveAccountType, verificationLabel } from "@/lib/account-type";
 import { ShopVerificationBanner } from "@/components/account/shop-verification-banner";
 import { ShopVerificationThread } from "@/components/shop-verification-thread";
+import { ShopProfileForm, type ShopApplicationInput } from "@/components/shop-profile-form";
+import { clearPageDraft, readPageDraft, writePageDraft } from "@/lib/page-draft";
 
 const KINDS = [
   { id: "STANDARD" as const, title: "Boutique", desc: "Articles neufs, toute la ville, 8 %." },
@@ -30,12 +28,21 @@ function BoutiqueInner() {
   const qc = useQueryClient();
   const { showToast } = useToast();
   const [kind, setKind] = useState<"STANDARD" | "PROXIMITE" | "ENSEIGNE">("STANDARD");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const [kindReady, setKindReady] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [docs, setDocs] = useState<
-    Array<{ url: string; storageKey?: string; mimeType?: string; name?: string }>
-  >([]);
+
+  useEffect(() => {
+    const saved = readPageDraft<"STANDARD" | "PROXIMITE" | "ENSEIGNE">(
+      "dashboard-shop-kind"
+    );
+    if (saved) setKind(saved);
+    setKindReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!kindReady) return;
+    writePageDraft("dashboard-shop-kind", kind);
+  }, [kind, kindReady]);
   const { data: verification, refetch: refetchVerif } = useQuery({
     queryKey: ["seller-verification"],
     queryFn: fetchSellerVerification,
@@ -45,14 +52,12 @@ function BoutiqueInner() {
   const seller = me?.seller;
   const alreadyShop = account.isShop && account.verificationStatus !== "rejected";
 
-  const submit = async () => {
-    if (!name.trim()) {
-      showToast("Nom de boutique requis", "error");
-      return;
-    }
+  const sendShop = async (body: ShopApplicationInput) => {
     setLoading(true);
     try {
-      await applyForShop({ shopKind: kind, name, description, documents: docs });
+      await applyForShop(body);
+      clearPageDraft(`dashboard-shop:${body.shopKind}`);
+      clearPageDraft("dashboard-shop-kind");
       await qc.invalidateQueries({ queryKey: ["me"] });
       await refetch();
       showToast("Dossier envoyé", "success");
@@ -81,6 +86,9 @@ function BoutiqueInner() {
             <p className="font-semibold text-foreground">
               {seller?.shopName || me?.pseudo || account.label}
             </p>
+            {seller?.shopDescription && (
+              <p className="text-sm text-muted-foreground">{seller.shopDescription}</p>
+            )}
             <dl className="grid gap-2 text-sm">
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Type</dt>
@@ -178,61 +186,13 @@ function BoutiqueInner() {
               </button>
             ))}
           </div>
-
-          <div className="space-y-3">
-            <div>
-              <Label>Nom</Label>
-              <Input
-                className="mt-1 h-11 rounded-xl"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Description</Label>
-              <Input
-                className="mt-1 h-11 rounded-xl"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Pièces KYC</Label>
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                className="mt-1 block text-sm"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  try {
-                    const uploaded = await uploadCatalogueImage(file, "kyc");
-                    setDocs((prev) => [
-                      ...prev,
-                      {
-                        url: uploaded.secure_url,
-                        storageKey: uploaded.public_id,
-                        mimeType: file.type,
-                        name: file.name,
-                      },
-                    ]);
-                    showToast("Document ajouté", "success");
-                  } catch (err: any) {
-                    showToast(err.message || "Upload impossible", "error");
-                  }
-                }}
-              />
-              {docs.length > 0 && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {docs.length} fichier{docs.length > 1 ? "s" : ""} joint
-                  {docs.length > 1 ? "s" : ""}
-                </p>
-              )}
-            </div>
-            <Button className="rounded-full" disabled={loading} onClick={submit}>
-              {loading ? "Envoi…" : "Envoyer le dossier"}
-            </Button>
-          </div>
+          <ShopProfileForm
+            key={kind}
+            kind={kind}
+            loading={loading}
+            storageKey="dashboard-shop"
+            onSubmit={(body) => sendShop(body)}
+          />
         </>
       )}
     </div>

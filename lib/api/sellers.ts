@@ -13,8 +13,17 @@ export async function becomeParticulier(body?: {
 export async function applyForShop(body: {
   shopKind: "STANDARD" | "PROXIMITE" | "ENSEIGNE";
   name: string;
-  description?: string;
+  description: string;
   coverUrl?: string;
+  storeAddress?: string;
+  soldCategories?: string[];
+  deliveredCommunes?: string[];
+  deliveryDelay?: string;
+  neighborhood?: string;
+  landmark?: string;
+  orangeMoneyPhone?: string;
+  openingTime?: string;
+  closingTime?: string;
   documents?: Array<{
     url: string;
     storageKey?: string;

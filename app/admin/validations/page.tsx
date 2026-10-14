@@ -38,6 +38,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
 import { listingImageUrl } from "@/lib/api";
+import { readShopDetails } from "@/components/shop-profile-form";
 
 type VerificationRow = {
   id: string;
@@ -49,6 +50,7 @@ type VerificationRow = {
   documents: any[];
   messages: any[];
   shopDescription?: string;
+  details?: ReturnType<typeof readShopDetails>;
   raw: any;
 };
 
@@ -78,9 +80,46 @@ function mapVerification(v: any): VerificationRow {
     displayName: v.displayName || v.user?.name || v.user?.displayName,
     documents: v.documents || [],
     messages: v.messages || [],
-    shopDescription: v.shopDescription || "",
+    shopDescription: v.shopDescription || v.description || "",
+    details: readShopDetails(v),
     raw: v,
   };
+}
+
+function ShopDetails({
+  details,
+}: {
+  details?: ReturnType<typeof readShopDetails>;
+}) {
+  if (!details) return null;
+  const rows: { label: string; value: string }[] = [
+    { label: "Description", value: details.description },
+    { label: "Adresse", value: details.storeAddress },
+    { label: "Ce qu'il vend", value: details.soldCategories.join(", ") },
+    { label: "Communes livrées", value: details.deliveredCommunes.join(", ") },
+    { label: "Délai annoncé", value: details.deliveryDelay },
+    { label: "Quartier", value: details.neighborhood },
+    { label: "Point de repère", value: details.landmark },
+    { label: "Orange Money", value: details.orangeMoneyPhone },
+    {
+      label: "Horaires",
+      value:
+        details.openingTime || details.closingTime
+          ? `${details.openingTime || "—"} – ${details.closingTime || "—"}`
+          : "",
+    },
+  ].filter((row) => row.value);
+  if (!rows.length) return null;
+  return (
+    <dl className="space-y-2 rounded-xl border border-border p-3 text-sm">
+      {rows.map((row) => (
+        <div key={row.label} className="flex justify-between gap-4">
+          <dt className="text-muted-foreground">{row.label}</dt>
+          <dd className="text-right font-medium">{row.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
 }
 
 function mapKyc(v: any, kind: "individual" | "org"): KycRow {
@@ -473,6 +512,7 @@ export default function AdminValidationsPage() {
               {selectedShop.shopDescription && (
                 <p className="text-sm">{selectedShop.shopDescription}</p>
               )}
+              <ShopDetails details={selectedShop.details} />
               <ShopVerificationThread
                 messages={selectedShop.messages || []}
                 documents={selectedShop.documents || []}

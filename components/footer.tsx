@@ -8,7 +8,7 @@ export function Footer() {
   return (
     <div className="relative w-full">
       {/* Overlapping curved top */}
-      <div className="absolute -top-8 left-0 w-full z-10 flex">
+      <div className="absolute -top-0 left-0 w-full z-10 flex">
         <div className="w-full h-16 bg-background rounded-tl-[3rem] rounded-tr-[3rem] shadow-md" />
       </div>
 

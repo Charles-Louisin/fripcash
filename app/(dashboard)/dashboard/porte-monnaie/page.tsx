@@ -7,6 +7,7 @@ import { LiaWalletSolid } from "react-icons/lia";
 import { useWalletBalance, useTransactions, useWithdraw } from "@/hooks/use-wallet";
 import { useToast } from "@/components/ui/toast";
 import { RequireSeller } from "@/components/dashboard/require-role";
+import { parseGnMobile } from "@/lib/gn-phone";
 
 const typeConfig: Record<string, { label: string; icon: React.ElementType; iconColor: string; bgColor: string }> = {
   sale: { label: "Vente", icon: FiArrowDownLeft, iconColor: "text-emerald-600", bgColor: "bg-emerald-50" },
@@ -39,29 +40,35 @@ function WalletInner() {
   const [withdrawPhone, setWithdrawPhone] = useState("");
 
   const { data: balanceData, isLoading: balanceLoading } = useWalletBalance();
-  const { data: transactions = [], isLoading: txLoading } = useTransactions(filter === "all" ? undefined : filter);
+  const { data: allTransactions = [], isLoading: txLoading } = useTransactions();
   const withdrawMut = useWithdraw();
+  const transactions =
+    filter === "all"
+      ? allTransactions
+      : allTransactions.filter((t: any) => t.type === filter);
 
   const walletBalance = balanceData?.availableBalance ?? balanceData?.balance ?? 0;
-  const availableBalance = balanceData?.availableBalance ?? balanceData?.balance ?? 0;
-  const reservedBalance = balanceData?.reservedBalance ?? 0;
+  const availableBalance = Number(
+    balanceData?.availableBalance ?? balanceData?.availableGnf ?? balanceData?.balance ?? 0
+  );
+  const reservedBalance = Number(
+    balanceData?.reservedBalance ?? balanceData?.reservedGnf ?? 0
+  );
 
   const [activeCard, setActiveCard] = useState(0);
   const carouselRef = useRef<HTMLDivElement>(null);
 
-  const totalIn = transactions
-    .filter((t: any) => t.isCredit)
+  const totalIn = allTransactions
+    .filter((t: any) => t.isCredit && (t.type === "escrow_release" || t.type === "sale" || t.type === "refund"))
     .reduce((sum: number, t: any) => sum + Math.abs(t.amount || 0), 0);
-  const totalOut = transactions
-    .filter((t: any) => !t.isCredit)
+  const totalOut = allTransactions
+    .filter((t: any) => t.type === "withdrawal")
     .reduce((sum: number, t: any) => sum + Math.abs(t.amount || 0), 0);
-  const pendingCount = reservedBalance > 0 ? 1 : 0;
-
   const walletCards = [
     { label: "Solde disponible", icon: LiaWalletSolid, iconBg: "bg-foreground/5", iconColor: "text-foreground/70", value: availableBalance, prefix: "", suffix: "GNF", desc: "Disponible pour retrait" },
     { label: "Revenus", icon: FiTrendingUp, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", value: totalIn, prefix: "+", suffix: "GNF", desc: "Fonds libérés et crédits" },
-    { label: "Retraits", icon: FiTrendingDown, iconBg: "bg-orange-50", iconColor: "text-orange-600", value: totalOut, prefix: "-", suffix: "GNF", desc: "Séquestres, retraits" },
-    { label: "En séquestre", icon: FiClock, iconBg: "bg-amber-50", iconColor: "text-amber-600", value: reservedBalance, prefix: "", suffix: "GNF", desc: "Ventes en cours" },
+    { label: "Retraits", icon: FiTrendingDown, iconBg: "bg-orange-50", iconColor: "text-orange-600", value: totalOut, prefix: "-", suffix: "GNF", desc: "Retraits Mobile Money" },
+    { label: "En séquestre", icon: FiClock, iconBg: "bg-amber-50", iconColor: "text-amber-600", value: reservedBalance, prefix: "", suffix: "GNF", desc: "Ventes en cours — pas encore disponible" },
   ];
 
   const handleScroll = useCallback(() => {
@@ -95,8 +102,16 @@ function WalletInner() {
       showToast(reservedBalance > 0 ? "Solde disponible insuffisant (une partie est réservée pour tes commandes)" : "Solde insuffisant", "error");
       return;
     }
+    if (amount < 500) {
+      showToast("Le retrait minimum CinetPay est de 500 GNF.", "error");
+      return;
+    }
+    if (!parseGnMobile(withdrawPhone)) {
+      showToast("Saisis un numéro Mobile Money guinéen Orange (62) ou MTN (65).", "error");
+      return;
+    }
     withdrawMut.mutate(
-      { amount, phone: withdrawPhone || undefined },
+      { amount, phone: withdrawPhone },
       {
         onSuccess: () => {
           showToast(`Retrait de ${amount.toLocaleString("fr-FR")} GNF initié`, "success");
@@ -301,11 +316,12 @@ function WalletInner() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Numéro Mobile Money</label>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Numéro Mobile Money guinéen</label>
                   <input
                     type="tel"
                     value={withdrawPhone}
                     onChange={(e) => setWithdrawPhone(e.target.value)}
+                    placeholder="62X XXX XXX ou 65X XXX XXX"
                     className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
                   />
                 </div>

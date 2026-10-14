@@ -12,7 +12,7 @@ export async function fetchWalletLedger() {
   return data;
 }
 
-export async function requestWithdraw(amountGnf: number) {
-  const { data } = await api.post("/wallet/withdraw", { amountGnf });
+export async function requestWithdraw(amountGnf: number, phone: string) {
+  const { data } = await api.post("/wallet/withdraw", { amountGnf, phone });
   return data;
 }

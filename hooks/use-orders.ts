@@ -14,6 +14,7 @@ import {
   refuseOrderOffer,
   payFullAfterOfferRefuse,
   cancelAfterOfferRefuse,
+  imagesFromListing,
   type OrderStatus,
 } from "@/lib/api";
 import {
@@ -26,17 +27,39 @@ function normalizeOrder(raw: any, role: "buyer" | "seller" = "buyer") {
   const status =
     ORDER_STATUS_TO_UI[raw.status] ||
     (typeof raw.status === "string" ? raw.status : "ordered");
+  const rawEscrow = String(raw.escrowStatus || "");
   const escrowStatus =
-    raw.escrowStatus ||
-    (status === "fundsReleased" || status === "delivered"
+    rawEscrow === "released"
       ? "released"
-      : status === "refunded"
+      : rawEscrow === "refunded"
         ? "refunded"
-        : "blocked");
+        : ["blocked", "held", "payout_pending", "refund_pending"].includes(rawEscrow)
+          ? "blocked"
+          : status === "fundsReleased"
+            ? "released"
+            : status === "refunded"
+              ? "refunded"
+              : rawEscrow === "pending"
+                ? "pending"
+                : "blocked";
+  const listing = raw.listing || raw.article || { title: "Article" };
+  let images = imagesFromListing(listing);
+  if (!images.length && Array.isArray(raw.images)) {
+    images = imagesFromListing({ images: raw.images });
+  }
+  if (!images.length && Array.isArray(raw.items)) {
+    images = imagesFromListing({
+      images: raw.items.map((item: { imageUrl?: string }) => item.imageUrl).filter(Boolean),
+    });
+  }
   return {
     _id: raw.id || raw._id,
     id: raw.id || raw._id,
-    article: raw.listing || raw.article || { title: "Article" },
+    article: {
+      ...listing,
+      title: listing.title || "Article",
+      images,
+    },
     buyer: raw.buyer || { pseudo: "acheteur" },
     seller: raw.seller || { pseudo: "vendeur" },
     amount: raw.amountGnf ?? raw.amount ?? raw.totalGnf ?? 0,

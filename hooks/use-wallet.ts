@@ -27,13 +27,22 @@ export function useWalletBalance() {
     queryKey: ["wallet", "balance"],
     queryFn: async () => {
       const raw: any = await fetchWalletBalance();
+      const available = Number(
+        raw.availableBalanceGnf ?? raw.availableGnf ?? raw.availableBalance ?? 0
+      );
+      const reserved = Number(
+        raw.reservedBalanceGnf ?? raw.reservedGnf ?? raw.reservedBalance ?? 0
+      );
       return {
-        balance: raw.balanceGnf ?? raw.balance ?? 0,
-        availableBalance:
-          raw.availableBalanceGnf ?? raw.availableBalance ?? raw.balance ?? 0,
-        reservedBalance: raw.reservedBalanceGnf ?? raw.reservedBalance ?? 0,
-        currency: "GNF",
         ...raw,
+        balance: available,
+        availableBalance: available,
+        reservedBalance: reserved,
+        availableGnf: available,
+        reservedGnf: reserved,
+        availableBalanceGnf: available,
+        reservedBalanceGnf: reserved,
+        currency: "GNF",
       };
     },
     enabled: hasToken(),
@@ -49,12 +58,14 @@ export function useTransactions(type?: string) {
         _id: t.id || t._id,
         type:
           t.type === "escrowRelease"
-            ? "sale"
+            ? "escrow_release"
             : t.type === "escrowHold"
               ? "escrow_block"
-              : t.type === "withdraw" || t.type === "withdrawal"
-                ? "withdrawal"
-                : t.type || t.kind || "ledger",
+              : t.type === "refund_origin"
+                ? "refund"
+                : t.type === "withdraw" || t.type === "withdrawal"
+                  ? "withdrawal"
+                  : t.type || t.kind || "ledger",
         amount: t.amountGnf ?? t.amount ?? 0,
         label: t.label || t.description || t.type || "Mouvement",
         isCredit: t.isCredit ?? (t.direction === "credit" || (t.amountGnf ?? 0) > 0),
@@ -73,7 +84,10 @@ export function useWithdraw() {
 
   return useMutation({
     mutationFn: async (body: { amount: number; phone?: string }) => {
-      return requestWithdraw(Math.round(body.amount));
+      if (!body.phone) {
+        throw new Error("Saisis un numéro Mobile Money guinéen.");
+      }
+      return requestWithdraw(Math.round(body.amount), body.phone);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wallet"] });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import {
   FiPlus,
   FiEdit2,
@@ -22,7 +22,8 @@ import {
   useDeleteArticle,
   listingToArticle,
 } from "@/hooks/use-articles";
-import { fetchCategories, fetchListing, type CatalogCategory } from "@/lib/api";
+import { fetchCategories, fetchListing, uploadCatalogueImage, type CatalogCategory } from "@/lib/api";
+import { clearPageDraft, readPageDraft, writePageDraft } from "@/lib/page-draft";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
@@ -121,10 +122,19 @@ function MyArticlesInner() {
   const [viewMode, setViewMode] = useState<"grid" | "table">("table");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
-  type GallerySlot = { url: string; file?: File; mediaId?: string };
+  type GallerySlot = {
+    url: string;
+    file?: File;
+    mediaId?: string;
+    publicId?: string;
+    mimeType?: string;
+    uploading?: boolean;
+  };
   const [gallery, setGallery] = useState<GallerySlot[]>([]);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [draftReady, setDraftReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const ARTICLE_DRAFT_KEY = "dashboard-article-form";
 
   const emptyForm = {
     title: "",
@@ -141,12 +151,55 @@ function MyArticlesInner() {
     size: "",
     color: "",
   };
+  type ArticleFormDraft = {
+    sheetOpen?: boolean;
+    editingId?: string | null;
+    formData?: typeof emptyForm;
+    gallery?: Array<
+      Pick<GallerySlot, "url" | "mediaId" | "publicId" | "mimeType">
+    >;
+  };
   const [formData, setFormData] = useState(emptyForm);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     open: boolean;
     id: string | null;
     title: string;
   }>({ open: false, id: null, title: "" });
+
+  useEffect(() => {
+    const draft = readPageDraft<ArticleFormDraft>(ARTICLE_DRAFT_KEY);
+    if (draft) {
+      setFormData({ ...emptyForm, ...draft.formData });
+      setGallery(draft.gallery || []);
+      if (draft.editingId) setEditingItem({ _id: draft.editingId });
+      setSheetOpen(Boolean(draft.sheetOpen));
+    }
+    setDraftReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    writePageDraft<ArticleFormDraft>(ARTICLE_DRAFT_KEY, {
+      sheetOpen,
+      editingId: editingItem?._id || null,
+      formData,
+      gallery: gallery
+        .filter(
+          (s) =>
+            s.url &&
+            !s.uploading &&
+            !s.url.startsWith("blob:") &&
+            !s.url.startsWith("data:")
+        )
+        .map(({ url, mediaId, publicId, mimeType }) => ({
+          url,
+          mediaId,
+          publicId,
+          mimeType,
+        })),
+    });
+  }, [draftReady, sheetOpen, editingItem, formData, gallery]);
 
   const openAddSheet = () => {
     if (!canCreateListing) {
@@ -158,17 +211,32 @@ function MyArticlesInner() {
       );
       return;
     }
+    const draft = readPageDraft<ArticleFormDraft>(ARTICLE_DRAFT_KEY);
     setEditingItem(null);
-    setFormData({
-      ...emptyForm,
-      categoryId: categoryOptions[0]?.id || "",
-    });
-    setGallery([]);
+    if (draft && !draft.editingId && (draft.formData?.title || draft.gallery?.length)) {
+      setFormData({ ...emptyForm, ...draft.formData });
+      setGallery(draft.gallery || []);
+    } else {
+      setFormData({
+        ...emptyForm,
+        categoryId: categoryOptions[0]?.id || "",
+      });
+      setGallery([]);
+    }
     setUploadProgress(null);
     setSheetOpen(true);
   };
 
   const openEditSheet = async (item: any) => {
+    const draft = readPageDraft<ArticleFormDraft>(ARTICLE_DRAFT_KEY);
+    if (draft?.editingId === (item._id || item.id)) {
+      setEditingItem(item);
+      setFormData({ ...emptyForm, ...draft.formData });
+      setGallery(draft.gallery || []);
+      setUploadProgress(null);
+      setSheetOpen(true);
+      return;
+    }
     setEditingItem(item);
     setFormData({
       title: item.title || "",
@@ -229,8 +297,6 @@ function MyArticlesInner() {
 
   const closeSheet = () => {
     setSheetOpen(false);
-    setEditingItem(null);
-    setGallery([]);
     setUploadProgress(null);
   };
 
@@ -261,20 +327,48 @@ function MyArticlesInner() {
     });
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setGallery((prev) => {
-          if (prev.length >= 5) return prev;
-          return [...prev, { url: ev.target?.result as string, file }];
-        });
-      };
-      reader.readAsDataURL(file);
-    });
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
     e.target.value = "";
+    if (!files.length) return;
+
+    for (const file of files) {
+      const preview = URL.createObjectURL(file);
+      let slotted = false;
+      setGallery((prev) => {
+        if (prev.length >= 5) return prev;
+        slotted = true;
+        return [...prev, { url: preview, uploading: true }];
+      });
+      if (!slotted) {
+        URL.revokeObjectURL(preview);
+        showToast("Maximum 5 photos.", "info");
+        break;
+      }
+      try {
+        setUploadProgress(0);
+        const uploaded = await uploadCatalogueImage(file, "listings", (p) =>
+          setUploadProgress(p)
+        );
+        setGallery((prev) =>
+          prev.map((s) =>
+            s.url === preview
+              ? {
+                  url: uploaded.secure_url,
+                  publicId: uploaded.public_id,
+                  mimeType: file.type || "image/jpeg",
+                }
+              : s
+          )
+        );
+      } catch (err: any) {
+        setGallery((prev) => prev.filter((s) => s.url !== preview));
+        showToast(err?.message || "Upload de la photo impossible", "error");
+      } finally {
+        URL.revokeObjectURL(preview);
+        setUploadProgress(null);
+      }
+    }
   };
 
   const removeImage = (index: number) => {
@@ -333,6 +427,10 @@ function MyArticlesInner() {
       showToast("Choisis une catégorie.", "error");
       return;
     }
+    if (gallery.some((s) => s.uploading)) {
+      showToast("Attends la fin de l’envoi des photos.", "info");
+      return;
+    }
     if (gallery.length === 0) {
       showToast("Ajoute au moins une photo.", "error");
       return;
@@ -360,8 +458,24 @@ function MyArticlesInner() {
       brand: formData.brand || "Sans marque",
       description: formData.description,
       images: gallery.map((s) => s.url),
-      imageFiles: gallery.map((s) => s.file).filter(Boolean) as File[],
-      imageSlots: gallery.map((s) => ({ mediaId: s.mediaId, file: s.file })),
+      uploadedMedia: gallery
+        .filter(
+          (s) =>
+            s.url &&
+            !s.url.startsWith("blob:") &&
+            !s.url.startsWith("data:")
+        )
+        .map((s) => ({
+          url: s.url,
+          publicId: s.publicId || s.url,
+          mimeType: s.mimeType || "image/jpeg",
+        })),
+      imageSlots: gallery.map((s) => ({
+        mediaId: s.mediaId,
+        url: s.url,
+        publicId: s.publicId,
+        mimeType: s.mimeType,
+      })),
       onUploadProgress: (pct: number) => setUploadProgress(pct),
       categoryId: formData.categoryId,
       condition: formData.condition,
@@ -379,6 +493,13 @@ function MyArticlesInner() {
         { id: editingItem._id, ...body },
         {
           onSuccess: () => {
+            clearPageDraft(ARTICLE_DRAFT_KEY);
+            setEditingItem(null);
+            setFormData({
+              ...emptyForm,
+              categoryId: categoryOptions[0]?.id || "",
+            });
+            setGallery([]);
             showToast("Article modifié avec succès !", "success");
             closeSheet();
           },
@@ -391,6 +512,13 @@ function MyArticlesInner() {
     } else {
       createArticle.mutate(body, {
         onSuccess: (res) => {
+          clearPageDraft(ARTICLE_DRAFT_KEY);
+          setEditingItem(null);
+          setFormData({
+            ...emptyForm,
+            categoryId: categoryOptions[0]?.id || "",
+          });
+          setGallery([]);
           const d = res?.data;
           const buyer = d?.price?.toLocaleString("fr-FR");
           const ratePct =
@@ -547,7 +675,7 @@ function MyArticlesInner() {
             <div key={item._id} className="rounded-xl border border-border bg-card overflow-hidden group">
               <div className="relative aspect-square">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.images?.[0] || ""} alt={item.title} className="w-full h-full object-cover" />
+                <img src={item.images?.[0] || ""} alt={item.title} className="absolute inset-0 h-full w-full object-cover" />
                 <div className="absolute top-2 left-2">{statusBadge(item.status)}</div>
               </div>
               <div className="p-3">
@@ -719,6 +847,11 @@ function MyArticlesInner() {
                     <div key={`${slot.mediaId || slot.url}-${i}`} className="relative aspect-square rounded-xl overflow-hidden bg-muted group/img">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={slot.url} alt={`Photo ${i + 1}`} className="absolute inset-0 w-full h-full object-cover" />
+                      {slot.uploading ? (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <span className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        </div>
+                      ) : null}
                       {i === 0 ? (
                         <span className="absolute bottom-1 left-1 bg-primary text-primary-foreground text-[9px] font-bold px-1.5 py-0.5 rounded">
                           Couverture
@@ -727,7 +860,7 @@ function MyArticlesInner() {
                         <button
                           type="button"
                           onClick={() => setCover(i)}
-                          className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] font-medium px-1.5 py-0.5 rounded opacity-0 group-hover/img:opacity-100"
+                          className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] font-medium px-1.5 py-0.5 rounded"
                         >
                           Couverture
                         </button>
@@ -735,7 +868,8 @@ function MyArticlesInner() {
                       <button
                         type="button"
                         onClick={() => removeImage(i)}
-                        className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
+                        className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/70 text-white flex items-center justify-center"
+                        aria-label="Supprimer cette image"
                       >
                         <FiX className="h-3 w-3" />
                       </button>
@@ -1016,7 +1150,11 @@ function MyArticlesInner() {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={createArticle.isPending || updateArticle.isPending}
+              disabled={
+                createArticle.isPending ||
+                updateArticle.isPending ||
+                gallery.some((s) => s.uploading)
+              }
               className="flex-1 h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-primary"
             >
                   {createArticle.isPending || updateArticle.isPending ? (

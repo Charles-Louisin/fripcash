@@ -12,6 +12,7 @@ import {
   FiPhone,
   FiEdit2,
   FiCheck,
+  FiTrash2,
 } from "react-icons/fi";
 import { useMe, useUpdateProfile } from "@/hooks/use-auth";
 import { useMyOrders } from "@/hooks/use-orders";
@@ -22,6 +23,7 @@ import { resolveAccountType } from "@/lib/account-type";
 import { AccountTypeBadge } from "@/components/account/account-type-badge";
 import { ShopVerificationBanner } from "@/components/account/shop-verification-banner";
 import { uploadProfileImage } from "@/lib/api";
+import { clearPageDraft, readPageDraft, writePageDraft } from "@/lib/page-draft";
 
 export default function ProfilePage() {
   const { showToast } = useToast();
@@ -30,6 +32,7 @@ export default function ProfilePage() {
   const [avatarProgress, setAvatarProgress] = useState<number | null>(null);
   const [coverProgress, setCoverProgress] = useState<number | null>(null);
   const [coverUrl, setCoverUrl] = useState("");
+  const [draftReady, setDraftReady] = useState(false);
   const { data: user, isLoading } = useMe();
   const { data: orders = [] } = useMyOrders();
   const { data: articles = [] } = useMyArticles();
@@ -38,11 +41,48 @@ export default function ProfilePage() {
     useProfileStore();
 
   const account = resolveAccountType(user);
-  const sellerCover = coverUrl || user?.seller?.coverUrl || "";
+  const displayCover = coverUrl;
+  type ProfileDraft = {
+    name?: string;
+    pseudo?: string;
+    phone?: string;
+    city?: string;
+    bio?: string;
+    avatar?: string;
+    coverUrl?: string;
+  };
 
   useEffect(() => {
-    if (user?.seller?.coverUrl) setCoverUrl(user.seller.coverUrl);
-  }, [user?.seller?.coverUrl]);
+    const draft = readPageDraft<ProfileDraft>("dashboard-profile");
+    if (!user && !draft) return;
+    if (draft) {
+      updateProfile({
+        ...(draft.name !== undefined ? { name: draft.name } : {}),
+        ...(draft.pseudo !== undefined ? { pseudo: draft.pseudo } : {}),
+        ...(draft.phone !== undefined ? { phone: draft.phone } : {}),
+        ...(draft.city !== undefined ? { city: draft.city } : {}),
+        ...(draft.bio !== undefined ? { bio: draft.bio } : {}),
+        ...(draft.avatar !== undefined ? { avatar: draft.avatar } : {}),
+      });
+      if (draft.coverUrl !== undefined) setCoverUrl(draft.coverUrl);
+    } else if (user?.seller?.coverUrl) {
+      setCoverUrl(user.seller.coverUrl);
+    }
+    setDraftReady(true);
+  }, [user, updateProfile]);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    writePageDraft<ProfileDraft>("dashboard-profile", {
+      name,
+      pseudo,
+      phone,
+      city,
+      bio,
+      avatar,
+      coverUrl,
+    });
+  }, [draftReady, name, pseudo, phone, city, bio, avatar, coverUrl]);
   const salesCount = orders.filter((o) => o.role === "seller").length;
   const purchasesCount = orders.filter((o) => o.role === "buyer").length;
   const articlesCount = articles.length;
@@ -99,10 +139,13 @@ export default function ProfilePage() {
         city,
         bio,
         avatar,
-        coverUrl: coverUrl || sellerCover,
+        coverUrl,
       },
       {
-        onSuccess: () => showToast("Profil mis à jour avec succès", "success"),
+        onSuccess: () => {
+          clearPageDraft("dashboard-profile");
+          showToast("Profil mis à jour avec succès", "success");
+        },
         onError: (err: any) =>
           showToast(err.message || "Erreur lors de la mise à jour", "error"),
       }
@@ -233,13 +276,25 @@ export default function ProfilePage() {
                 {typeof avatarProgress === "number" && (
                   <p className="text-xs text-primary mt-1">Upload {avatarProgress}%</p>
                 )}
-                <button
-                  type="button"
-                  onClick={() => avatarInputRef.current?.click()}
-                  className="text-xs text-primary font-medium mt-1 hover:underline"
-                >
-                  Changer la photo
-                </button>
+                <div className="mt-1 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    className="text-xs text-primary font-medium hover:underline"
+                  >
+                    Changer la photo
+                  </button>
+                  {avatar ? (
+                    <button
+                      type="button"
+                      onClick={() => updateProfile({ avatar: "" })}
+                      className="inline-flex items-center gap-1 text-xs text-destructive hover:underline"
+                    >
+                      <FiTrash2 className="h-3 w-3" />
+                      Supprimer
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
 
@@ -249,10 +304,10 @@ export default function ProfilePage() {
                   Photo de couverture de la boutique
                 </label>
                 <div className="relative h-36 overflow-hidden rounded-xl bg-muted">
-                  {(coverUrl || sellerCover) ? (
+                  {displayCover ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={coverUrl || sellerCover}
+                      src={displayCover}
                       alt=""
                       className="h-full w-full object-cover"
                     />
@@ -268,14 +323,26 @@ export default function ProfilePage() {
                     className="hidden"
                     onChange={handleCoverChange}
                   />
-                  <button
-                    type="button"
-                    onClick={() => coverInputRef.current?.click()}
-                    className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-white shadow"
-                  >
-                    <FiCamera className="h-3.5 w-3.5" />
-                    Changer
-                  </button>
+                  <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                    {displayCover ? (
+                      <button
+                        type="button"
+                        onClick={() => setCoverUrl("")}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-white shadow"
+                      >
+                        <FiTrash2 className="h-3.5 w-3.5" />
+                        Supprimer
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => coverInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-white shadow"
+                    >
+                      <FiCamera className="h-3.5 w-3.5" />
+                      Changer
+                    </button>
+                  </div>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   JPG, PNG, WebP. Max 6 Mo. Visible sur ta page boutique et l&apos;accueil.

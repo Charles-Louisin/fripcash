@@ -7,6 +7,7 @@ import {
   deleteListing,
   attachListingMedia,
   listingImageUrl,
+  imagesFromListing,
   uploadCatalogueImage,
   replaceListingMedia,
   deleteListingMedia,
@@ -161,16 +162,17 @@ export function listingToArticle(
   l: Listing,
   categoriesById?: Map<string, CatalogCategory>
 ): DashboardArticle {
+  const urls = imagesFromListing(l);
   const media = (l.media || [])
     .slice()
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-    .map((m) => {
-      const url = listingImageUrl(m);
+    .map((m, index) => {
+      const url = listingImageUrl(m) || urls[index];
       if (!url) return null;
       return { id: m.id, url };
     })
     .filter((x): x is { id: string; url: string } => !!x);
-  const images = media.map((m) => m.url);
+  const images = media.length ? media.map((m) => m.url) : urls;
 
   const parts = categoryParts(l.categoryId, categoriesById ?? new Map());
 
@@ -223,6 +225,33 @@ export function listingToArticle(
     destination: l.destination,
     createdAt: l.publishedAt || l.createdAt || new Date().toISOString(),
   };
+}
+
+async function hydrateMissingCovers(list: DashboardArticle[]) {
+  const missing = list.filter((article) => !article.images?.length);
+  if (!missing.length) return list;
+  const filled = new Map<string, Pick<DashboardArticle, "images" | "media">>();
+  const queue = [...missing];
+  const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
+    while (queue.length) {
+      const item = queue.shift();
+      if (!item) return;
+      try {
+        const full = await fetchListing(item._id);
+        const next = listingToArticle(full);
+        if (next.images.length) {
+          filled.set(item._id, { images: next.images, media: next.media });
+        }
+      } catch {
+        /* la liste reste sans visuel */
+      }
+    }
+  });
+  await Promise.all(workers);
+  if (!filled.size) return list;
+  return list.map((article) =>
+    filled.has(article._id) ? { ...article, ...filled.get(article._id) } : article
+  );
 }
 
 function asArraySafe(data: unknown): any[] {
@@ -420,7 +449,7 @@ export function useMyArticles(status?: string) {
         .filter((l) => l.sellerProfileId === profileId)
         .map((l) => listingToArticle(l, catMap));
       if (status) list = list.filter((a) => a.status === status);
-      return list;
+      return hydrateMissingCovers(list);
     },
   });
 }
@@ -432,6 +461,11 @@ export function useCreateArticle() {
       body: Partial<DashboardArticle> & {
         categoryId?: string;
         imageFiles?: File[];
+        uploadedMedia?: Array<{
+          url: string;
+          publicId?: string;
+          mimeType?: string;
+        }>;
         onUploadProgress?: (pct: number) => void;
         netPrice?: number;
         negotiable?: boolean;
@@ -466,23 +500,36 @@ export function useCreateArticle() {
         if (me?.id) cacheSellerProfileId(me.id, created.sellerProfileId);
       }
 
+      const uploadedMedia = (body.uploadedMedia || []).filter((m) => m.url);
       let files = body.imageFiles?.filter(Boolean) ?? [];
-      if (files.length === 0) {
+      if (uploadedMedia.length === 0 && files.length === 0) {
         throw new Error("Ajoute au moins une photo.");
       }
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const uploaded = await uploadCatalogueImage(file, "listings", (p) => {
-          const base = (i / files.length) * 100;
-          body.onUploadProgress?.(Math.round(base + p / files.length));
-        });
-        await attachListingMedia(created.id, {
-          publicId: uploaded.public_id,
-          url: uploaded.secure_url,
-          mimeType: file.type || "image/jpeg",
-          sortOrder: i,
-        });
+      if (uploadedMedia.length) {
+        for (let i = 0; i < uploadedMedia.length; i++) {
+          const media = uploadedMedia[i];
+          await attachListingMedia(created.id, {
+            publicId: media.publicId || media.url,
+            url: media.url,
+            mimeType: media.mimeType || "image/jpeg",
+            sortOrder: i,
+          });
+        }
+      } else {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const uploaded = await uploadCatalogueImage(file, "listings", (p) => {
+            const base = (i / files.length) * 100;
+            body.onUploadProgress?.(Math.round(base + p / files.length));
+          });
+          await attachListingMedia(created.id, {
+            publicId: uploaded.public_id,
+            url: uploaded.secure_url,
+            mimeType: file.type || "image/jpeg",
+            sortOrder: i,
+          });
+        }
       }
       body.onUploadProgress?.(100);
 
@@ -517,7 +564,13 @@ export function useUpdateArticle() {
       discountEnabled?: boolean;
       compareAtPrice?: number | null;
       imageFiles?: File[];
-      imageSlots?: Array<{ mediaId?: string; file?: File }>;
+      imageSlots?: Array<{
+        mediaId?: string;
+        file?: File;
+        url?: string;
+        publicId?: string;
+        mimeType?: string;
+      }>;
       onUploadProgress?: (pct: number) => void;
       [key: string]: unknown;
     }) => {
@@ -568,11 +621,32 @@ export function useUpdateArticle() {
             await deleteListingMedia(id, m.id);
           }
         }
-        const newFiles = slots.filter((s) => s.file);
+        const newFiles = slots.filter(
+          (s) => s.file || (!s.mediaId && s.url)
+        );
         let done = 0;
         for (let i = 0; i < slots.length; i++) {
           const slot = slots[i];
-          if (slot.file) {
+          if (slot.mediaId) {
+            await replaceListingMedia(id, slot.mediaId, {
+              sortOrder: i,
+            });
+          } else if (
+            slot.url &&
+            !slot.url.startsWith("blob:") &&
+            !slot.url.startsWith("data:")
+          ) {
+            await attachListingMedia(id, {
+              publicId: slot.publicId || slot.url,
+              url: slot.url,
+              mimeType: slot.mimeType || "image/jpeg",
+              sortOrder: i,
+            });
+            done += 1;
+            report(
+              Math.round((done / Math.max(1, newFiles.length)) * 100)
+            );
+          } else if (slot.file) {
             const uploaded = await uploadCatalogueImage(slot.file, "listings", (p) => {
               const base = (done / Math.max(1, newFiles.length)) * 100;
               report(Math.round(base + p / Math.max(1, newFiles.length)));
@@ -584,10 +658,6 @@ export function useUpdateArticle() {
               sortOrder: i,
             });
             done += 1;
-          } else if (slot.mediaId) {
-            await replaceListingMedia(id, slot.mediaId, {
-              sortOrder: i,
-            });
           }
         }
         report(100);

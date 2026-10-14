@@ -34,7 +34,7 @@ export function NewProductsSlider() {
             Nouveautés
           </h2>
           <p className="text-muted-foreground text-sm mt-1">
-            Les derniers articles ajoutés sur FripCash
+            Les derniers articles des trois univers — le badge dit lequel.
           </p>
         </div>
 

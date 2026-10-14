@@ -25,12 +25,13 @@ function mapApiCategories(rows: Awaited<ReturnType<typeof fetchCategories>>) {
     image: pickImage(c),
     enabled: c.isActive !== false,
     subGroups: byParent(c.id).map((child) => ({
+      _id: child.id,
       name: child.nameFr || child.nameEn || child.slug,
       slug: child.slug,
       image: pickImage(child),
       imageUrl: pickImage(child),
       // Catalog is 2 levels today — no third-level item types from API
-      items: [] as { name: string }[],
+      items: [] as { name: string; _id?: string }[],
     })),
     destination: c.destination,
   }));

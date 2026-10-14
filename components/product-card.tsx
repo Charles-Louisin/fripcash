@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FiHeart, FiShoppingBag } from "react-icons/fi";
+import type { ElementType } from "react";
+import { FiHeart, FiShoppingBag, FiTag, FiUser } from "react-icons/fi";
+import { HiOutlineBuildingOffice2, HiOutlineBuildingStorefront } from "react-icons/hi2";
 import { useFavorites, useToggleFavorite } from "@/hooks/use-favorites";
 import { useMe } from "@/hooks/use-auth";
 import { useToast } from "@/components/ui/toast";
@@ -26,9 +28,31 @@ export interface Product {
   zoneId?: string | null;
   sellerId?: string | null;
   negotiable?: boolean;
+  universe?: string | null;
+  sellerName?: string;
+}
+
+const UNIVERSE_META: Record<
+  string,
+  { label: string; icon: ElementType }
+> = {
+  SECONDE_MAIN: { label: "Seconde main", icon: FiUser },
+  secondeMain: { label: "Seconde main", icon: FiUser },
+  ARTICLES_NEUFS: { label: "Neuf", icon: FiTag },
+  articlesNeufs: { label: "Neuf", icon: FiTag },
+  QUARTIER_BOUTIQUES: { label: "Boutique", icon: HiOutlineBuildingStorefront },
+  quartierBoutiques: { label: "Boutique", icon: HiOutlineBuildingStorefront },
+  ENSEIGNES: { label: "Enseigne", icon: HiOutlineBuildingOffice2 },
+  enseignes: { label: "Enseigne", icon: HiOutlineBuildingOffice2 },
+};
+
+export function universeMeta(destination?: string | null) {
+  if (!destination) return null;
+  return UNIVERSE_META[destination] || null;
 }
 
 export function mapArticleToProduct(article: any): Product {
+  const destination = article.destination || article.listingDestination;
   return {
     id: article._id,
     image: article.images?.[0] || "",
@@ -45,6 +69,8 @@ export function mapArticleToProduct(article: any): Product {
     zoneId: article.zoneId || null,
     sellerId: article.seller?._id || null,
     negotiable: article.negotiable === true,
+    universe: universeMeta(destination)?.label || null,
+    sellerName: article.seller?.pseudo || article.seller?.shopName || "",
   };
 }
 
@@ -134,10 +160,16 @@ export function ProductCard({ product }: { product: Product }) {
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
         />
 
+        {product.universe && (
+          <span className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-foreground shadow-sm">
+            {product.universe}
+          </span>
+        )}
+
         <button
           type="button"
           onClick={handleAddToCart}
-          className="absolute top-2 left-2 w-8 h-8 rounded-full flex items-center justify-center shadow-sm bg-white/90 text-foreground hover:scale-110"
+          className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-sm bg-white/90 text-foreground hover:scale-110"
           aria-label="Ajouter au panier"
         >
           <FiShoppingBag className="h-4 w-4" />

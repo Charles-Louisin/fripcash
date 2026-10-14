@@ -45,6 +45,7 @@ import {
   canAddToCart,
   canMessageSeller,
 } from "@/lib/marketplace-actions";
+import { clearPageDraft, readPageDraft, writePageDraft } from "@/lib/page-draft";
 
 export default function ArticleDetailPage() {
   const params = useParams();
@@ -155,10 +156,12 @@ export default function ArticleDetailPage() {
   const [messageText, setMessageText] = useState("");
   const [messageSent, setMessageSent] = useState(false);
 
+  const reviewDraftKey = `article-review:${id}`;
   const [reviewText, setReviewText] = useState("");
   const [reviewRating, setReviewRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [reviewImages, setReviewImages] = useState<string[]>([]);
+  const [reviewDraftReady, setReviewDraftReady] = useState(false);
   const reviewImageInputRef = useRef<HTMLInputElement>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [reviewFilter, setReviewFilter] = useState<number>(0);
@@ -178,6 +181,29 @@ export default function ArticleDetailPage() {
       : reviews.filter((r: any) => r.rating === reviewFilter);
   const paginatedReviews = filteredReviews.slice(0, reviewsToShow);
   const hasMoreReviews = filteredReviews.length > reviewsToShow;
+
+  useEffect(() => {
+    const saved = readPageDraft<{
+      text?: string;
+      rating?: number;
+      images?: string[];
+    }>(reviewDraftKey);
+    if (saved) {
+      if (saved.text) setReviewText(saved.text);
+      if (saved.rating) setReviewRating(saved.rating);
+      if (saved.images?.length) setReviewImages(saved.images);
+    }
+    setReviewDraftReady(true);
+  }, [reviewDraftKey]);
+
+  useEffect(() => {
+    if (!reviewDraftReady) return;
+    writePageDraft(reviewDraftKey, {
+      text: reviewText,
+      rating: reviewRating,
+      images: reviewImages,
+    });
+  }, [reviewDraftReady, reviewDraftKey, reviewText, reviewRating, reviewImages]);
 
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -251,6 +277,7 @@ export default function ArticleDetailPage() {
       },
       {
         onSuccess: () => {
+          clearPageDraft(reviewDraftKey);
           setReviewText("");
           setReviewRating(0);
           setReviewImages([]);
@@ -332,7 +359,7 @@ export default function ArticleDetailPage() {
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-lg font-semibold">Article non trouvé</p>
-            <Link href="/produits" className="text-primary hover:underline text-sm mt-2 block">
+            <Link href="/recherche" className="text-primary hover:underline text-sm mt-2 block">
               Retour aux produits
             </Link>
           </div>
@@ -358,7 +385,7 @@ export default function ArticleDetailPage() {
             <span>/</span>
             {article.category && (
               <>
-                <Link href="/produits" className="hover:text-primary transition-colors shrink-0">
+                <Link href="/recherche" className="hover:text-primary transition-colors shrink-0">
                   {article.category}
                 </Link>
                 <span>/</span>
@@ -667,8 +694,8 @@ export default function ArticleDetailPage() {
                       <div key={idx} className="relative group w-16 h-16 rounded-lg overflow-hidden border border-border">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={img} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
-                        <button type="button" onClick={() => removeReviewImage(idx)} className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <FiX className="h-4 w-4 text-white" />
+                        <button type="button" onClick={() => removeReviewImage(idx)} className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-black/70 text-white flex items-center justify-center" aria-label="Supprimer cette image">
+                          <FiX className="h-3 w-3" />
                         </button>
                       </div>
                     ))}
