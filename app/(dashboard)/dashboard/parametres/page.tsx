@@ -13,6 +13,7 @@ import { buildSellerSnapshot } from "@/lib/account-capabilities";
 import { resolveAccountType, verificationLabel } from "@/lib/account-type";
 import { AccountTypeBadge } from "@/components/account/account-type-badge";
 import { ShopVerificationBanner } from "@/components/account/shop-verification-banner";
+import { ShippingZoneField } from "@/components/shipping-zone-field";
 
 const settingsTabs = [
   { id: "account", label: "Compte" },
@@ -70,10 +71,12 @@ export default function SettingsPage() {
   const [upgradeConfirm, setUpgradeConfirm] = useState(false);
   const [displayName, setDisplayName] = useState(user?.pseudo || "");
   const [upgrading, setUpgrading] = useState(false);
+  const [upgradeZoneId, setUpgradeZoneId] = useState("");
 
   useEffect(() => {
     if (user?.pseudo) setDisplayName(user.pseudo);
-  }, [user?.pseudo]);
+    if (user?.shippingZoneId) setUpgradeZoneId(user.shippingZoneId);
+  }, [user?.pseudo, user?.shippingZoneId]);
 
   const account = resolveAccountType(user);
   const seller =
@@ -118,9 +121,14 @@ export default function SettingsPage() {
   };
 
   const handleBecomeParticulier = async () => {
+    const zoneId = upgradeZoneId || user?.shippingZoneId || "";
+    if (!zoneId) {
+      showToast("Choisis ta zone d’expédition pour vendre.", "error");
+      return;
+    }
     setUpgrading(true);
     try {
-      await becomeParticulier();
+      await becomeParticulier({ shippingZoneId: zoneId });
       setUpgradeConfirm(false);
       showToast(
         "Profil particulier activé. Tes achats restent sur ce compte.",
@@ -271,6 +279,20 @@ export default function SettingsPage() {
                   </dd>
                 </div>
               )}
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Zone d’expédition</dt>
+                <dd className="font-medium text-foreground">
+                  {user?.shippingZoneId ? (
+                    <Link href="/dashboard/profil" className="text-primary hover:underline">
+                      Modifier dans le profil
+                    </Link>
+                  ) : (
+                    <Link href="/dashboard/profil" className="text-primary hover:underline">
+                      À définir dans le profil
+                    </Link>
+                  )}
+                </dd>
+              </div>
             </dl>
           </div>
 
@@ -459,6 +481,12 @@ export default function SettingsPage() {
                 Tes annonces iront en Seconde main. Tes achats et messages
                 restent sur ce compte.
               </p>
+              <div className="mt-4 text-left">
+                <ShippingZoneField
+                  value={upgradeZoneId || user?.shippingZoneId || ""}
+                  onChange={setUpgradeZoneId}
+                />
+              </div>
             </div>
             <div className="flex items-center gap-3 px-6 pb-6">
               <button

@@ -21,6 +21,7 @@ export type Me = {
     likesCount?: number;
     verificationStatus: "none" | "pending" | "approved" | "rejected";
     listingDestination: string | null;
+    shippingZoneId?: string | null;
     allowedDestinations: string[];
     capabilities: {
       createListing: boolean;
@@ -35,6 +36,7 @@ export type Me = {
   avatarUrl?: string | null;
   city?: string | null;
   bio?: string | null;
+  shippingZoneId?: string | null;
 };
 
 export async function fetchMe() {
@@ -50,6 +52,7 @@ export async function updateMe(body: {
   avatarUrl?: string;
   coverUrl?: string;
   phone?: string;
+  shippingZoneId?: string;
 }) {
   const { data } = await api.patch<Me>("/me", body);
   return data;

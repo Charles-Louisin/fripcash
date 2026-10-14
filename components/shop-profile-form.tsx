@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { fetchZones } from "@/lib/api";
+import { ShippingZoneField } from "@/components/shipping-zone-field";
 import { readPageDraft, writePageDraft } from "@/lib/page-draft";
 import { parseGnMobile } from "@/lib/gn-phone";
 import {
@@ -39,6 +40,7 @@ export type ShopApplicationInput = {
   orangeMoneyPhone?: string;
   openingTime?: string;
   closingTime?: string;
+  shippingZoneId?: string;
   documents?: KycDoc[];
 };
 
@@ -56,6 +58,7 @@ type ShopFormDraft = {
   orangeMoneyPhone: string;
   openingTime: string;
   closingTime: string;
+  shippingZoneId: string;
 };
 
 export type ShopProfileFormHandle = {
@@ -270,6 +273,7 @@ export const ShopProfileForm = forwardRef<
   const [orangeMoneyPhone, setOrangeMoneyPhone] = useState("");
   const [openingTime, setOpeningTime] = useState("");
   const [closingTime, setClosingTime] = useState("");
+  const [shippingZoneId, setShippingZoneId] = useState("");
   const [error, setError] = useState("");
   const [draftReady, setDraftReady] = useState(!draftKey);
 
@@ -288,6 +292,7 @@ export const ShopProfileForm = forwardRef<
     orangeMoneyPhone: orangeMoneyPhone.trim() || undefined,
     openingTime: openingTime.trim() || undefined,
     closingTime: closingTime.trim() || undefined,
+    shippingZoneId: shippingZoneId || undefined,
   });
 
   useEffect(() => {
@@ -310,6 +315,7 @@ export const ShopProfileForm = forwardRef<
       setOrangeMoneyPhone(saved.orangeMoneyPhone || "");
       setOpeningTime(saved.openingTime || "");
       setClosingTime(saved.closingTime || "");
+      if (saved.shippingZoneId) setShippingZoneId(saved.shippingZoneId);
     }
     setDraftReady(true);
   }, [draftKey]);
@@ -330,6 +336,7 @@ export const ShopProfileForm = forwardRef<
       orangeMoneyPhone,
       openingTime,
       closingTime,
+      shippingZoneId,
     });
     onDraftChange?.(currentDraft());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -349,9 +356,14 @@ export const ShopProfileForm = forwardRef<
     orangeMoneyPhone,
     openingTime,
     closingTime,
+    shippingZoneId,
   ]);
 
   const buildAndSubmit = () => {
+    if (!shippingZoneId) {
+      setError("Choisis ta zone d’expédition.");
+      return;
+    }
     if (!name.trim()) {
       setError("Indique le nom de la boutique.");
       return;
@@ -369,6 +381,7 @@ export const ShopProfileForm = forwardRef<
       description: description.trim(),
       coverUrl: coverUrl || undefined,
       documents: docs,
+      shippingZoneId,
     };
 
     if (kind === "STANDARD") {
@@ -439,6 +452,7 @@ export const ShopProfileForm = forwardRef<
 
   const fields = (
     <>
+      <ShippingZoneField value={shippingZoneId} onChange={setShippingZoneId} />
       {kind === "STANDARD" && (
         <>
           <Field

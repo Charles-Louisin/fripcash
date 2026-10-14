@@ -32,7 +32,7 @@ export async function verifyOtp(
   phoneNumber: string,
   code: string,
   signupRole?: string,
-  extra?: { name?: string; displayName?: string }
+  extra?: { name?: string; displayName?: string; shippingZoneId?: string }
 ) {
   const { data } = await api.post<VerifyOtpResponse>(
     "/auth/phone-number/verify",
@@ -42,6 +42,7 @@ export async function verifyOtp(
       ...(signupRole ? { signupRole } : {}),
       ...(extra?.name ? { name: extra.name } : {}),
       ...(extra?.displayName ? { displayName: extra.displayName } : {}),
+      ...(extra?.shippingZoneId ? { shippingZoneId: extra.shippingZoneId } : {}),
     }
   );
   if (!data.token) {
@@ -116,6 +117,7 @@ export async function signUpEmail(body: {
   password: string;
   name: string;
   signupRole?: string;
+  shippingZoneId?: string;
 }) {
   const { data } = await api.post<{
     token?: string | null;

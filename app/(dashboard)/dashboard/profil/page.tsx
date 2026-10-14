@@ -24,6 +24,7 @@ import { AccountTypeBadge } from "@/components/account/account-type-badge";
 import { ShopVerificationBanner } from "@/components/account/shop-verification-banner";
 import { uploadProfileImage } from "@/lib/api";
 import { clearPageDraft, readPageDraft, writePageDraft } from "@/lib/page-draft";
+import { ShippingZoneField } from "@/components/shipping-zone-field";
 
 export default function ProfilePage() {
   const { showToast } = useToast();
@@ -32,6 +33,7 @@ export default function ProfilePage() {
   const [avatarProgress, setAvatarProgress] = useState<number | null>(null);
   const [coverProgress, setCoverProgress] = useState<number | null>(null);
   const [coverUrl, setCoverUrl] = useState("");
+  const [shippingZoneId, setShippingZoneId] = useState("");
   const [draftReady, setDraftReady] = useState(false);
   const { data: user, isLoading } = useMe();
   const { data: orders = [] } = useMyOrders();
@@ -50,6 +52,7 @@ export default function ProfilePage() {
     bio?: string;
     avatar?: string;
     coverUrl?: string;
+    shippingZoneId?: string;
   };
 
   useEffect(() => {
@@ -65,8 +68,14 @@ export default function ProfilePage() {
         ...(draft.avatar !== undefined ? { avatar: draft.avatar } : {}),
       });
       if (draft.coverUrl !== undefined) setCoverUrl(draft.coverUrl);
+      if (draft.shippingZoneId !== undefined) {
+        setShippingZoneId(draft.shippingZoneId);
+      }
     } else if (user?.seller?.coverUrl) {
       setCoverUrl(user.seller.coverUrl);
+    }
+    if (!draft?.shippingZoneId && user?.shippingZoneId) {
+      setShippingZoneId(user.shippingZoneId);
     }
     setDraftReady(true);
   }, [user, updateProfile]);
@@ -81,8 +90,19 @@ export default function ProfilePage() {
       bio,
       avatar,
       coverUrl,
+      shippingZoneId,
     });
-  }, [draftReady, name, pseudo, phone, city, bio, avatar, coverUrl]);
+  }, [
+    draftReady,
+    name,
+    pseudo,
+    phone,
+    city,
+    bio,
+    avatar,
+    coverUrl,
+    shippingZoneId,
+  ]);
   const salesCount = orders.filter((o) => o.role === "seller").length;
   const purchasesCount = orders.filter((o) => o.role === "buyer").length;
   const articlesCount = articles.length;
@@ -128,6 +148,10 @@ export default function ProfilePage() {
   };
 
   const handleSave = () => {
+    if (account.isSeller && !shippingZoneId) {
+      showToast("Choisis ta zone d’expédition.", "error");
+      return;
+    }
     const [firstName, ...lastParts] = name.split(" ");
     const lastName = lastParts.join(" ");
     updateProfileMut.mutate(
@@ -140,6 +164,7 @@ export default function ProfilePage() {
         bio,
         avatar,
         coverUrl,
+        shippingZoneId,
       },
       {
         onSuccess: () => {
@@ -419,6 +444,12 @@ export default function ProfilePage() {
                   />
                 </div>
               </div>
+
+              <ShippingZoneField
+                value={shippingZoneId}
+                onChange={setShippingZoneId}
+                required={account.isSeller}
+              />
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Bio</label>

@@ -40,8 +40,10 @@ import {
 import { passwordError, passwordsMatchError } from "@/lib/password";
 import {
   SIGNUP_ROLE_OPTIONS,
+  signupRoleNeedsShippingZone,
   type SignupRole,
 } from "@/lib/signup-roles";
+import { ShippingZoneField } from "@/components/shipping-zone-field";
 import {
   FiUser,
   FiPhone,
@@ -201,6 +203,7 @@ type SignupWizardDraft = {
   localPhone: string;
   email: string;
   shopDraft: ShopApplicationInput | null;
+  shippingZoneId: string;
 };
 
 export default function InscriptionPage() {
@@ -228,6 +231,7 @@ export default function InscriptionPage() {
   const [suggestionKey, setSuggestionKey] = useState(0);
   const [pendingVerify, setPendingVerify] = useState<Me | null>(null);
   const [shopDraft, setShopDraft] = useState<ShopApplicationInput | null>(null);
+  const [shippingZoneId, setShippingZoneId] = useState("");
   const [wizardReady, setWizardReady] = useState(false);
   const shopFormRef = useRef<ShopProfileFormHandle>(null);
 
@@ -243,6 +247,7 @@ export default function InscriptionPage() {
       if (saved.firstName) setFirstName(saved.firstName);
       if (saved.pseudo) setPseudo(saved.pseudo);
       if (saved.shopDraft) setShopDraft(saved.shopDraft);
+      if (saved.shippingZoneId) setShippingZoneId(saved.shippingZoneId);
     }
     try {
       if (sessionStorage.getItem("fripcash_need_profile") === "1") {
@@ -269,6 +274,7 @@ export default function InscriptionPage() {
       localPhone,
       email,
       shopDraft,
+      shippingZoneId,
     });
   }, [
     wizardReady,
@@ -281,7 +287,12 @@ export default function InscriptionPage() {
     localPhone,
     email,
     shopDraft,
+    shippingZoneId,
   ]);
+
+  useEffect(() => {
+    if (shopDraft?.shippingZoneId) setShippingZoneId(shopDraft.shippingZoneId);
+  }, [shopDraft?.shippingZoneId]);
 
   const suggestions = useMemo(
     () => generatePseudos(firstName, lastName),
@@ -306,6 +317,9 @@ export default function InscriptionPage() {
     signupRole === "grandeSurface" ||
     signupRole === "commerceLocal" ||
     signupRole === "boutique";
+  const needsShippingZone = signupRoleNeedsShippingZone(signupRole);
+  const resolvedShippingZoneId =
+    shippingZoneId || shopDraft?.shippingZoneId || "";
 
   const submitShopDraft = async (me: Awaited<ReturnType<typeof fetchMe>>) => {
     if (!shopDraft) {
@@ -370,6 +384,11 @@ export default function InscriptionPage() {
       setStep("profile");
       return;
     }
+    if (needsShippingZone && !resolvedShippingZoneId) {
+      toast("Choisis ta zone d’expédition.", "error");
+      setStep("profile");
+      return;
+    }
     const phoneNumber = normalizeLocalPhone(localPhone, country);
     setLoading(true);
     try {
@@ -407,6 +426,11 @@ export default function InscriptionPage() {
       setStep("profile");
       return;
     }
+    if (needsShippingZone && !resolvedShippingZoneId) {
+      toast("Choisis ta zone d’expédition.", "error");
+      setStep("profile");
+      return;
+    }
     if (!isValidEmail(email)) {
       toast("Adresse email invalide.", "error");
       return;
@@ -429,6 +453,9 @@ export default function InscriptionPage() {
         password,
         name,
         signupRole,
+        ...(resolvedShippingZoneId
+          ? { shippingZoneId: resolvedShippingZoneId }
+          : {}),
       });
       const me = await fetchMe().catch(() => null);
       if (me) {
@@ -482,7 +509,12 @@ export default function InscriptionPage() {
         phoneSent,
         code.replace(/\D/g, ""),
         signupRole ?? undefined,
-        displayName ? { name: displayName, displayName } : undefined
+        {
+          ...(displayName ? { name: displayName, displayName } : {}),
+          ...(resolvedShippingZoneId
+            ? { shippingZoneId: resolvedShippingZoneId }
+            : {}),
+        }
       );
       const me = await fetchMe();
       cacheMe(me);
@@ -516,10 +548,14 @@ export default function InscriptionPage() {
       toast("Indique ton prénom et ton nom.", "error");
       return;
     }
+    if (needsShippingZone && !needsShopProfile && !shippingZoneId) {
+      toast("Choisis ta zone d’expédition.", "error");
+      return;
+    }
     if (needsShopProfile) {
       const ok = shopFormRef.current?.submit();
       if (!ok) {
-        toast("Complète le dossier boutique (description et pièces KYC).", "error");
+        toast("Complète le dossier boutique (zone, description et pièces KYC).", "error");
         return;
       }
     }
@@ -963,6 +999,13 @@ export default function InscriptionPage() {
               </div>
             )}
           </div>
+
+          {needsShippingZone && !needsShopProfile && (
+            <ShippingZoneField
+              value={shippingZoneId}
+              onChange={setShippingZoneId}
+            />
+          )}
 
           {needsShopProfile && signupRole && (
             <div className="space-y-3 border-t border-border pt-5">

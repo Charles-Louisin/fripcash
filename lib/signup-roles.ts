@@ -8,6 +8,10 @@ export const SIGNUP_ROLES = [
 
 export type SignupRole = (typeof SIGNUP_ROLES)[number];
 
+export function signupRoleNeedsShippingZone(role: SignupRole | null) {
+  return !!role && role !== "acheteur";
+}
+
 export type SignupRoleOption = {
   id: SignupRole;
   title: string;

@@ -33,6 +33,7 @@ export function useApplyForShop() {
       shopKind: "standard" | "proximite" | "enseigne" | string;
       name: string;
       description?: string;
+      shippingZoneId?: string;
     }) => {
       const shopKind = (SHOP_KIND_TO_API[body.shopKind] ||
         body.shopKind.toUpperCase()) as "STANDARD" | "PROXIMITE" | "ENSEIGNE";
@@ -40,6 +41,7 @@ export function useApplyForShop() {
         shopKind,
         name: body.name,
         description: body.description,
+        shippingZoneId: body.shippingZoneId,
       });
       return refreshMe(queryClient);
     },

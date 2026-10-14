@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { FiChevronRight } from "react-icons/fi";
@@ -82,10 +82,13 @@ export function HomeSpotlight() {
       ),
     [listings]
   );
+  const promoScrollRef = useRef<HTMLDivElement>(null);
   const [promoIndex, setPromoIndex] = useState(0);
-  const promo = promotions.length
-    ? promotions[promoIndex % promotions.length]
-    : undefined;
+  const onPromoScroll = () => {
+    const el = promoScrollRef.current;
+    if (!el || !el.clientWidth) return;
+    setPromoIndex(Math.round(el.scrollLeft / el.clientWidth));
+  };
 
   const byDest = useMemo(() => {
     const map = new Map<string, typeof listings>();
@@ -109,53 +112,68 @@ export function HomeSpotlight() {
         </div>
 
         {isLoading ? (
-          <div className="h-52 animate-pulse rounded-3xl bg-muted" />
-        ) : promo ? (
+          <div className="h-52 animate-pulse rounded-3xl bg-muted sm:h-60" />
+        ) : promotions.length ? (
           <div>
-            <Link
-              href={`/article/${promo._id}`}
-              className="relative block h-52 overflow-hidden rounded-3xl text-white shadow-sm sm:h-60"
-              style={{
-                backgroundImage: promo.images?.[0]
-                  ? `linear-gradient(180deg, rgba(40,20,10,0.15) 0%, rgba(40,20,10,0.72) 100%), url(${promo.images[0]})`
-                  : "linear-gradient(160deg, #8a5a45, #5c3a2e)",
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
+            <div
+              ref={promoScrollRef}
+              onScroll={onPromoScroll}
+              className="flex flex-nowrap overflow-x-auto scrollbar-hide snap-x snap-mandatory touch-pan-x overscroll-x-contain"
+              style={{ WebkitOverflowScrolling: "touch" }}
             >
-              <div className="absolute left-4 top-4 flex items-center gap-2">
-                {universeMeta(promo.destination)?.label && (
-                  <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-semibold text-foreground">
-                    {universeMeta(promo.destination)?.label}
-                  </span>
-                )}
-                {promo.compareAtPrice != null && promo.compareAtPrice > promo.price && (
-                  <span className="inline-flex items-center rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">
-                    -
-                    {Math.round(
-                      (1 - promo.price / promo.compareAtPrice) * 100
+              {promotions.map((promo) => (
+                <Link
+                  key={promo._id}
+                  href={`/article/${promo._id}`}
+                  className="relative block h-52 min-w-full shrink-0 snap-center overflow-hidden rounded-3xl text-white shadow-sm sm:h-60"
+                  style={{
+                    backgroundImage: promo.images?.[0]
+                      ? `linear-gradient(180deg, rgba(40,20,10,0.15) 0%, rgba(40,20,10,0.72) 100%), url(${promo.images[0]})`
+                      : "linear-gradient(160deg, #8a5a45, #5c3a2e)",
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                  }}
+                >
+                  <div className="absolute left-4 top-4 flex items-center gap-2">
+                    {universeMeta(promo.destination)?.label && (
+                      <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-semibold text-foreground">
+                        {universeMeta(promo.destination)?.label}
+                      </span>
                     )}
-                    %
-                  </span>
-                )}
-              </div>
-              <div className="absolute inset-x-0 bottom-0 p-5">
-                <p className="text-lg font-semibold leading-tight">{promo.title}</p>
-                <p className="mt-1 flex items-baseline gap-2">
-                  <span className="text-xl font-bold">
-                    {promo.price.toLocaleString("fr-FR")} GNF
-                  </span>
-                  {promo.compareAtPrice != null && (
-                    <span className="text-sm line-through opacity-80">
-                      {promo.compareAtPrice.toLocaleString("fr-FR")} GNF
-                    </span>
-                  )}
-                </p>
-                {promo.seller?.pseudo && (
-                  <p className="mt-1 text-sm opacity-90">{promo.seller.pseudo}</p>
-                )}
-              </div>
-            </Link>
+                    {promo.compareAtPrice != null &&
+                      promo.compareAtPrice > promo.price && (
+                        <span className="inline-flex items-center rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">
+                          -
+                          {Math.round(
+                            (1 - promo.price / promo.compareAtPrice) * 100
+                          )}
+                          %
+                        </span>
+                      )}
+                  </div>
+                  <div className="absolute inset-x-0 bottom-0 p-5">
+                    <p className="text-lg font-semibold leading-tight">
+                      {promo.title}
+                    </p>
+                    <p className="mt-1 flex items-baseline gap-2">
+                      <span className="text-xl font-bold">
+                        {promo.price.toLocaleString("fr-FR")} GNF
+                      </span>
+                      {promo.compareAtPrice != null && (
+                        <span className="text-sm line-through opacity-80">
+                          {promo.compareAtPrice.toLocaleString("fr-FR")} GNF
+                        </span>
+                      )}
+                    </p>
+                    {promo.seller?.pseudo && (
+                      <p className="mt-1 text-sm opacity-90">
+                        {promo.seller.pseudo}
+                      </p>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
             {promotions.length > 1 && (
               <div className="mt-3 flex justify-center gap-1.5">
                 {promotions.slice(0, 8).map((item, i) => (
@@ -163,7 +181,15 @@ export function HomeSpotlight() {
                     key={item._id}
                     type="button"
                     aria-label={`Promotion ${i + 1}`}
-                    onClick={() => setPromoIndex(i)}
+                    onClick={() => {
+                      const el = promoScrollRef.current;
+                      if (!el) return;
+                      el.scrollTo({
+                        left: i * el.clientWidth,
+                        behavior: "smooth",
+                      });
+                      setPromoIndex(i);
+                    }}
                     className={`h-1.5 rounded-full transition-all ${
                       i === promoIndex ? "w-5 bg-primary" : "w-1.5 bg-primary/30"
                     }`}

@@ -114,6 +114,7 @@ function MyArticlesInner() {
     () => buildCategoryOptions(catalogRows),
     [catalogRows]
   );
+  const hasShippingZone = Boolean(user?.shippingZoneId);
   const createArticle = useCreateArticle();
   const updateArticle = useUpdateArticle();
   const deleteArticleMut = useDeleteArticle();
@@ -208,6 +209,13 @@ function MyArticlesInner() {
           ? `La mise en ligne s’ouvre après validation de ta ${account.shortLabel.toLowerCase()} par l’équipe.`
           : "Ce compte n’est pas encore autorisé à publier.",
         "info"
+      );
+      return;
+    }
+    if (!hasShippingZone) {
+      showToast(
+        "Définis ta zone d’expédition dans ton profil avant de publier.",
+        "error"
       );
       return;
     }
@@ -435,6 +443,13 @@ function MyArticlesInner() {
       showToast("Ajoute au moins une photo.", "error");
       return;
     }
+    if (!hasShippingZone) {
+      showToast(
+        "Définis ta zone d’expédition dans ton profil avant de publier.",
+        "error"
+      );
+      return;
+    }
     let compareAt: number | null = null;
     if (formData.discountEnabled) {
       compareAt = parseInt(formData.compareAtPrice, 10);
@@ -563,7 +578,7 @@ function MyArticlesInner() {
         <button
           type="button"
           onClick={openAddSheet}
-          disabled={!canCreateListing}
+          disabled={!canCreateListing || !hasShippingZone}
           className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <FiPlus className="h-4 w-4" />
@@ -571,7 +586,20 @@ function MyArticlesInner() {
         </button>
       </div>
 
-      {account.requiresAdminApproval ? (
+      {canCreateListing && !hasShippingZone ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-amber-900">
+            Définis ta zone d’expédition dans ton profil. Sans cette info, tes
+            publications sont bloquées.
+          </p>
+          <Link
+            href="/dashboard/profil"
+            className="h-9 px-4 inline-flex items-center justify-center rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90"
+          >
+            Ouvrir le profil
+          </Link>
+        </div>
+      ) : account.requiresAdminApproval ? (
         <ShopVerificationBanner type={account} />
       ) : !canCreateListing ? (
         <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

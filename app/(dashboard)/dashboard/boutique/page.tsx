@@ -106,6 +106,16 @@ function BoutiqueInner() {
                   <dd className="font-medium">{account.destination}</dd>
                 </div>
               )}
+              {me?.shippingZoneId && (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Zone d’expédition</dt>
+                  <dd className="font-medium">
+                    <Link href="/dashboard/profil" className="text-primary hover:underline">
+                      Modifier dans le profil
+                    </Link>
+                  </dd>
+                </div>
+              )}
             </dl>
             {(account.verificationStatus === "pending" ||
               account.verificationStatus === "rejected") && (

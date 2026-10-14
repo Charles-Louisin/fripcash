@@ -21,6 +21,7 @@ import { useCheckout, useAddCartItem, useClearServerCart } from "@/hooks/use-car
 import { fetchPayment, fetchZones, fetchTariffs } from "@/lib/api";
 import { isValidEmail } from "@/lib/auth-country";
 import { parseGnMobile } from "@/lib/gn-phone";
+import { cartShippingGnf } from "@/lib/shipping-tariff";
 import { EmptyStateLottie } from "@/components/empty-state-lottie";
 import {
   FiHome,
@@ -81,14 +82,10 @@ export function CheckoutFlow() {
   const shippingFees =
     !mounted || !toZoneId
       ? 0
-      : [...new Set(displayItems.map((i) => i.zoneId).filter(Boolean))].reduce(
-          (sum, from) => {
-            const t = tariffs.find(
-              (row) => row.fromZoneId === from && row.toZoneId === toZoneId
-            );
-            return sum + (t?.amountGnf || 0);
-          },
-          0
+      : cartShippingGnf(
+          tariffs,
+          toZoneId,
+          displayItems.map((i) => i.zoneId)
         );
 
   const hasNegotiable = displayItems.some((i) => i.negotiable === true);

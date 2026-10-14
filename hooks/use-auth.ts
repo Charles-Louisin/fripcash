@@ -46,6 +46,7 @@ export function mapMeToUiUser(me: Me) {
     emailVerified: !!me.emailVerified,
     city: me.city || "",
     bio: me.bio || "",
+    shippingZoneId: me.shippingZoneId || me.seller?.shippingZoneId || null,
     role,
     shopKind: me.seller?.shopKind ?? null,
     seller: me.seller,
@@ -81,7 +82,11 @@ export function useMe() {
 export function useBecomeParticulier() {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: async (body?: { displayName?: string; bio?: string }) => {
+    mutationFn: async (body?: {
+      displayName?: string;
+      bio?: string;
+      shippingZoneId?: string;
+    }) => {
       await becomeParticulier(body);
       return fetchMe();
     },
@@ -92,8 +97,11 @@ export function useBecomeParticulier() {
   });
 
   /** Callable for existing UI: `becomeParticulier()` */
-  return (body?: { displayName?: string; bio?: string }) =>
-    mutation.mutateAsync(body);
+  return (body?: {
+    displayName?: string;
+    bio?: string;
+    shippingZoneId?: string;
+  }) => mutation.mutateAsync(body);
 }
 
 /** @deprecated Prefer OTP on /connexion */
@@ -198,6 +206,7 @@ export function useUpdateProfile() {
         avatarUrl: body.avatar,
         coverUrl: body.coverUrl,
         phone: body.phone,
+        shippingZoneId: body.shippingZoneId || undefined,
       });
       return { success: true, user: mapMeToUiUser(me) };
     },

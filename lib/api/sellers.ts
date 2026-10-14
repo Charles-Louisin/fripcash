@@ -5,6 +5,7 @@ import { api } from "./client";
 export async function becomeParticulier(body?: {
   displayName?: string;
   bio?: string;
+  shippingZoneId?: string;
 }) {
   const { data } = await api.post("/me/seller/particulier", body ?? {});
   return data;
@@ -24,6 +25,7 @@ export async function applyForShop(body: {
   orangeMoneyPhone?: string;
   openingTime?: string;
   closingTime?: string;
+  shippingZoneId?: string;
   documents?: Array<{
     url: string;
     storageKey?: string;
